@@ -186,3 +186,4 @@ Your Firestore structure should look like this:
 **Once you complete these steps, let me know and we'll continue building!** 🚀
 
 
+

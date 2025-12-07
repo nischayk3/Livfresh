@@ -11,6 +11,7 @@ import { UserDetailsScreen } from '../screens/Auth/UserDetailsScreen';
 import { OTPScreen } from '../screens/Auth/OTPScreen';
 import { LocationPermissionScreen } from '../screens/Auth/LocationPermissionScreen';
 import { HomeScreen } from '../screens/Main/HomeScreen';
+import { VendorDetailScreen } from '../screens/Main/VendorDetailScreen';
 import { COLORS, TYPOGRAPHY } from '../utils/constants';
 
 const Stack = createStackNavigator();
@@ -84,6 +85,7 @@ const MainTabs = () => (
 const MainStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="MainTabs" component={MainTabs} />
+    <Stack.Screen name="VendorDetail" component={VendorDetailScreen} />
     {/* Add other screens like ServiceDetail, AddressList, etc. here */}
   </Stack.Navigator>
 );

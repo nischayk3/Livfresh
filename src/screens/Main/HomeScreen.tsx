@@ -8,22 +8,25 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store';
 import { useAddressStore } from '../../store';
-import { getVendor, getVendorServices } from '../../services/firestore';
+import { getAllVendors } from '../../services/firestore';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 
-interface Service {
+interface Vendor {
   id: string;
   name: string;
-  icon?: string | any;
-  iconLibrary?: 'Ionicons' | 'MaterialIcons';
-  color?: string;
-  gradient?: [string, string];
+  area: string;
+  rating: number;
+  totalRatings: number;
+  imageUrl: string;
+  deliveryTime: string;
+  minOrder: number;
 }
 
 const PROMOS = [
@@ -43,62 +46,29 @@ const PROMOS = [
   },
 ];
 
-// Service icons mapping
-const SERVICE_ICONS: Record<string, { name: keyof typeof Ionicons.glyphMap; library: 'Ionicons' | 'MaterialIcons' }> = {
-  'wash_fold': { name: 'shirt-outline', library: 'Ionicons' },
-  'wash_iron': { name: 'shirt', library: 'Ionicons' },
-  'shoe_clean': { name: 'footsteps', library: 'Ionicons' },
-  'bag_clean': { name: 'bag-outline', library: 'Ionicons' },
-  'dry_clean': { name: 'sparkles', library: 'Ionicons' },
-};
-
-const SERVICE_GRADIENTS: [string, string][] = [
-  [COLORS.service1, COLORS.service1Dark],
-  [COLORS.service2, COLORS.service2Dark],
-  [COLORS.service3, COLORS.service3Dark],
-  [COLORS.service4, COLORS.service4Dark],
-];
-
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuthStore();
   const { currentAddress } = useAddressStore();
   
-  const [services, setServices] = useState<Service[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadData();
+    loadVendors();
   }, []);
 
-  const loadData = async () => {
+  const loadVendors = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const vendor = await getVendor('vendor_1');
-      if (!vendor) {
-        throw new Error('Vendor not found');
-      }
-      
-      const vendorServices = await getVendorServices('vendor_1');
-      
-      const mappedServices = vendorServices.map((service: any, index: number) => {
-        const serviceIcon = SERVICE_ICONS[service.id] || { name: 'shirt-outline', library: 'Ionicons' };
-        return {
-          id: service.id,
-          name: service.name || 'Service',
-          icon: serviceIcon.name as string,
-          iconLibrary: serviceIcon.library,
-          gradient: SERVICE_GRADIENTS[index % SERVICE_GRADIENTS.length],
-        };
-      });
-      
-      setServices(mappedServices);
+      const vendorsData = await getAllVendors();
+      setVendors(vendorsData as Vendor[]);
     } catch (err: any) {
-      console.error('Error loading data:', err);
-      setError(err.message || 'Failed to load services');
+      console.error('Error loading vendors:', err);
+      setError(err.message || 'Failed to load vendors');
     } finally {
       setLoading(false);
     }
@@ -112,17 +82,44 @@ export const HomeScreen: React.FC = () => {
     return 'Good Night!';
   };
 
-  const handleServicePress = (serviceId: string) => {
-    navigation.navigate('ServiceDetail' as never, { serviceId } as never);
+  const handleVendorPress = (vendorId: string) => {
+    (navigation as any).navigate('VendorDetail', { vendorId });
   };
 
   const handleAddressPress = () => {
     navigation.navigate('AddressList' as never);
   };
 
+  const renderStars = (rating: number) => {
+    const stars = [];
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 >= 0.5;
+
+    for (let i = 0; i < fullStars; i++) {
+      stars.push(
+        <Ionicons key={i} name="star" size={14} color="#FBBF24" />
+      );
+    }
+
+    if (hasHalfStar) {
+      stars.push(
+        <Ionicons key="half" name="star-half" size={14} color="#FBBF24" />
+      );
+    }
+
+    const emptyStars = 5 - Math.ceil(rating);
+    for (let i = 0; i < emptyStars; i++) {
+      stars.push(
+        <Ionicons key={`empty-${i}`} name="star-outline" size={14} color="#D1D5DB" />
+      );
+    }
+
+    return stars;
+  };
+
   const renderPromoItem = ({ item }: { item: typeof PROMOS[0] }) => (
     <LinearGradient
-      colors={item.gradient}
+      colors={item.gradient as [string, string]}
       style={styles.promoCard}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
@@ -135,39 +132,53 @@ export const HomeScreen: React.FC = () => {
     </LinearGradient>
   );
 
-  const renderServiceItem = ({ item }: { item: Service }) => {
-    const IconComponent = item.iconLibrary === 'MaterialIcons' ? MaterialIcons : Ionicons;
-    const gradientColors: [string, string] = item.gradient || [COLORS.service1, COLORS.service1Dark];
-    return (
-      <TouchableOpacity
-        style={styles.serviceTileContainer}
-        onPress={() => handleServicePress(item.id)}
-        activeOpacity={0.8}
-      >
-        <LinearGradient
-          colors={gradientColors}
-          style={styles.serviceTile}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <View style={styles.serviceIconContainer}>
-            <IconComponent 
-              name={item.icon as any} 
-              size={48} 
-              color={COLORS.primary} 
-            />
+  const renderVendorItem = ({ item }: { item: Vendor }) => (
+    <TouchableOpacity
+      style={styles.vendorCard}
+      onPress={() => handleVendorPress(item.id)}
+      activeOpacity={0.8}
+    >
+      <Image 
+        source={{ uri: item.imageUrl || 'https://via.placeholder.com/300x200' }} 
+        style={styles.vendorImage}
+        resizeMode="cover"
+      />
+      <View style={styles.vendorInfo}>
+        <View style={styles.vendorHeader}>
+          <Text style={styles.vendorName} numberOfLines={1}>{item.name}</Text>
+          <View style={styles.ratingBadge}>
+            <Ionicons name="star" size={12} color="#FBBF24" />
+            <Text style={styles.ratingText}>{item.rating?.toFixed(1) || '0.0'}</Text>
           </View>
-          <Text style={styles.serviceName}>{item.name}</Text>
-        </LinearGradient>
-      </TouchableOpacity>
-    );
-  };
+        </View>
+        
+        <View style={styles.vendorMeta}>
+          <View style={styles.metaItem}>
+            <Ionicons name="location" size={14} color={COLORS.textSecondary} />
+            <Text style={styles.metaText}>{item.area}</Text>
+          </View>
+          <View style={styles.metaItem}>
+            <Ionicons name="time-outline" size={14} color={COLORS.textSecondary} />
+            <Text style={styles.metaText}>{item.deliveryTime || '2-3 hours'}</Text>
+          </View>
+        </View>
+
+        <View style={styles.vendorFooter}>
+          <View style={styles.starsContainer}>
+            {renderStars(item.rating || 0)}
+            <Text style={styles.ratingCount}>({item.totalRatings || 0})</Text>
+          </View>
+          <Text style={styles.minOrderText}>Min ₹{item.minOrder || 100}</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
 
   if (loading) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Loading services...</Text>
+        <Text style={styles.loadingText}>Loading vendors...</Text>
       </View>
     );
   }
@@ -177,7 +188,7 @@ export const HomeScreen: React.FC = () => {
       <View style={styles.centerContainer}>
         <Ionicons name="alert-circle-outline" size={64} color={COLORS.error} />
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={loadData}>
+        <TouchableOpacity style={styles.retryButton} onPress={loadVendors}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -185,60 +196,85 @@ export const HomeScreen: React.FC = () => {
   }
 
   return (
-    <ScrollView 
-      style={styles.container} 
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={styles.scrollContent}
-    >
-      {/* Address Dropdown */}
-      <View style={styles.addressSection}>
-        <Text style={styles.addressLabel}>DELIVER TO</Text>
-        <TouchableOpacity 
-          style={styles.addressDropdown} 
-          onPress={handleAddressPress}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="location" size={20} color={COLORS.primary} style={styles.addressIcon} />
-          <Text style={styles.addressText} numberOfLines={1}>
-            {currentAddress || 'Select address'}
+    <View style={styles.container}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Address Dropdown */}
+        <View style={styles.addressSection}>
+          <Text style={styles.addressLabel}>DELIVER TO</Text>
+          <TouchableOpacity 
+            style={styles.addressDropdown} 
+            onPress={handleAddressPress}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="location" size={20} color={COLORS.primary} style={styles.addressIcon} />
+            <Text style={styles.addressText} numberOfLines={1}>
+              {currentAddress || 'Select address'}
+            </Text>
+            <Ionicons name="chevron-down" size={20} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Greeting */}
+        <View style={styles.greetingSection}>
+          <Text style={styles.greeting}>
+            Hey <Text style={styles.greetingName}>{user?.name || 'User'}</Text>,{'\n'}
+            {getGreeting()}
           </Text>
-          <Ionicons name="chevron-down" size={20} color={COLORS.textSecondary} />
-        </TouchableOpacity>
-      </View>
+        </View>
 
-      {/* Greeting */}
-      <View style={styles.greetingSection}>
-        <Text style={styles.greeting}>
-          Hey <Text style={styles.greetingName}>{user?.name || 'User'}</Text>,{'\n'}
-          {getGreeting()}
-        </Text>
-      </View>
+        {/* Promo Carousel */}
+        <View style={styles.promoSection}>
+          <FlatList
+            data={PROMOS}
+            renderItem={renderPromoItem}
+            keyExtractor={(item) => item.id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.promoList}
+            scrollEnabled={true}
+            nestedScrollEnabled={true}
+          />
+        </View>
 
-      {/* Promo Carousel */}
-      <View style={styles.promoSection}>
-        <FlatList
-          data={PROMOS}
-          renderItem={renderPromoItem}
-          keyExtractor={(item) => item.id}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.promoList}
-        />
-      </View>
-
-      {/* Services Grid */}
-      <View style={styles.servicesSection}>
-        <Text style={styles.sectionTitle}>Our Services</Text>
-        <FlatList
-          data={services}
-          renderItem={renderServiceItem}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          scrollEnabled={false}
-          contentContainerStyle={styles.servicesGrid}
-        />
-      </View>
-    </ScrollView>
+        {/* Vendors List */}
+        <View style={styles.vendorsSection}>
+          <Text style={styles.sectionTitle}>Nearby Laundry Services</Text>
+          {vendors.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="shirt-outline" size={64} color={COLORS.textSecondary} />
+              <Text style={styles.emptyText}>No vendors available</Text>
+              <Text style={styles.emptySubtext}>Check back later or try a different area</Text>
+              <TouchableOpacity 
+                style={styles.seedButton} 
+                onPress={async () => {
+                  try {
+                    const { seedVendors } = await import('../../services/vendorSeed');
+                    const result = await seedVendors();
+                    Alert.alert('Success', `Seeded ${result.count} vendors! Please refresh.`);
+                    loadVendors();
+                  } catch (error: any) {
+                    Alert.alert('Error', error.message || 'Failed to seed vendors');
+                  }
+                }}
+              >
+                <Text style={styles.seedButtonText}>Seed Vendors (Dev Only)</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View>
+              {vendors.map((vendor) => (
+                <View key={vendor.id}>
+                  {renderVendorItem({ item: vendor })}
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    </View>
   );
 };
 
@@ -351,7 +387,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     opacity: 0.95,
   },
-  servicesSection: {
+  vendorsSection: {
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.lg,
   },
@@ -361,35 +397,110 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
     fontWeight: '700',
   },
-  servicesGrid: {
-    gap: SPACING.md,
-  },
-  serviceTileContainer: {
-    flex: 1,
-    margin: SPACING.xs,
+  vendorCard: {
+    backgroundColor: COLORS.background,
+    borderRadius: RADIUS.xl,
+    marginBottom: SPACING.lg,
+    overflow: 'hidden',
     ...SHADOWS.md,
   },
-  serviceTile: {
-    aspectRatio: 1,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 160,
+  vendorImage: {
+    width: '100%',
+    height: 180,
+    backgroundColor: COLORS.backgroundLight,
   },
-  serviceIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: SPACING.md,
-    ...SHADOWS.sm,
+  vendorInfo: {
+    padding: SPACING.md,
   },
-  serviceName: {
+  vendorHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  vendorName: {
     ...TYPOGRAPHY.bodyBold,
     color: COLORS.text,
-    textAlign: 'center',
+    flex: 1,
+    fontWeight: '700',
+  },
+  ratingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primaryLight + '20',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.sm,
+  },
+  ratingText: {
+    ...TYPOGRAPHY.bodySmall,
+    color: COLORS.primary,
+    fontWeight: '700',
+    marginLeft: SPACING.xs,
+  },
+  vendorMeta: {
+    flexDirection: 'row',
+    marginBottom: SPACING.sm,
+  },
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: SPACING.md,
+  },
+  metaText: {
+    ...TYPOGRAPHY.bodySmall,
+    color: COLORS.textSecondary,
+    marginLeft: SPACING.xs,
+  },
+  vendorFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: SPACING.xs,
+    paddingTop: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
+  },
+  starsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  ratingCount: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    marginLeft: SPACING.xs,
+  },
+  minOrderText: {
+    ...TYPOGRAPHY.bodySmall,
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.xl * 2,
+  },
+  emptyText: {
+    ...TYPOGRAPHY.subheading,
+    color: COLORS.text,
+    marginTop: SPACING.md,
+    fontWeight: '600',
+  },
+  emptySubtext: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.xs,
+  },
+  seedButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.md,
+    marginTop: SPACING.lg,
+    ...SHADOWS.md,
+  },
+  seedButtonText: {
+    ...TYPOGRAPHY.button,
+    color: COLORS.background,
   },
 });

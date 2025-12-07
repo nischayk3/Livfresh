@@ -23,6 +23,37 @@ export const getVendor = async (vendorId: string) => {
   return null;
 };
 
+// Get all vendors
+export const getAllVendors = async () => {
+  try {
+    const vendorsRef = collection(db, 'vendors');
+    const q = query(vendorsRef, where('active', '==', true), orderBy('rating', 'desc'));
+    const vendorsSnap = await getDocs(q);
+    return vendorsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error: any) {
+    console.error('Error getting vendors:', error);
+    throw error;
+  }
+};
+
+// Get vendors by area
+export const getVendorsByArea = async (area: string) => {
+  try {
+    const vendorsRef = collection(db, 'vendors');
+    const q = query(
+      vendorsRef, 
+      where('active', '==', true),
+      where('area', '==', area),
+      orderBy('rating', 'desc')
+    );
+    const vendorsSnap = await getDocs(q);
+    return vendorsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error: any) {
+    console.error('Error getting vendors by area:', error);
+    throw error;
+  }
+};
+
 // Get vendor services
 export const getVendorServices = async (vendorId: string) => {
   const servicesRef = collection(db, 'vendors', vendorId, 'services');

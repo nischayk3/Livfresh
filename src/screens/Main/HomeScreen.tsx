@@ -1,33 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   FlatList,
   TouchableOpacity,
-  ActivityIndicator,
   StyleSheet,
   ScrollView,
-  Alert,
-  Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store';
 import { useAddressStore } from '../../store';
-import { getAllVendors } from '../../services/firestore';
+import { ServiceDetailScreen } from './ServiceDetailScreen';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
-
-interface Vendor {
-  id: string;
-  name: string;
-  area: string;
-  rating: number;
-  totalRatings: number;
-  imageUrl: string;
-  deliveryTime: string;
-  minOrder: number;
-}
 
 const PROMOS = [
   { 
@@ -46,33 +32,58 @@ const PROMOS = [
   },
 ];
 
+const SERVICES = [
+  {
+    id: 'wash_fold',
+    name: 'Wash & Fold',
+    icon: 'water-outline',
+    color: COLORS.primary,
+    description: 'Regular wash and fold service',
+  },
+  {
+    id: 'wash_iron',
+    name: 'Wash & Iron',
+    icon: 'shirt-outline',
+    color: COLORS.primary,
+    description: 'Wash, dry, and iron service',
+  },
+  {
+    id: 'blanket_wash',
+    name: 'Blanket Wash',
+    icon: 'home-outline',
+    color: COLORS.success,
+    description: 'Professional blanket cleaning',
+  },
+  {
+    id: 'premium_laundry',
+    name: 'Premium Laundry',
+    icon: 'diamond-outline',
+    color: '#FFD700',
+    description: 'Premium care for delicate garments',
+  },
+  {
+    id: 'dry_clean',
+    name: 'Dry Cleaning',
+    icon: 'sparkles-outline',
+    color: '#9333EA',
+    description: 'Premium dry cleaning service',
+  },
+  {
+    id: 'shoe_clean',
+    name: 'Shoe Cleaning',
+    icon: 'footsteps-outline',
+    color: COLORS.info,
+    description: 'Professional shoe cleaning',
+  },
+];
+
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuthStore();
   const { currentAddress } = useAddressStore();
   
-  const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadVendors();
-  }, []);
-
-  const loadVendors = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const vendorsData = await getAllVendors();
-      setVendors(vendorsData as Vendor[]);
-    } catch (err: any) {
-      console.error('Error loading vendors:', err);
-      setError(err.message || 'Failed to load vendors');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [selectedService, setSelectedService] = useState<string | null>(null);
+  const [serviceModalVisible, setServiceModalVisible] = useState(false);
 
   const getGreeting = (): string => {
     const hour = new Date().getHours();
@@ -82,39 +93,18 @@ export const HomeScreen: React.FC = () => {
     return 'Good Night!';
   };
 
-  const handleVendorPress = (vendorId: string) => {
-    (navigation as any).navigate('VendorDetail', { vendorId });
+  const handleServicePress = (serviceId: string) => {
+    setSelectedService(serviceId);
+    setServiceModalVisible(true);
+  };
+
+  const handleCloseServiceModal = () => {
+    setServiceModalVisible(false);
+    setSelectedService(null);
   };
 
   const handleAddressPress = () => {
     navigation.navigate('AddressList' as never);
-  };
-
-  const renderStars = (rating: number) => {
-    const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 >= 0.5;
-
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(
-        <Ionicons key={i} name="star" size={14} color="#FBBF24" />
-      );
-    }
-
-    if (hasHalfStar) {
-      stars.push(
-        <Ionicons key="half" name="star-half" size={14} color="#FBBF24" />
-      );
-    }
-
-    const emptyStars = 5 - Math.ceil(rating);
-    for (let i = 0; i < emptyStars; i++) {
-      stars.push(
-        <Ionicons key={`empty-${i}`} name="star-outline" size={14} color="#D1D5DB" />
-      );
-    }
-
-    return stars;
   };
 
   const renderPromoItem = ({ item }: { item: typeof PROMOS[0] }) => (
@@ -132,68 +122,20 @@ export const HomeScreen: React.FC = () => {
     </LinearGradient>
   );
 
-  const renderVendorItem = ({ item }: { item: Vendor }) => (
+  const renderServiceCard = (service: typeof SERVICES[0]) => (
     <TouchableOpacity
-      style={styles.vendorCard}
-      onPress={() => handleVendorPress(item.id)}
+      key={service.id}
+      style={styles.serviceCard}
+      onPress={() => handleServicePress(service.id)}
       activeOpacity={0.8}
     >
-      <Image 
-        source={{ uri: item.imageUrl || 'https://via.placeholder.com/300x200' }} 
-        style={styles.vendorImage}
-        resizeMode="cover"
-      />
-      <View style={styles.vendorInfo}>
-        <View style={styles.vendorHeader}>
-          <Text style={styles.vendorName} numberOfLines={1}>{item.name}</Text>
-          <View style={styles.ratingBadge}>
-            <Ionicons name="star" size={12} color="#FBBF24" />
-            <Text style={styles.ratingText}>{item.rating?.toFixed(1) || '0.0'}</Text>
-          </View>
-        </View>
-        
-        <View style={styles.vendorMeta}>
-          <View style={styles.metaItem}>
-            <Ionicons name="location" size={14} color={COLORS.textSecondary} />
-            <Text style={styles.metaText}>{item.area}</Text>
-          </View>
-          <View style={styles.metaItem}>
-            <Ionicons name="time-outline" size={14} color={COLORS.textSecondary} />
-            <Text style={styles.metaText}>{item.deliveryTime || '2-3 hours'}</Text>
-          </View>
-        </View>
-
-        <View style={styles.vendorFooter}>
-          <View style={styles.starsContainer}>
-            {renderStars(item.rating || 0)}
-            <Text style={styles.ratingCount}>({item.totalRatings || 0})</Text>
-          </View>
-          <Text style={styles.minOrderText}>Min ₹{item.minOrder || 100}</Text>
-        </View>
+      <View style={[styles.serviceIconContainer, { backgroundColor: service.color + '20' }]}>
+        <Ionicons name={service.icon as any} size={40} color={service.color} />
       </View>
+      <Text style={styles.serviceName}>{service.name}</Text>
+      <Text style={styles.serviceDescription}>{service.description}</Text>
     </TouchableOpacity>
   );
-
-  if (loading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Loading vendors...</Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.centerContainer}>
-        <Ionicons name="alert-circle-outline" size={64} color={COLORS.error} />
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={loadVendors}>
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.container}>
@@ -239,41 +181,27 @@ export const HomeScreen: React.FC = () => {
           />
         </View>
 
-        {/* Vendors List */}
-        <View style={styles.vendorsSection}>
-          <Text style={styles.sectionTitle}>Nearby Laundry Services</Text>
-          {vendors.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="shirt-outline" size={64} color={COLORS.textSecondary} />
-              <Text style={styles.emptyText}>No vendors available</Text>
-              <Text style={styles.emptySubtext}>Check back later or try a different area</Text>
-              <TouchableOpacity 
-                style={styles.seedButton} 
-                onPress={async () => {
-                  try {
-                    const { seedVendors } = await import('../../services/vendorSeed');
-                    const result = await seedVendors();
-                    Alert.alert('Success', `Seeded ${result.count} vendors! Please refresh.`);
-                    loadVendors();
-                  } catch (error: any) {
-                    Alert.alert('Error', error.message || 'Failed to seed vendors');
-                  }
-                }}
-              >
-                <Text style={styles.seedButtonText}>Seed Vendors (Dev Only)</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View>
-              {vendors.map((vendor) => (
-                <View key={vendor.id}>
-                  {renderVendorItem({ item: vendor })}
-                </View>
-              ))}
-            </View>
-          )}
+        {/* Services Section */}
+        <View style={styles.servicesSection}>
+          <Text style={styles.sectionTitle}>Our Services</Text>
+          <Text style={styles.sectionSubtitle}>
+            Pick the service you need. All orders delivered within 6 hours.
+          </Text>
+          <View style={styles.servicesGrid}>
+            {SERVICES.map(renderServiceCard)}
+          </View>
         </View>
       </ScrollView>
+
+      {/* Service Detail Modal */}
+      {selectedService && (
+        <ServiceDetailScreen
+          visible={serviceModalVisible}
+          onClose={handleCloseServiceModal}
+          vendorId="default" // Using default vendor since we're not using vendor model
+          serviceId={selectedService}
+        />
+      )}
     </View>
   );
 };
@@ -285,36 +213,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: SPACING.xl * 2,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-    padding: SPACING.xl,
-  },
-  loadingText: {
-    ...TYPOGRAPHY.body,
-    color: COLORS.textSecondary,
-    marginTop: SPACING.md,
-  },
-  errorText: {
-    ...TYPOGRAPHY.body,
-    color: COLORS.error,
-    textAlign: 'center',
-    marginTop: SPACING.md,
-    marginBottom: SPACING.lg,
-  },
-  retryButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    borderRadius: RADIUS.md,
-    ...SHADOWS.md,
-  },
-  retryButtonText: {
-    ...TYPOGRAPHY.button,
-    color: COLORS.background,
   },
   addressSection: {
     paddingHorizontal: SPACING.lg,
@@ -387,120 +285,56 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     opacity: 0.95,
   },
-  vendorsSection: {
+  servicesSection: {
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.lg,
   },
   sectionTitle: {
     ...TYPOGRAPHY.subheading,
     color: COLORS.text,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.xs,
     fontWeight: '700',
   },
-  vendorCard: {
+  sectionSubtitle: {
+    ...TYPOGRAPHY.bodySmall,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.lg,
+    lineHeight: 20,
+  },
+  servicesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: SPACING.md,
+  },
+  serviceCard: {
+    width: '47%',
     backgroundColor: COLORS.background,
-    borderRadius: RADIUS.xl,
-    marginBottom: SPACING.lg,
-    overflow: 'hidden',
-    ...SHADOWS.md,
-  },
-  vendorImage: {
-    width: '100%',
-    height: 180,
-    backgroundColor: COLORS.backgroundLight,
-  },
-  vendorInfo: {
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
-  },
-  vendorHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.sm,
   },
-  vendorName: {
-    ...TYPOGRAPHY.bodyBold,
-    color: COLORS.text,
-    flex: 1,
-    fontWeight: '700',
-  },
-  ratingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primaryLight + '20',
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
-    borderRadius: RADIUS.sm,
-  },
-  ratingText: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.primary,
-    fontWeight: '700',
-    marginLeft: SPACING.xs,
-  },
-  vendorMeta: {
-    flexDirection: 'row',
-    marginBottom: SPACING.sm,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: SPACING.md,
-  },
-  metaText: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textSecondary,
-    marginLeft: SPACING.xs,
-  },
-  vendorFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: SPACING.xs,
-    paddingTop: SPACING.sm,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
-  },
-  starsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  ratingCount: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-    marginLeft: SPACING.xs,
-  },
-  minOrderText: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.primary,
-    fontWeight: '600',
-  },
-  emptyContainer: {
+  serviceIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: SPACING.xl * 2,
+    marginBottom: SPACING.sm,
   },
-  emptyText: {
-    ...TYPOGRAPHY.subheading,
+  serviceName: {
+    ...TYPOGRAPHY.bodyBold,
     color: COLORS.text,
-    marginTop: SPACING.md,
+    textAlign: 'center',
     fontWeight: '600',
+    marginBottom: SPACING.xs,
   },
-  emptySubtext: {
-    ...TYPOGRAPHY.body,
+  serviceDescription: {
+    ...TYPOGRAPHY.caption,
     color: COLORS.textSecondary,
-    marginTop: SPACING.xs,
-  },
-  seedButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    borderRadius: RADIUS.md,
-    marginTop: SPACING.lg,
-    ...SHADOWS.md,
-  },
-  seedButtonText: {
-    ...TYPOGRAPHY.button,
-    color: COLORS.background,
+    textAlign: 'center',
   },
 });

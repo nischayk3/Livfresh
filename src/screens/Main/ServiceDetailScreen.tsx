@@ -81,11 +81,25 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   const loadData = async () => {
     try {
       setLoading(true);
-      const vendorData = await getVendor(vendorId);
-      const services = await getVendorServices(vendorId);
-      const serviceData = services.find((s: any) => s.id === serviceId);
       
-      setVendor(vendorData);
+      // Default service data (no vendor dependency)
+      const defaultServices: Record<string, any> = {
+        'wash_fold': { id: 'wash_fold', name: 'Wash & Fold', description: 'Regular wash and fold service' },
+        'wash_iron': { id: 'wash_iron', name: 'Wash & Iron', description: 'Wash, dry, and iron service' },
+        'blanket_wash': { id: 'blanket_wash', name: 'Blanket Wash', description: 'Professional blanket cleaning' },
+        'shoe_clean': { id: 'shoe_clean', name: 'Shoe Cleaning', description: 'Professional shoe cleaning service' },
+        'dry_clean': { id: 'dry_clean', name: 'Dry Cleaning', description: 'Premium dry cleaning service' },
+        'premium_laundry': { id: 'premium_laundry', name: 'Premium Laundry', description: 'Premium care for delicate and high-end garments' },
+      };
+      
+      const serviceData = defaultServices[serviceId] || { id: serviceId, name: 'Service', description: '' };
+      const defaultVendor = { 
+        id: 'default', 
+        name: 'Spinit Laundry', 
+        imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400' 
+      };
+      
+      setVendor(defaultVendor);
       setService(serviceData);
     } catch (error) {
       console.error('Error loading service:', error);
@@ -156,7 +170,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   };
 
   const handleAddToCart = () => {
-    if (!vendor || !service) return;
+    if (!service) return;
 
     const totalPrice = calculateTotal();
 
@@ -200,10 +214,10 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
     const cartItem: CartItem = {
       id: '',
-      vendorId: vendorId,
-      vendorName: vendor.name,
+      vendorId: vendorId || 'default',
+      vendorName: vendor?.name || 'Spinit Laundry',
       serviceId: serviceId,
-      serviceName: service.name,
+      serviceName: service?.name || 'Service',
       serviceType: serviceId as any,
       basePrice: totalPrice,
       totalPrice: totalPrice,

@@ -6,6 +6,7 @@ import {
   Alert,
   ActivityIndicator,
   StyleSheet,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -14,43 +15,83 @@ import { addAddress } from '../../services/firestore';
 import { useAuthStore } from '../../store';
 import { COLORS, SPACING, TYPOGRAPHY } from '../../utils/constants';
 
+// Replace with your API Key
+const GOOGLE_MAPS_API_KEY = "AIzaSyADDmG-kNKYDNa0eBoamy6nin03XkkcvWs";
+
 export const LocationPermissionScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuthStore();
   const { setCurrentAddress } = useAddressStore();
   const [loading, setLoading] = useState(false);
+  const [statusText, setStatusText] = useState('');
+
+  const getAddressFromCoordinates = async (latitude: number, longitude: number) => {
+    try {
+      // Try Google Maps Geocoding API first
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_MAPS_API_KEY}`
+      );
+      const data = await response.json();
+
+      if (data.status === 'OK' && data.results.length > 0) {
+        return data.results[0].formatted_address;
+      } else {
+        console.warn('Google Maps API failed, falling back to system geocoder:', data.status);
+        // Fallback to Expo Location (System Geocoding)
+        const geocode = await Location.reverseGeocodeAsync({ latitude, longitude });
+        if (geocode.length > 0) {
+          const address = geocode[0];
+          return [
+            address.name,
+            address.street,
+            address.district,
+            address.city,
+            address.region,
+            address.postalCode
+          ].filter(Boolean).join(', ');
+        }
+      }
+    } catch (error) {
+      console.error("Geocoding error", error);
+      // Fallback on error
+      const geocode = await Location.reverseGeocodeAsync({ latitude, longitude });
+      if (geocode.length > 0) {
+        const address = geocode[0];
+        return [
+          address.street,
+          address.city,
+          address.region
+        ].filter(Boolean).join(', ');
+      }
+    }
+    return null;
+  };
 
   const handleUseCurrentLocation = async () => {
     setLoading(true);
+    setStatusText('Requesting Permission...');
 
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      
+
       if (status !== 'granted') {
         Alert.alert('Permission Denied', 'Location permission is required. Please enter manually.', [{ text: 'OK' }]);
         setLoading(false);
         return;
       }
 
+      setStatusText('Fetching Location...');
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
 
-      const geocode = await Location.reverseGeocodeAsync({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
+      setStatusText('Finding Address...');
+      const formattedAddress = await getAddressFromCoordinates(
+        location.coords.latitude,
+        location.coords.longitude
+      );
 
-      if (geocode.length > 0) {
-        const address = geocode[0];
-        const formattedAddress = [
-          address.street,
-          address.city,
-          address.region,
-          address.postalCode,
-          address.country,
-        ].filter(Boolean).join(', ');
-
+      if (formattedAddress) {
         if (user) {
           await addAddress(
             user.uid,
@@ -70,18 +111,21 @@ export const LocationPermissionScreen: React.FC = () => {
 
         navigation.navigate('Home' as never);
       } else {
-        Alert.alert('Error', 'Could not get address. Please enter manually.');
+        Alert.alert('Error', 'Could not fetch address details. Please try again.');
       }
     } catch (error: any) {
       console.error('Location error:', error);
-      Alert.alert('Error', 'Failed to get location. Please enter manually.');
+      Alert.alert('Error', 'Failed to get location. Please check your internet/GPS.');
     } finally {
       setLoading(false);
+      setStatusText('');
     }
   };
 
   const handleManualEntry = () => {
-    navigation.navigate('AddAddress' as never);
+    // For now, navigating to Home, but ideally should go to an address search screen
+    // navigation.navigate('AddAddress' as never);
+    navigation.navigate('Home' as never);
   };
 
   return (
@@ -96,7 +140,10 @@ export const LocationPermissionScreen: React.FC = () => {
         style={[styles.button, loading && styles.buttonDisabled]}
       >
         {loading ? (
-          <ActivityIndicator color="#FFFFFF" />
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator color="#FFFFFF" size="small" />
+            <Text style={styles.loadingText}>{statusText}</Text>
+          </View>
         ) : (
           <Text style={styles.buttonText}>Use Current Location</Text>
         )}
@@ -119,7 +166,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: SPACING.md,
+    paddingHorizontal: SPACING.lg,
   },
   emoji: {
     fontSize: 80,
@@ -136,14 +183,20 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xl * 3,
     textAlign: 'center',
     color: COLORS.textSecondary,
+    maxWidth: '80%',
   },
   button: {
     width: '100%',
     backgroundColor: COLORS.primary,
-    paddingVertical: SPACING.md,
-    borderRadius: 8,
+    paddingVertical: SPACING.md + 4,
+    borderRadius: 12,
     alignItems: 'center',
     marginBottom: SPACING.md,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   buttonDisabled: {
     backgroundColor: COLORS.disabled,
@@ -152,18 +205,30 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.body,
     fontWeight: '600',
     color: COLORS.background,
+    fontSize: 16,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  loadingText: {
+    ...TYPOGRAPHY.body,
+    fontWeight: '600',
+    color: COLORS.background,
+    marginLeft: SPACING.sm,
   },
   buttonSecondary: {
     width: '100%',
-    paddingVertical: SPACING.md,
-    borderRadius: 8,
+    paddingVertical: SPACING.md + 4,
+    borderRadius: 12,
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: COLORS.primary,
   },
   buttonSecondaryText: {
     ...TYPOGRAPHY.body,
     fontWeight: '600',
     color: COLORS.primary,
+    fontSize: 16,
   },
 });

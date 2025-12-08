@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,9 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Image,
+  Keyboard,
+  Dimensions
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,6 +21,8 @@ import { requestOTP } from '../../services/auth';
 import { checkUserExists } from '../../services/firestore';
 import { useAuthStore } from '../../store';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
+
+const { width } = Dimensions.get('window');
 
 export const PhoneLoginScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -33,6 +38,11 @@ export const PhoneLoginScreen: React.FC = () => {
   const handlePhoneChange = (text: string) => {
     const formatted = formatPhone(text);
     setPhone(formatted);
+
+    // Auto-dismiss keyboard when 10 digits are entered
+    if (formatted.length === 10) {
+      Keyboard.dismiss();
+    }
   };
 
   const handleContinue = async () => {
@@ -46,17 +56,17 @@ export const PhoneLoginScreen: React.FC = () => {
 
     try {
       const formattedPhone = `+91${phone}`;
-      
+
       // Check if user exists
       const existingUser = await checkUserExists(formattedPhone);
-      
+
       // Request OTP
       await requestOTP(formattedPhone);
-      
+
       // Store phone in store
       const { setOTPData } = useAuthStore.getState();
       setOTPData(formattedPhone, existingUser?.name || '');
-      
+
       // Navigate based on user existence
       if (existingUser) {
         // Existing user - go directly to OTP
@@ -89,18 +99,23 @@ export const PhoneLoginScreen: React.FC = () => {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Illustration */}
-          <View style={styles.illustrationContainer}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="phone-portrait" size={80} color={COLORS.primary} />
-            </View>
+          {/* Logo & Branding */}
+          <View style={styles.brandingContainer}>
+            <Image
+              source={require('../../../assets/spinit_logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+            <Text style={styles.appName}>Spinit</Text>
+            <Text style={styles.tagline}>Premium Laundry Services</Text>
           </View>
 
-          <Text style={styles.heading}>Welcome to Spinit</Text>
-          <Text style={styles.subtitle}>
-            Enter your phone number to get started with{'\n'}
-            premium laundry services
-          </Text>
+          <View style={styles.welcomeContainer}>
+            <Text style={styles.heading}>Welcome Back!</Text>
+            <Text style={styles.subtitle}>
+              Enter your mobile number to login or signup
+            </Text>
+          </View>
 
           <View style={styles.inputContainer}>
             <View style={styles.phoneInputWrapper}>
@@ -115,17 +130,18 @@ export const PhoneLoginScreen: React.FC = () => {
               </LinearGradient>
               <TextInput
                 style={styles.phoneInput}
-                placeholder="Enter phone number"
+                placeholder="Mobile Number"
                 value={phone}
                 onChangeText={handlePhoneChange}
-                keyboardType="phone-pad"
+                keyboardType="number-pad"
                 maxLength={10}
                 placeholderTextColor={COLORS.textLight}
-                autoFocus
+                autoFocus={true}
+                selectionColor={COLORS.primary}
               />
               {phone.length === 10 && (
                 <View style={styles.checkContainer}>
-                  <Ionicons name="checkmark-circle" size={28} color={COLORS.success} />
+                  <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
                 </View>
               )}
             </View>
@@ -148,7 +164,7 @@ export const PhoneLoginScreen: React.FC = () => {
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
               >
-                <Text style={styles.buttonText}>Continue</Text>
+                <Text style={styles.buttonText}>Get OTP</Text>
                 <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={styles.buttonIcon} />
               </LinearGradient>
             )}
@@ -176,81 +192,100 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.xxl * 2,
+    paddingTop: SPACING.xxl,
     paddingBottom: SPACING.xl,
+    justifyContent: 'center', // Center content vertically
   },
-  illustrationContainer: {
+  brandingContainer: {
     alignItems: 'center',
-    marginBottom: SPACING.xl * 2,
-    paddingVertical: SPACING.lg,
+    marginBottom: SPACING.xl,
   },
-  iconCircle: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: COLORS.primaryLight + '30',
+  logo: {
+    width: 100,
+    height: 100,
+    marginBottom: SPACING.sm,
+  },
+  appName: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: COLORS.primary,
+    letterSpacing: -0.5,
+  },
+  tagline: {
+    ...TYPOGRAPHY.caption,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    marginTop: 4,
+  },
+  welcomeContainer: {
+    marginBottom: SPACING.xl,
     alignItems: 'center',
-    justifyContent: 'center',
-    ...SHADOWS.lg,
   },
   heading: {
     ...TYPOGRAPHY.heading,
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.xs,
     color: COLORS.text,
     textAlign: 'center',
+    fontSize: 24,
   },
   subtitle: {
     ...TYPOGRAPHY.body,
-    marginBottom: SPACING.xl * 2,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 22,
   },
   inputContainer: {
-    marginBottom: SPACING.xl * 2,
+    marginBottom: SPACING.xl,
   },
   phoneInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.xl,
     backgroundColor: COLORS.backgroundLight,
     overflow: 'hidden',
-    ...SHADOWS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    height: 56,
+    ...SHADOWS.sm,
   },
   phonePrefix: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md + 6,
-    minWidth: 100,
+    justifyContent: 'center',
+    height: '100%',
+    width: 70,
   },
   prefixIcon: {
-    marginRight: SPACING.xs,
+    display: 'none', // Hiding icon for cleaner look, just text +91
   },
   phonePrefixText: {
     ...TYPOGRAPHY.bodyBold,
     color: '#FFFFFF',
+    fontSize: 18,
   },
   phoneInput: {
     flex: 1,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md + 6,
+    height: '100%',
+    paddingHorizontal: SPACING.md,
     ...TYPOGRAPHY.body,
     color: COLORS.text,
     fontSize: 18,
-    fontWeight: '500',
+    fontWeight: '600',
+    letterSpacing: 1,
   },
   checkContainer: {
     paddingRight: SPACING.md,
   },
   buttonContainer: {
     marginBottom: SPACING.lg,
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.xl,
     overflow: 'hidden',
     ...SHADOWS.primary,
   },
   button: {
-    paddingVertical: SPACING.md + 6,
+    paddingVertical: SPACING.md + 2,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -259,6 +294,7 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.button,
     color: COLORS.background,
     marginRight: SPACING.xs,
+    fontSize: 18,
   },
   buttonIcon: {
     marginLeft: SPACING.xs,

@@ -6,6 +6,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Platform,
+  StatusBar,
+  Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,17 +19,17 @@ import { ServiceDetailScreen } from './ServiceDetailScreen';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 
 const PROMOS = [
-  { 
-    id: '1', 
-    title: '50% OFF', 
-    subtitle: 'First Time Users', 
+  {
+    id: '1',
+    title: '50% OFF',
+    subtitle: 'First Time Users',
     icon: 'gift',
     gradient: [COLORS.primary, COLORS.primaryDark],
   },
-  { 
-    id: '2', 
-    title: 'Free Pickup', 
-    subtitle: 'On orders above ₹500', 
+  {
+    id: '2',
+    title: 'Free Pickup',
+    subtitle: 'On orders above ₹500',
     icon: 'car',
     gradient: [COLORS.info, '#2563EB'],
   },
@@ -81,7 +84,7 @@ export const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuthStore();
   const { currentAddress } = useAddressStore();
-  
+
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [serviceModalVisible, setServiceModalVisible] = useState(false);
 
@@ -139,34 +142,45 @@ export const HomeScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <View style={styles.locationContainer}>
+            <Ionicons name="location" size={20} color={COLORS.primary} />
+            <TouchableOpacity style={styles.addressButton}>
+              <Text style={styles.locationLabel}>Home</Text>
+              <Text style={styles.locationText} numberOfLines={1}>
+                {currentAddress || 'Select Location'}
+              </Text>
+            </TouchableOpacity>
+            <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
+          </View>
+          <TouchableOpacity style={styles.profileButton}>
+            <Image
+              source={{ uri: `https://ui-avatars.com/api/?name=${user?.name || 'Guest'}&background=EC4899&color=fff&size=128` }}
+              style={styles.avatar}
+            />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.greetingContainer}>
+          <Text style={styles.greetingText}>Hello, {user?.name || 'User'}! 👋</Text>
+          <Text style={styles.subGreeting}>What needs cleaning today?</Text>
+        </View>
+
+        {/* Search Bar - Placeholder for now */}
+        {/* <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color={COLORS.textLight} />
+          <Text style={styles.searchText}>Search for services...</Text>
+        </View> */}
+      </View>
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Address Dropdown */}
-        <View style={styles.addressSection}>
-          <Text style={styles.addressLabel}>DELIVER TO</Text>
-          <TouchableOpacity 
-            style={styles.addressDropdown} 
-            onPress={handleAddressPress}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="location" size={20} color={COLORS.primary} style={styles.addressIcon} />
-            <Text style={styles.addressText} numberOfLines={1}>
-              {currentAddress || 'Select address'}
-            </Text>
-            <Ionicons name="chevron-down" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Greeting */}
-        <View style={styles.greetingSection}>
-          <Text style={styles.greeting}>
-            Hey <Text style={styles.greetingName}>{user?.name || 'User'}</Text>,{'\n'}
-            {getGreeting()}
-          </Text>
-        </View>
-
         {/* Promo Carousel */}
         <View style={styles.promoSection}>
           <FlatList
@@ -211,52 +225,75 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  scrollContent: {
-    paddingBottom: SPACING.xl * 2,
-  },
-  addressSection: {
+  header: {
+    paddingTop: Platform.OS === 'android' ? 40 : 60,
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.lg,
     paddingBottom: SPACING.md,
+    backgroundColor: COLORS.background, // White/Clean header
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
   },
-  addressLabel: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
-    fontWeight: '600',
-    letterSpacing: 0.5,
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
   },
-  addressDropdown: {
+  locationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.backgroundLight,
-    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.backgroundLight, // Light gray pill
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md + 4,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.xl,
+    flex: 1,
+    marginRight: SPACING.md,
     borderWidth: 1,
     borderColor: COLORS.borderLight,
-    ...SHADOWS.sm,
   },
-  addressIcon: {
-    marginRight: SPACING.sm,
-  },
-  addressText: {
-    ...TYPOGRAPHY.body,
+  addressButton: {
     flex: 1,
-    color: COLORS.text,
-    fontWeight: '500',
+    marginHorizontal: SPACING.xs,
   },
-  greetingSection: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.lg,
-  },
-  greeting: {
-    ...TYPOGRAPHY.heading,
-    color: COLORS.text,
-    lineHeight: 40,
-  },
-  greetingName: {
+  locationLabel: {
+    ...TYPOGRAPHY.caption,
     color: COLORS.primary,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    fontWeight: '700',
+  },
+  locationText: {
+    ...TYPOGRAPHY.bodySmall,
+    color: COLORS.text, // Dark text
+    fontWeight: '600',
+  },
+  profileButton: {
+    // padding: 4,
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: COLORS.borderLight,
+  },
+  greetingContainer: {
+    marginTop: SPACING.xs,
+  },
+  greetingText: {
+    ...TYPOGRAPHY.heading,
+    color: COLORS.text, // Dark text
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  subGreeting: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.textSecondary,
+    fontSize: 16,
+  },
+  scrollContent: {
+    paddingBottom: SPACING.xl * 2,
   },
   promoSection: {
     marginVertical: SPACING.md,

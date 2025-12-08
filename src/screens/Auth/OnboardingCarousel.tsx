@@ -8,17 +8,25 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   StyleSheet,
+  Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS, SPACING, TYPOGRAPHY } from '../../utils/constants';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
+
+// Import images directly or use require
+const IMAGES = {
+  slide1: require('../../../assets/onboarding_lifecycle.png'),
+  slide2: require('../../../assets/onboarding_fast.png'), // Using placeholder for now (wash_fold)
+  slide3: require('../../../assets/onboarding_eco.png'), // Using placeholder for now (premium)
+};
 
 interface OnboardingSlide {
   id: string;
   title: string;
   subtitle: string;
-  emoji: string;
+  image: any;
 }
 
 const slides: OnboardingSlide[] = [
@@ -26,19 +34,19 @@ const slides: OnboardingSlide[] = [
     id: '1',
     title: 'Your Weekend is to Live',
     subtitle: 'Let us handle your laundry while you enjoy your free time',
-    emoji: '🧺',
+    image: IMAGES.slide1, // Weekend/Lifestyle illustration
   },
   {
     id: '2',
     title: 'Fast, Affordable, Hygienic',
     subtitle: 'Quick service at your doorstep with premium quality',
-    emoji: '🚀',
+    image: IMAGES.slide2, // Fast Delivery illustration
   },
   {
     id: '3',
     title: 'Eco-Friendly Service',
     subtitle: 'Sustainable cleaning that cares for your clothes and planet',
-    emoji: '🌱',
+    image: IMAGES.slide3, // Eco-friendly illustration
   },
 ];
 
@@ -69,9 +77,17 @@ export const OnboardingCarousel: React.FC = () => {
 
   const renderSlide = ({ item }: { item: OnboardingSlide }) => (
     <View style={[styles.slide, { width }]}>
-      <Text style={styles.emoji}>{item.emoji}</Text>
-      <Text style={styles.title}>{item.title}</Text>
-      <Text style={styles.subtitle}>{item.subtitle}</Text>
+      <View style={styles.imageContainer}>
+        <Image
+          source={item.image}
+          style={styles.image}
+          resizeMode="contain"
+        />
+      </View>
+      <View style={styles.contentContainer}>
+        <Text style={styles.title}>{item.title}</Text>
+        <Text style={styles.subtitle}>{item.subtitle}</Text>
+      </View>
     </View>
   );
 
@@ -91,6 +107,9 @@ export const OnboardingCarousel: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      {/* Background decoration */}
+      <View style={styles.circleDecoration} />
+
       <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
         <Text style={styles.skipText}>Skip</Text>
       </TouchableOpacity>
@@ -105,12 +124,13 @@ export const OnboardingCarousel: React.FC = () => {
         onScroll={handleScroll}
         scrollEventThrottle={16}
         keyExtractor={(item) => item.id}
+        bounces={false}
       />
 
-      {renderPaginationDots()}
+      <View style={styles.bottomContainer}>
+        {renderPaginationDots()}
 
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity onPress={handleNext} style={styles.nextButton}>
+        <TouchableOpacity onPress={handleNext} style={styles.nextButton} activeOpacity={0.8}>
           <Text style={styles.nextButtonText}>
             {currentIndex === slides.length - 1 ? 'Get Started' : 'Next'}
           </Text>
@@ -124,28 +144,59 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+    overflow: 'hidden',
+  },
+  circleDecoration: {
+    position: 'absolute',
+    top: -height * 0.15,
+    right: -width * 0.2,
+    width: width * 0.8,
+    height: width * 0.8,
+    borderRadius: width * 0.4,
+    backgroundColor: COLORS.primaryLight + '20', // 20% opacity using hex
+    zIndex: -1,
   },
   slide: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: SPACING.xl,
+    paddingTop: height * 0.15,
   },
-  emoji: {
-    fontSize: 80,
+  imageContainer: {
+    width: width * 0.9,
+    height: width * 0.8,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: SPACING.xl,
+    padding: SPACING.lg,
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+  },
+  contentContainer: {
+    paddingHorizontal: SPACING.xl,
+    alignItems: 'center',
   },
   title: {
     ...TYPOGRAPHY.heading,
     textAlign: 'center',
     marginBottom: SPACING.md,
     color: COLORS.text,
+    fontSize: 28,
   },
   subtitle: {
     ...TYPOGRAPHY.body,
     textAlign: 'center',
     color: COLORS.textSecondary,
     lineHeight: 24,
+    maxWidth: '90%',
+  },
+  bottomContainer: {
+    position: 'absolute',
+    bottom: SPACING.xl * 1.5,
+    left: 0,
+    right: 0,
+    paddingHorizontal: SPACING.xl,
   },
   paginationContainer: {
     flexDirection: 'row',
@@ -159,7 +210,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   dotActive: {
-    width: 32,
+    width: 24,
     backgroundColor: COLORS.primary,
   },
   dotInactive: {
@@ -168,29 +219,30 @@ const styles = StyleSheet.create({
   },
   skipButton: {
     position: 'absolute',
-    top: 48,
-    right: SPACING.md,
+    top: 60,
+    right: SPACING.lg,
     zIndex: 10,
-    padding: SPACING.sm,
+    padding: SPACING.xs,
   },
   skipText: {
     ...TYPOGRAPHY.body,
     fontWeight: '600',
     color: COLORS.primary,
   },
-  buttonContainer: {
-    paddingHorizontal: SPACING.md,
-    paddingBottom: SPACING.xl,
-  },
   nextButton: {
     backgroundColor: COLORS.primary,
-    paddingVertical: SPACING.md,
-    borderRadius: 8,
+    paddingVertical: SPACING.md + 4,
+    borderRadius: 16,
     alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 8,
   },
   nextButtonText: {
-    ...TYPOGRAPHY.body,
-    fontWeight: '600',
-    color: COLORS.background,
+    ...TYPOGRAPHY.button,
+    color: '#FFFFFF',
+    fontSize: 18,
   },
 });

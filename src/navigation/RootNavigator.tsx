@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store';
 import { OnboardingCarousel } from '../screens/Auth/OnboardingCarousel';
@@ -36,53 +37,57 @@ const Tab = createBottomTabNavigator();
 
 
 // Main Tab Navigator
-const MainTabs = () => (
-  <Tab.Navigator
-    screenOptions={{
-      headerShown: false,
-      tabBarActiveTintColor: COLORS.primary,
-      tabBarInactiveTintColor: COLORS.textSecondary,
-      tabBarStyle: {
-        borderTopWidth: 1,
-        borderTopColor: COLORS.border,
-        paddingTop: 8,
-        paddingBottom: 8,
-        height: 60,
-      },
-    }}
-  >
-    <Tab.Screen
-      name="Home"
-      component={HomeScreen}
-      options={{
-        tabBarLabel: 'Home',
-        tabBarIcon: ({ color, size }) => (
-          <Ionicons name="home" size={size} color={color} />
-        ),
+const MainTabs = () => {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: COLORS.textSecondary,
+        tabBarStyle: {
+          borderTopWidth: 1,
+          borderTopColor: COLORS.border,
+          paddingTop: 8,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 12,
+          height: 60 + (insets.bottom > 0 ? insets.bottom : 12),
+        },
       }}
-    />
-    <Tab.Screen
-      name="MyOrders"
-      component={MyOrdersScreen}
-      options={{
-        tabBarLabel: 'Orders',
-        tabBarIcon: ({ color, size }) => (
-          <Ionicons name="receipt" size={size} color={color} />
-        ),
-      }}
-    />
-    <Tab.Screen
-      name="Profile"
-      component={ProfileScreen}
-      options={{
-        tabBarLabel: 'Profile',
-        tabBarIcon: ({ color, size }) => (
-          <Ionicons name="person" size={size} color={color} />
-        ),
-      }}
-    />
-  </Tab.Navigator>
-);
+    >
+      <Tab.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{
+          tabBarLabel: 'Home',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="MyOrders"
+        component={MyOrdersScreen}
+        options={{
+          tabBarLabel: 'Orders',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="receipt" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{
+          tabBarLabel: 'Profile',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
+          ),
+        }}
+      />
+    </Tab.Navigator>
+  );
+};
 
 // Main Stack Navigator (includes modals and detail screens)
 const MainStack = () => (

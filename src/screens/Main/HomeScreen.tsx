@@ -11,6 +11,7 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -99,6 +100,7 @@ const SERVICES = [
 
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const { currentAddress } = useAddressStore();
   const { items, getTotalAmount } = useCartStore();
@@ -179,7 +181,7 @@ export const HomeScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
         <View style={styles.headerTop}>
           <TouchableOpacity style={styles.locationContainer} onPress={handleAddressPress}>
             <Ionicons name="location-sharp" size={16} color={COLORS.primary} />
@@ -273,7 +275,7 @@ export const HomeScreen: React.FC = () => {
 
       {/* Floating Cart Button */}
       {cartItemCount > 0 && (
-        <View style={styles.cartButtonContainer}>
+        <View style={[styles.cartButtonContainer, { bottom: insets.bottom + 20 }]}>
           <TouchableOpacity style={styles.cartButton} onPress={handleViewCart} activeOpacity={0.9}>
             <View style={styles.cartInfo}>
               <View style={styles.cartCountBadge}>
@@ -308,10 +310,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   header: {
-    paddingTop: Platform.OS === 'android' ? 40 : 60,
     paddingHorizontal: SPACING.lg,
     paddingBottom: SPACING.md,
-    backgroundColor: COLORS.background, // White/Clean header
+    backgroundColor: COLORS.background,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.borderLight,
   },
@@ -490,7 +491,6 @@ const styles = StyleSheet.create({
   },
   cartButtonContainer: {
     position: 'absolute',
-    bottom: 20, // Sit nicely above the bottom tab bar
     left: SPACING.lg,
     right: SPACING.lg,
   },

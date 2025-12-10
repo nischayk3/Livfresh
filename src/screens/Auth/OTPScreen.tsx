@@ -12,6 +12,7 @@ import {
   ScrollView,
   Keyboard,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +22,7 @@ import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/consta
 
 export const OTPScreen: React.FC = () => {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { otpPhone, setUser, setLoading } = useAuthStore();
   const phone = otpPhone || getCurrentPhoneNumber();
 
@@ -185,7 +187,7 @@ export const OTPScreen: React.FC = () => {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.content}>
+          <View style={[styles.content, { paddingTop: insets.top + SPACING.lg }]}>
             {/* Back Button */}
             <TouchableOpacity
               style={styles.backButton}
@@ -311,7 +313,6 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.xl * 2,
     paddingBottom: SPACING.xl,
   },
   backButton: {

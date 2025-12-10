@@ -14,6 +14,7 @@ import {
   Keyboard,
   Dimensions
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,6 +29,7 @@ const { width } = Dimensions.get('window');
 
 export const PhoneLoginScreen: React.FC = () => {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const recaptchaVerifier = useRef(null);
   const { setLoading, setError } = useAuthStore();
   const [phone, setPhone] = useState('');
@@ -105,7 +107,7 @@ export const PhoneLoginScreen: React.FC = () => {
         />
 
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + SPACING.lg, paddingBottom: insets.bottom + SPACING.xl }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -202,9 +204,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.xxl,
-    paddingBottom: SPACING.xl,
-    justifyContent: 'center', // Center content vertically
+    justifyContent: 'center',
   },
   brandingContainer: {
     alignItems: 'center',

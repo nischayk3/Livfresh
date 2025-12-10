@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { useAddressStore } from '../../store';
@@ -17,6 +18,7 @@ import { COLORS, SPACING, TYPOGRAPHY } from '../../utils/constants';
 
 export const LocationPermissionScreen: React.FC = () => {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const { setCurrentAddress } = useAddressStore();
   const [loading, setLoading] = useState(false);
@@ -139,7 +141,7 @@ export const LocationPermissionScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom + SPACING.lg }]}>
       <Text style={styles.emoji}>📍</Text>
       <Text style={styles.heading}>Enable Location</Text>
       <Text style={styles.subtitle}>We need your location to provide doorstep service</Text>

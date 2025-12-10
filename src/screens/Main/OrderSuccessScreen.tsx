@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS } from '../../utils/constants';
@@ -10,6 +11,7 @@ import { COLORS, SPACING, TYPOGRAPHY, RADIUS } from '../../utils/constants';
 
 export const OrderSuccessScreen: React.FC = () => {
     const navigation = useNavigation();
+    const insets = useSafeAreaInsets();
     const scaleValue = useRef(new Animated.Value(0)).current;
     const fadeValue = useRef(new Animated.Value(0)).current;
 
@@ -39,7 +41,7 @@ export const OrderSuccessScreen: React.FC = () => {
     };
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom + SPACING.xl }]}>
             <View style={styles.content}>
                 <Animated.View style={[styles.iconContainer, { transform: [{ scale: scaleValue }] }]}>
                     <View style={styles.circle}>

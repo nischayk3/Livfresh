@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS, SPACING, TYPOGRAPHY, SHADOWS } from '../../utils/constants';
 
@@ -51,6 +52,7 @@ const slides: OnboardingSlide[] = [
 
 export const OnboardingCarousel: React.FC = () => {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   // Constrain width on web/tablets for consistent UI
   const slideWidth = Math.min(width, 500);
@@ -115,7 +117,7 @@ export const OnboardingCarousel: React.FC = () => {
         {/* Background decoration */}
         <View style={styles.circleDecoration} />
 
-        <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
+        <TouchableOpacity onPress={handleSkip} style={[styles.skipButton, { top: insets.top + 16 }]}>
           <Text style={styles.skipText}>Skip</Text>
         </TouchableOpacity>
 
@@ -137,7 +139,7 @@ export const OnboardingCarousel: React.FC = () => {
           )}
         />
 
-        <View style={styles.bottomContainer}>
+        <View style={[styles.bottomContainer, { bottom: insets.bottom + SPACING.xl }]}>
           {renderPaginationDots()}
 
           <TouchableOpacity onPress={handleNext} style={styles.nextButton} activeOpacity={0.8}>
@@ -178,7 +180,7 @@ const styles = StyleSheet.create({
   slide: {
     height: '100%',
     alignItems: 'center',
-    paddingTop: 80, // Reduced top padding
+    paddingTop: 60,
   },
   imageContainer: {
     width: '100%',
@@ -213,7 +215,6 @@ const styles = StyleSheet.create({
   },
   bottomContainer: {
     position: 'absolute',
-    bottom: SPACING.xl,
     left: 0,
     right: 0,
     paddingHorizontal: SPACING.xl,
@@ -239,7 +240,6 @@ const styles = StyleSheet.create({
   },
   skipButton: {
     position: 'absolute',
-    top: 60,
     right: SPACING.lg,
     zIndex: 10,
     padding: SPACING.xs,

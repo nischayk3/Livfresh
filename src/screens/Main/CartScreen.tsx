@@ -7,9 +7,9 @@ import {
     TouchableOpacity,
     Alert,
     ActivityIndicator,
-    SafeAreaView,
     Platform,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { Timestamp } from 'firebase/firestore';
@@ -20,6 +20,7 @@ import { createOrder, saveCart, clearCartInFirestore } from '../../services/fire
 
 export const CartScreen: React.FC = () => {
     const navigation = useNavigation();
+    const insets = useSafeAreaInsets();
     const { items, removeItem, getTotalAmount, clearCart } = useCartStore();
     const { user } = useAuthStore();
     const { currentAddress } = useAddressStore();
@@ -317,7 +318,7 @@ export const CartScreen: React.FC = () => {
             </ScrollView>
 
             {/* Footer */}
-            <View style={styles.footer}>
+            <View style={[styles.footer, { paddingBottom: insets.bottom > 0 ? insets.bottom : SPACING.lg }]}>
                 <View>
                     <Text style={styles.footerLabel}>Total to Pay</Text>
                     <Text style={styles.footerTotal}>₹{totalAmount}</Text>
@@ -588,7 +589,6 @@ const styles = StyleSheet.create({
         right: 0,
         backgroundColor: COLORS.background,
         padding: SPACING.lg,
-        paddingBottom: Platform.OS === 'ios' ? 34 : SPACING.lg,
         borderTopWidth: 1,
         borderTopColor: COLORS.borderLight,
         flexDirection: 'row',

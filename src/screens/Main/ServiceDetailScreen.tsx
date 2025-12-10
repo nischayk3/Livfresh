@@ -12,6 +12,7 @@ import {
   TextInput,
   Dimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
@@ -36,6 +37,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   serviceId,
 }) => {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { addItem } = useCartStore();
 
   const [vendor, setVendor] = useState<any>(null);
@@ -807,7 +809,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
             </ScrollView>
 
             {/* Footer with Total and Add to Cart */}
-            <View style={styles.footer}>
+            <View style={[styles.footer, { paddingBottom: insets.bottom > 0 ? insets.bottom : SPACING.lg }]}>
               <View style={styles.totalContainer}>
                 <Text style={styles.totalLabel}>Total Amount</Text>
                 <Text style={styles.totalAmount}>₹{totalPrice}</Text>
@@ -1207,7 +1209,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: SPACING.lg,
-    paddingBottom: Platform.OS === 'ios' ? 34 : SPACING.lg,
     borderTopWidth: 1,
     borderTopColor: COLORS.borderLight,
     backgroundColor: COLORS.background,

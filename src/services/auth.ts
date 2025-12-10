@@ -1,8 +1,9 @@
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from './firebase';
-import { checkUserExists } from './firestore';
+import { db, auth } from './firebase'; // Ensure auth is imported
+import { signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
 
-// Store OTP data during verification flow
+// Store OTP confirmation result during verification flow
+let currentConfirmationResult: ConfirmationResult | null = null;
 let currentPhoneNumber: string = '';
 let currentUserData: {
   name?: string;
@@ -10,81 +11,84 @@ let currentUserData: {
   gender?: string;
 } = {};
 
-// Test phone numbers configured in Firebase Console
-const TEST_PHONE_NUMBERS: Record<string, string> = {
-  '+919108558715': '123456',
-};
+export const requestOTP = async (phoneNumber: string, verifier: any): Promise<any> => {
+  currentPhoneNumber = phoneNumber.trim();
+  console.log(`Requesting OTP for: '${currentPhoneNumber}'`);
 
-export const requestOTP = async (phoneNumber: string): Promise<any> => {
-  currentPhoneNumber = phoneNumber;
-  const isTestNumber = TEST_PHONE_NUMBERS.hasOwnProperty(phoneNumber);
-  
-  if (isTestNumber) {
-    console.log(`✅ Test number: ${phoneNumber}, OTP: ${TEST_PHONE_NUMBERS[phoneNumber]}`);
+  try {
+    const confirmation = await signInWithPhoneNumber(auth, currentPhoneNumber, verifier);
+    currentConfirmationResult = confirmation;
+    console.log("✅ OTP Sent via Firebase Auth");
+    return {
+      phoneNumber: currentPhoneNumber,
+      success: true
+    };
+  } catch (error: any) {
+    console.error("Error sending OTP:", error);
+    throw error;
   }
-  
-  return {
-    phoneNumber,
-    _testMode: isTestNumber,
-    _testOTP: isTestNumber ? TEST_PHONE_NUMBERS[phoneNumber] : null,
-  };
 };
 
 export const verifyOTP = async (code: string): Promise<any> => {
-  if (!currentPhoneNumber) {
+  if (!currentConfirmationResult) {
     throw new Error('No OTP request found. Please request OTP again.');
   }
 
-  const isTestNumber = TEST_PHONE_NUMBERS.hasOwnProperty(currentPhoneNumber);
-  
-  if (isTestNumber) {
-    const expectedOTP = TEST_PHONE_NUMBERS[currentPhoneNumber];
-    if (code !== expectedOTP) {
-      throw new Error(`Invalid OTP. Expected: ${expectedOTP}`);
-    }
-  } else {
-    throw new Error('Real phone numbers require backend service.');
-  }
-  
-  // Create user ID and document
-  const userId = `phone_${currentPhoneNumber.replace(/[^0-9]/g, '')}`;
-  const userRef = doc(db, 'users', userId);
-  const userSnap = await getDoc(userRef);
-  
-  const userData = {
-    phone: currentPhoneNumber,
-    name: currentUserData.name || '',
-    email: currentUserData.email || '',
-    gender: currentUserData.gender || '',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  };
-  
-  if (!userSnap.exists()) {
-    await setDoc(userRef, userData);
-  } else {
-    // Update existing user with new data if provided
-    const existingData = userSnap.data();
-    await setDoc(userRef, {
-      ...existingData,
+  console.log(`Verifying OTP for: '${currentPhoneNumber}' with code: '${code}'`);
+
+  try {
+    // 1. Confirm OTP with Firebase Auth
+    const userCredential = await currentConfirmationResult.confirm(code);
+    const user = userCredential.user;
+    console.log(`✅ Phone Authenticated. UID: ${user.uid}`);
+
+    // 2. Create/Update User in Firestore
+    // We utilize the Auth UID for the document ID to ensure straightforward permission rules (request.auth.uid == resource.id).
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+
+    const userData = {
       phone: currentPhoneNumber,
-      name: currentUserData.name || existingData.name || '',
-      email: currentUserData.email || existingData.email || '',
-      gender: currentUserData.gender || existingData.gender || '',
+      authUid: user.uid,
+      name: currentUserData.name || '',
+      email: currentUserData.email || '',
+      gender: currentUserData.gender || '',
+      createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    }, { merge: true });
+    };
+
+    if (!userSnap.exists()) {
+      await setDoc(userRef, userData);
+    } else {
+      const existingData = userSnap.data();
+      await setDoc(userRef, {
+        ...existingData,
+        authUid: user.uid,
+        phone: currentPhoneNumber,
+        name: currentUserData.name || existingData.name || '',
+        email: currentUserData.email || existingData.email || '',
+        gender: currentUserData.gender || existingData.gender || '',
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+    }
+
+    const verifiedName = currentUserData.name || userSnap.data()?.name || '';
+
+    // Cleanup
+    currentConfirmationResult = null;
+    currentPhoneNumber = '';
+    currentUserData = {};
+
+    return {
+      uid: user.uid, // Return the real Auth UID
+      phoneNumber: user.phoneNumber || currentPhoneNumber,
+      displayName: verifiedName,
+    };
+
+  } catch (error: any) {
+    console.error("OTP Verification Failed:", error);
+    throw error;
   }
-  
-  const verifiedPhone = currentPhoneNumber;
-  const verifiedName = currentUserData.name || userSnap.data()?.name || '';
-  currentPhoneNumber = '';
-  currentUserData = {};
-  
-  return {
-    uid: userId,
-    phoneNumber: verifiedPhone,
-    displayName: verifiedName,
-  };
 };
 
 export const getCurrentPhoneNumber = (): string => currentPhoneNumber;
@@ -94,4 +98,5 @@ export const setUserData = (data: { name?: string; email?: string; gender?: stri
 export const clearOTPRequest = (): void => {
   currentPhoneNumber = '';
   currentUserData = {};
+  currentConfirmationResult = null;
 };

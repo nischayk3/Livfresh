@@ -15,9 +15,6 @@ import { addAddress } from '../../services/firestore';
 import { useAuthStore } from '../../store';
 import { COLORS, SPACING, TYPOGRAPHY } from '../../utils/constants';
 
-// Replace with your API Key
-const GOOGLE_MAPS_API_KEY = "AIzaSyADDmG-kNKYDNa0eBoamy6nin03XkkcvWs";
-
 export const LocationPermissionScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuthStore();
@@ -27,16 +24,25 @@ export const LocationPermissionScreen: React.FC = () => {
 
   const getAddressFromCoordinates = async (latitude: number, longitude: number) => {
     try {
-      // Try Google Maps Geocoding API first
+      // Use OpenStreetMap Nominatim API
+      // Note: Usage Policy requires a User-Agent: https://operations.osmfoundation.org/policies/nominatim/
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_MAPS_API_KEY}`
+        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
+        {
+          headers: {
+            'User-Agent': 'SpinitApp/1.0', // Replace with your app name
+          },
+        }
       );
+
       const data = await response.json();
 
-      if (data.status === 'OK' && data.results.length > 0) {
-        return data.results[0].formatted_address;
+      if (data && data.display_name) {
+        // Nominatim returns a 'display_name' which is the full formatted address
+        // It also returns 'address' object with components if needed
+        return data.display_name;
       } else {
-        console.warn('Google Maps API failed, falling back to system geocoder:', data.status);
+        console.warn('Nominatim reverse geocoding failed/empty');
         // Fallback to Expo Location (System Geocoding)
         const geocode = await Location.reverseGeocodeAsync({ latitude, longitude });
         if (geocode.length > 0) {
@@ -109,7 +115,11 @@ export const LocationPermissionScreen: React.FC = () => {
           location.coords.longitude
         );
 
-        navigation.navigate('Home' as never);
+        // Navigate to AddressMap with coordinates for refinement
+        navigation.navigate('AddressMap' as never, {
+          initialLat: location.coords.latitude,
+          initialLng: location.coords.longitude
+        } as never);
       } else {
         Alert.alert('Error', 'Could not fetch address details. Please try again.');
       }
@@ -125,7 +135,7 @@ export const LocationPermissionScreen: React.FC = () => {
   const handleManualEntry = () => {
     // For now, navigating to Home, but ideally should go to an address search screen
     // navigation.navigate('AddAddress' as never);
-    navigation.navigate('Home' as never);
+    navigation.navigate('MainTabs' as never, { screen: 'Home' } as never);
   };
 
   return (

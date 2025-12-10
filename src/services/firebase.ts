@@ -3,7 +3,7 @@ import { initializeAuth, getReactNativePersistence, getAuth } from 'firebase/aut
 import { getFirestore } from 'firebase/firestore';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyCd3rL-yXGffHSAcbeMEZbCDdBXgRlN8zU",
   authDomain: "livfresh.firebaseapp.com",
   projectId: "livfresh",

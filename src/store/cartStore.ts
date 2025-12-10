@@ -7,7 +7,7 @@ export interface CartItem {
   serviceId: string;
   serviceName: string;
   serviceType: 'wash_fold' | 'wash_iron' | 'blanket_wash' | 'shoe_clean' | 'dry_clean' | 'premium_laundry';
-  
+
   // Service-specific data
   weight?: number; // For wash services (kg)
   clothesCount?: number; // For wash services
@@ -17,13 +17,18 @@ export interface CartItem {
   shoeQuantity?: number;
   dryCleanWeight?: 'light' | 'medium' | 'heavy'; // For dry cleaning
   dryCleanItems?: { type: string; quantity: number; price: number }[]; // For dry cleaning
-  
+
   // Add-ons
   ironingEnabled?: boolean;
   ironingCount?: number;
   ironingPrice?: number;
-  
+
+  // Blanket Wash Specifics
+  singleBlanketCount?: number;
+  doubleBlanketCount?: number;
+
   // Other
+  description?: string; // For custom descriptions (e.g. mixture of blankets)
   specialInstructions?: string;
   basePrice: number;
   totalPrice: number;
@@ -37,11 +42,12 @@ interface CartState {
   clearCart: () => void;
   getTotalAmount: () => number;
   getItemCount: () => number;
+  setItems: (items: CartItem[]) => void;
 }
 
 export const useCartStore = create<CartState>((set, get) => ({
   items: [],
-  
+
   addItem: (item) => {
     const newItem = {
       ...item,
@@ -49,11 +55,11 @@ export const useCartStore = create<CartState>((set, get) => ({
     };
     set((state) => ({ items: [...state.items, newItem] }));
   },
-  
+
   removeItem: (itemId) => {
     set((state) => ({ items: state.items.filter(item => item.id !== itemId) }));
   },
-  
+
   updateItem: (itemId, updates) => {
     set((state) => ({
       items: state.items.map(item =>
@@ -61,16 +67,18 @@ export const useCartStore = create<CartState>((set, get) => ({
       ),
     }));
   },
-  
+
   clearCart: () => set({ items: [] }),
-  
+
   getTotalAmount: () => {
     return get().items.reduce((total, item) => total + item.totalPrice, 0);
   },
-  
+
   getItemCount: () => {
     return get().items.length;
   },
+
+  setItems: (items) => {
+    set({ items });
+  },
 }));
-
-

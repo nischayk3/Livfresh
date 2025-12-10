@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,9 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import { requestOTP } from '../../services/auth';
+import { firebaseConfig } from '../../services/firebase';
 import { checkUserExists } from '../../services/firestore';
 import { useAuthStore } from '../../store';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
@@ -26,6 +28,7 @@ const { width } = Dimensions.get('window');
 
 export const PhoneLoginScreen: React.FC = () => {
   const navigation = useNavigation();
+  const recaptchaVerifier = useRef(null);
   const { setLoading, setError } = useAuthStore();
   const [phone, setPhone] = useState('');
   const [loading, setLocalLoading] = useState(false);
@@ -61,7 +64,7 @@ export const PhoneLoginScreen: React.FC = () => {
       const existingUser = await checkUserExists(formattedPhone);
 
       // Request OTP
-      await requestOTP(formattedPhone);
+      await requestOTP(formattedPhone, recaptchaVerifier.current);
 
       // Store phone in store
       const { setOTPData } = useAuthStore.getState();
@@ -94,6 +97,13 @@ export const PhoneLoginScreen: React.FC = () => {
         colors={[COLORS.backgroundGradient, COLORS.background]}
         style={styles.gradient}
       >
+        {/* Recaptcha Verifier Modal */}
+        <FirebaseRecaptchaVerifierModal
+          ref={recaptchaVerifier}
+          firebaseConfig={firebaseConfig}
+          attemptInvisibleVerification={true} // Enable invisible captcha for better UX
+        />
+
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"

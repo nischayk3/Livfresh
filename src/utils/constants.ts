@@ -4,38 +4,40 @@ export const COLORS = {
   primary: '#EC4899',
   primaryLight: '#F9A8D4',
   primaryDark: '#DB2777',
-  
+
   // Gradient Colors
   gradientStart: '#EC4899',
   gradientEnd: '#DB2777',
   gradientLight: ['#F9A8D4', '#FCE7F3'],
-  
+
   // Text (Black as per user preference)
   text: '#1F1F1F',
   textSecondary: '#666666',
   textLight: '#999999',
-  
+
+  white: '#FFFFFF',
+
   // Backgrounds
   background: '#FFFFFF',
   backgroundLight: '#F9FAFB',
   backgroundGradient: '#FFF5F9',
   cardBg: '#FFFFFF',
-  
+
   // Status
   success: '#10B981',
   error: '#EF4444',
   warning: '#F59E0B',
   info: '#3B82F6',
-  
+
   // UI
   border: '#E5E7EB',
   borderLight: '#F3F4F6',
   disabled: '#D1D5DB',
-  
+
   // Shadows
   shadowColor: '#000000',
   shadowLight: '#EC489920',
-  
+
   // Service tiles (pastel colors with gradients)
   service1: '#FCE7F3',
   service1Dark: '#F9A8D4',
@@ -49,20 +51,20 @@ export const COLORS = {
 
 // Typography - Enhanced with better weights
 export const TYPOGRAPHY = {
-  heading: { 
-    fontSize: 32, 
+  heading: {
+    fontSize: 32,
     fontWeight: '700' as const,
     lineHeight: 40,
     letterSpacing: -0.5,
   },
-  subheading: { 
-    fontSize: 22, 
+  subheading: {
+    fontSize: 22,
     fontWeight: '600' as const,
     lineHeight: 28,
     letterSpacing: -0.3,
   },
-  body: { 
-    fontSize: 16, 
+  body: {
+    fontSize: 16,
     fontWeight: '400' as const,
     lineHeight: 24,
   },
@@ -71,13 +73,13 @@ export const TYPOGRAPHY = {
     fontWeight: '600' as const,
     lineHeight: 24,
   },
-  bodySmall: { 
-    fontSize: 14, 
+  bodySmall: {
+    fontSize: 14,
     fontWeight: '400' as const,
     lineHeight: 20,
   },
-  caption: { 
-    fontSize: 12, 
+  caption: {
+    fontSize: 12,
     fontWeight: '400' as const,
     lineHeight: 16,
   },

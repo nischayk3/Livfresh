@@ -17,7 +17,9 @@ interface AddressState {
   savedAddresses: Address[];
   setCurrentAddress: (address: string, lat: number, lng: number) => void;
   clearCurrentAddress: () => void;
+  setAddresses: (addresses: Address[]) => void;
   addAddress: (address: Address) => void;
+  updateAddress: (address: Address) => void;
   removeAddress: (id: string) => void;
   setPrimaryAddress: (id: string) => void;
 }
@@ -27,15 +29,21 @@ export const useAddressStore = create<AddressState>((set) => ({
   currentLatitude: 0,
   currentLongitude: 0,
   savedAddresses: [],
-  setCurrentAddress: (address, lat, lng) => 
+  setCurrentAddress: (address, lat, lng) =>
     set({ currentAddress: address, currentLatitude: lat, currentLongitude: lng }),
-  clearCurrentAddress: () => 
+  clearCurrentAddress: () =>
     set({ currentAddress: '', currentLatitude: 0, currentLongitude: 0 }),
-  addAddress: (address) => 
+  setAddresses: (addresses) =>
+    set({ savedAddresses: addresses }),
+  addAddress: (address) =>
     set((state) => ({ savedAddresses: [...state.savedAddresses, address] })),
-  removeAddress: (id) => 
+  updateAddress: (updatedAddress) =>
+    set((state) => ({
+      savedAddresses: state.savedAddresses.map(a => a.id === updatedAddress.id ? updatedAddress : a)
+    })),
+  removeAddress: (id) =>
     set((state) => ({ savedAddresses: state.savedAddresses.filter(a => a.id !== id) })),
-  setPrimaryAddress: (id) => 
+  setPrimaryAddress: (id) =>
     set((state) => ({
       savedAddresses: state.savedAddresses.map(a => ({
         ...a,

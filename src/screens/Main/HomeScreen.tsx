@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,29 +9,43 @@ import {
   Platform,
   StatusBar,
   Image,
+  Dimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store';
 import { useAddressStore } from '../../store';
+import { useCartStore } from '../../store';
 import { ServiceDetailScreen } from './ServiceDetailScreen';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
+
+// Import assets
+const promoPickup = require('../../../assets/promo_pickup.png');
+const promoDelivery = require('../../../assets/promo_delivery.png');
+const promoRelax = require('../../../assets/promo_relax.png');
 
 const PROMOS = [
   {
     id: '1',
-    title: '50% OFF',
-    subtitle: 'First Time Users',
-    icon: 'gift',
-    gradient: [COLORS.primary, COLORS.primaryDark],
+    title: 'Quick Pickup',
+    subtitle: 'We Come to You',
+    image: promoPickup,
+    color: '#FFF0F7', // Very light pink
   },
   {
     id: '2',
-    title: 'Free Pickup',
-    subtitle: 'On orders above ₹500',
-    icon: 'car',
-    gradient: [COLORS.info, '#2563EB'],
+    title: 'Fast Delivery',
+    subtitle: 'Same Day Service',
+    image: promoDelivery,
+    color: '#FCE7F3', // Light pink
+  },
+  {
+    id: '3',
+    title: 'Why Wait?',
+    subtitle: 'Book Now, Relax',
+    image: promoRelax,
+    color: '#FBCFE8', // Medium light pink
   },
 ];
 
@@ -41,42 +55,45 @@ const SERVICES = [
     name: 'Wash & Fold',
     icon: 'water-outline',
     color: COLORS.primary,
-    description: 'Regular wash and fold service',
+    description: 'Regular wash',
   },
   {
     id: 'wash_iron',
     name: 'Wash & Iron',
     icon: 'shirt-outline',
     color: COLORS.primary,
-    description: 'Wash, dry, and iron service',
+    description: 'Wash, dry & iron',
   },
   {
     id: 'blanket_wash',
     name: 'Blanket Wash',
     icon: 'home-outline',
     color: COLORS.success,
-    description: 'Professional blanket cleaning',
+    description: 'Comforters',
   },
   {
     id: 'premium_laundry',
-    name: 'Premium Laundry',
+    name: 'Premium',
     icon: 'diamond-outline',
     color: '#FFD700',
-    description: 'Premium care for delicate garments',
+    description: 'Coming Soon',
+    disabled: true,
   },
   {
     id: 'dry_clean',
-    name: 'Dry Cleaning',
+    name: 'Dry Clean',
     icon: 'sparkles-outline',
     color: '#9333EA',
-    description: 'Premium dry cleaning service',
+    description: 'Coming Soon',
+    disabled: true,
   },
   {
     id: 'shoe_clean',
-    name: 'Shoe Cleaning',
+    name: 'Shoe Clean',
     icon: 'footsteps-outline',
     color: COLORS.info,
-    description: 'Professional shoe cleaning',
+    description: 'Coming Soon',
+    disabled: true,
   },
 ];
 
@@ -84,9 +101,44 @@ export const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuthStore();
   const { currentAddress } = useAddressStore();
+  const { items, getTotalAmount } = useCartStore();
+  const flatListRef = useRef<FlatList>(null);
 
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [serviceModalVisible, setServiceModalVisible] = useState(false);
+
+  const cartItemCount = items.length;
+  const cartTotal = getTotalAmount();
+
+  // Redirect to Location Permission if no address is set (e.g. fresh login)
+  useEffect(() => {
+    // Check if we need to force location setup
+    if (!currentAddress && user) {
+      // Small delay to allow hydration to finish if it's racing
+      const timer = setTimeout(() => {
+        if (!useAddressStore.getState().currentAddress) {
+          navigation.navigate('LocationPermission' as never);
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [currentAddress, user]);
+
+  // Auto-scroll effect
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const nextIndex = (currentIndex + 1) % PROMOS.length;
+      setCurrentIndex(nextIndex);
+      flatListRef.current?.scrollToIndex({
+        index: nextIndex,
+        animated: true,
+        viewPosition: 0.5,
+      });
+    }, 3000); // Scroll every 3 seconds
+
+    return () => clearInterval(timer);
+  }, [currentIndex]);
 
   const getGreeting = (): string => {
     const hour = new Date().getHours();
@@ -110,109 +162,139 @@ export const HomeScreen: React.FC = () => {
     navigation.navigate('AddressList' as never);
   };
 
-  const renderPromoItem = ({ item }: { item: typeof PROMOS[0] }) => (
-    <LinearGradient
-      colors={item.gradient as [string, string]}
-      style={styles.promoCard}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-    >
-      <View style={styles.promoIconContainer}>
-        <Ionicons name={item.icon as any} size={40} color="#FFFFFF" />
-      </View>
-      <Text style={styles.promoTitle}>{item.title}</Text>
-      <Text style={styles.promoSubtitle}>{item.subtitle}</Text>
-    </LinearGradient>
-  );
+  const handleViewCart = () => {
+    navigation.navigate('Cart' as never);
+  };
 
-  const renderServiceCard = (service: typeof SERVICES[0]) => (
-    <TouchableOpacity
-      key={service.id}
-      style={styles.serviceCard}
-      onPress={() => handleServicePress(service.id)}
-      activeOpacity={0.8}
-    >
-      <View style={[styles.serviceIconContainer, { backgroundColor: service.color + '20' }]}>
-        <Ionicons name={service.icon as any} size={40} color={service.color} />
+  const renderPromoItem = ({ item }: { item: typeof PROMOS[0] }) => (
+    <View style={[styles.promoCard, { backgroundColor: item.color }]}>
+      <View style={styles.promoContent}>
+        <Text style={styles.promoTitle}>{item.title}</Text>
+        <Text style={styles.promoSubtitle}>{item.subtitle}</Text>
       </View>
-      <Text style={styles.serviceName}>{service.name}</Text>
-      <Text style={styles.serviceDescription}>{service.description}</Text>
-    </TouchableOpacity>
+      <Image source={item.image} style={styles.promoImage} resizeMode="contain" />
+    </View>
   );
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
-
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <View style={styles.locationContainer}>
-            <Ionicons name="location" size={20} color={COLORS.primary} />
-            <TouchableOpacity style={styles.addressButton}>
-              <Text style={styles.locationLabel}>Home</Text>
+          <TouchableOpacity style={styles.locationContainer} onPress={handleAddressPress}>
+            <Ionicons name="location-sharp" size={16} color={COLORS.primary} />
+            <View style={styles.addressButton}>
+              <Text style={styles.locationLabel}>Location</Text>
               <Text style={styles.locationText} numberOfLines={1}>
                 {currentAddress || 'Select Location'}
               </Text>
-            </TouchableOpacity>
+            </View>
             <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
-          </View>
-          <TouchableOpacity style={styles.profileButton}>
-            <Image
-              source={{ uri: `https://ui-avatars.com/api/?name=${user?.name || 'Guest'}&background=EC4899&color=fff&size=128` }}
-              style={styles.avatar}
-            />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate('Main' as never, { screen: 'Profile' } as never)}>
+            <View style={styles.avatarContainer}>
+              <Text style={styles.avatarText}>
+                {user?.name ? user.name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() : 'U'}
+              </Text>
+            </View>
           </TouchableOpacity>
         </View>
 
         <View style={styles.greetingContainer}>
-          <Text style={styles.greetingText}>Hello, {user?.name || 'User'}! 👋</Text>
-          <Text style={styles.subGreeting}>What needs cleaning today?</Text>
+          <Text style={styles.greetingText}>{getGreeting()}</Text>
+          <Text style={styles.subGreeting}>Need some fresh clothes today?</Text>
         </View>
-
-        {/* Search Bar - Placeholder for now */}
-        {/* <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color={COLORS.textLight} />
-          <Text style={styles.searchText}>Search for services...</Text>
-        </View> */}
       </View>
 
       <ScrollView
-        showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        {/* Promo Carousel */}
+        {/* Promo Section */}
         <View style={styles.promoSection}>
           <FlatList
+            ref={flatListRef}
             data={PROMOS}
             renderItem={renderPromoItem}
             keyExtractor={(item) => item.id}
             horizontal
             showsHorizontalScrollIndicator={false}
+            pagingEnabled
+            snapToInterval={316} // card width + margin
+            decelerationRate="fast"
             contentContainerStyle={styles.promoList}
-            scrollEnabled={true}
-            nestedScrollEnabled={true}
+            onMomentumScrollEnd={(ev) => {
+              const newIndex = Math.round(ev.nativeEvent.contentOffset.x / 316);
+              setCurrentIndex(newIndex);
+            }}
           />
         </View>
 
-        {/* Services Section */}
+        {/* Services Grid */}
         <View style={styles.servicesSection}>
           <Text style={styles.sectionTitle}>Our Services</Text>
-          <Text style={styles.sectionSubtitle}>
-            Pick the service you need. All orders delivered within 6 hours.
-          </Text>
+          <Text style={styles.sectionSubtitle}>Select a service to get started</Text>
+
           <View style={styles.servicesGrid}>
-            {SERVICES.map(renderServiceCard)}
+            {SERVICES.map((service) => (
+              <TouchableOpacity
+                key={service.id}
+                style={[
+                  styles.serviceCard,
+                  (service as any).disabled && styles.serviceCardDisabled
+                ]}
+                onPress={() => handleServicePress(service.id)}
+                activeOpacity={(service as any).disabled ? 1 : 0.8}
+                disabled={(service as any).disabled}
+              >
+                <View style={[
+                  styles.serviceIconContainer,
+                  { backgroundColor: (service as any).disabled ? '#F3F4F6' : service.color + '15' }
+                ]}>
+                  <Ionicons
+                    name={service.icon as any}
+                    size={32}
+                    color={(service as any).disabled ? '#9CA3AF' : service.color}
+                  />
+                </View>
+                <Text style={[
+                  styles.serviceName,
+                  (service as any).disabled && { color: '#9CA3AF' }
+                ]}>{service.name}</Text>
+                <Text style={[
+                  styles.serviceDescription,
+                  (service as any).disabled && { color: '#D1D5DB' }
+                ]}>{service.description}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
       </ScrollView>
+
+      {/* Floating Cart Button */}
+      {cartItemCount > 0 && (
+        <View style={styles.cartButtonContainer}>
+          <TouchableOpacity style={styles.cartButton} onPress={handleViewCart} activeOpacity={0.9}>
+            <View style={styles.cartInfo}>
+              <View style={styles.cartCountBadge}>
+                <Text style={styles.cartCountText}>{cartItemCount}</Text>
+              </View>
+              <View>
+                <Text style={styles.cartButtonText}>View Cart</Text>
+                <Text style={styles.cartButtonSubtext}>{cartItemCount} items • ₹{cartTotal}</Text>
+              </View>
+            </View>
+            <Ionicons name="arrow-forward" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Service Detail Modal */}
       {selectedService && (
         <ServiceDetailScreen
           visible={serviceModalVisible}
           onClose={handleCloseServiceModal}
-          vendorId="default" // Using default vendor since we're not using vendor model
+          vendorId="default" // In future, handle multiple vendors
           serviceId={selectedService}
         />
       )}
@@ -271,12 +353,20 @@ const styles = StyleSheet.create({
   profileButton: {
     // padding: 4,
   },
-  avatar: {
+  avatarContainer: {
     width: 44,
     height: 44,
     borderRadius: 22,
+    backgroundColor: COLORS.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 2,
-    borderColor: COLORS.borderLight,
+    borderColor: COLORS.primary,
+  },
+  avatarText: {
+    ...TYPOGRAPHY.bodyBold,
+    color: COLORS.primary,
+    fontSize: 16,
   },
   greetingContainer: {
     marginTop: SPACING.xs,
@@ -293,7 +383,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   scrollContent: {
-    paddingBottom: SPACING.xl * 2,
+    paddingBottom: SPACING.xl * 4, // Extra padding for cart button space
   },
   promoSection: {
     marginVertical: SPACING.md,
@@ -303,28 +393,44 @@ const styles = StyleSheet.create({
   },
   promoCard: {
     width: 300,
+    height: 160,
     borderRadius: RADIUS.xl,
-    padding: SPACING.xl,
+    padding: SPACING.lg,
     marginRight: SPACING.md,
-    ...SHADOWS.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    overflow: 'hidden',
+    ...SHADOWS.md,
   },
-  promoIconContainer: {
-    marginBottom: SPACING.md,
+  promoContent: {
+    flex: 1,
+    paddingRight: SPACING.sm,
+    justifyContent: 'center',
   },
   promoTitle: {
     ...TYPOGRAPHY.subheading,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: SPACING.xs,
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: 6,
+    fontSize: 20,
+    lineHeight: 26,
   },
   promoSubtitle: {
     ...TYPOGRAPHY.bodySmall,
-    color: '#FFFFFF',
-    opacity: 0.95,
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  promoImage: {
+    width: 130,
+    height: 130,
+    marginRight: -10, // Slight negative margin to pull image to edge
   },
   servicesSection: {
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.lg,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.xl,
   },
   sectionTitle: {
     ...TYPOGRAPHY.subheading,
@@ -351,13 +457,19 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: COLORS.borderLight,
     ...SHADOWS.sm,
+    marginBottom: SPACING.sm,
+  },
+  serviceCardDisabled: {
+    backgroundColor: '#F9FAFB',
+    borderColor: '#E5E7EB',
+    opacity: 0.8,
   },
   serviceIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACING.sm,
@@ -367,11 +479,53 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     textAlign: 'center',
     fontWeight: '600',
-    marginBottom: SPACING.xs,
+    marginBottom: 2,
+    fontSize: 14,
   },
   serviceDescription: {
     ...TYPOGRAPHY.caption,
     color: COLORS.textSecondary,
     textAlign: 'center',
+    fontSize: 11,
+  },
+  cartButtonContainer: {
+    position: 'absolute',
+    bottom: 20, // Sit nicely above the bottom tab bar
+    left: SPACING.lg,
+    right: SPACING.lg,
+  },
+  cartButton: {
+    backgroundColor: COLORS.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
+    ...SHADOWS.lg,
+  },
+  cartInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cartCountBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginRight: SPACING.md,
+  },
+  cartCountText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  cartButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  cartButtonSubtext: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 12,
   },
 });

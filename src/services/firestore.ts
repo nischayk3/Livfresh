@@ -1,12 +1,12 @@
-import { 
-  collection, 
-  doc, 
-  getDoc, 
-  getDocs, 
-  setDoc, 
-  addDoc, 
-  updateDoc, 
-  query, 
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  addDoc,
+  updateDoc,
+  query,
   orderBy,
   Timestamp,
   where,
@@ -41,7 +41,7 @@ export const getVendorsByArea = async (area: string) => {
   try {
     const vendorsRef = collection(db, 'vendors');
     const q = query(
-      vendorsRef, 
+      vendorsRef,
       where('active', '==', true),
       where('area', '==', area),
       orderBy('rating', 'desc')
@@ -64,20 +64,29 @@ export const getVendorServices = async (vendorId: string) => {
 // Check if user exists by phone number
 export const checkUserExists = async (phone: string) => {
   try {
-    const userId = `phone_${phone.replace(/[^0-9]/g, '')}`;
-    const userRef = doc(db, 'users', userId);
-    const userSnap = await getDoc(userRef);
-    return userSnap.exists() ? { id: userSnap.id, ...userSnap.data() } : null;
+    // Since we are using Auth UIDs now, we can't construct the ID from phone.
+    // We must query the collection.
+    // NOTE: This query will likely fail if the user is unauthenticated and rules block "list" operations.
+    // In that case, we return null, treating them as a new/unknown user, which flows into the Signup->OTP process perfectly.
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, where('phone', '==', phone));
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+      const userDoc = querySnapshot.docs[0];
+      return { id: userDoc.id, ...userDoc.data() };
+    }
+    return null;
   } catch (error) {
-    console.error('Error checking user:', error);
+    console.log('User lookup failed (likely permissions), proceeding as new user:', error);
     return null;
   }
 };
 
 // Create new user
 export const createUser = async (
-  userId: string, 
-  phone: string, 
+  userId: string,
+  phone: string,
   name: string,
   email?: string,
   gender?: string
@@ -125,17 +134,26 @@ export const updateUser = async (
 };
 
 // Add address
+// Add address (Appends to savedAddresses array)
 export const addAddress = async (
-  userId: string, 
-  label: string, 
-  address: string, 
-  latitude: number, 
+  userId: string,
+  label: string,
+  address: string,
+  latitude: number,
   longitude: number,
   isPrimary: boolean = false
 ) => {
   try {
-    const addressesRef = collection(db, 'users', userId, 'addresses');
-    const addressData = {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    let currentAddresses: any[] = [];
+
+    if (userSnap.exists()) {
+      currentAddresses = userSnap.data().savedAddresses || [];
+    }
+
+    const newAddress = {
+      id: Date.now().toString(), // Simple ID generation
       label,
       address,
       latitude,
@@ -143,19 +161,20 @@ export const addAddress = async (
       isPrimary,
       createdAt: Timestamp.now(),
     };
-    
-    // If this is primary, unset other primary addresses
+
+    // If new address is primary, unset others
     if (isPrimary) {
-      const existingAddresses = await getDocs(addressesRef);
-      const updatePromises = existingAddresses.docs.map(doc => {
-        if (doc.data().isPrimary) {
-          return updateDoc(doc.ref, { isPrimary: false });
-        }
-      });
-      await Promise.all(updatePromises);
+      currentAddresses = currentAddresses.map(addr => ({ ...addr, isPrimary: false }));
     }
-    
-    return await addDoc(addressesRef, addressData);
+
+    const updatedAddresses = [...currentAddresses, newAddress];
+
+    await updateDoc(userRef, {
+      savedAddresses: updatedAddresses,
+      updatedAt: Timestamp.now(),
+    });
+
+    return newAddress;
   } catch (error: any) {
     console.error('Error adding address:', error);
     throw error;
@@ -165,11 +184,49 @@ export const addAddress = async (
 // Get user addresses
 export const getUserAddresses = async (userId: string) => {
   try {
-    const addressesRef = collection(db, 'users', userId, 'addresses');
-    const addressesSnap = await getDocs(query(addressesRef, orderBy('createdAt', 'desc')));
-    return addressesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+
+    if (userSnap.exists()) {
+      const addresses = userSnap.data().savedAddresses || [];
+      // Sort by createdAt desc if possible, but they are stored in array. 
+      // Let's reverse them to show newest first if we append to end.
+      return addresses.reverse();
+    }
+    return [];
   } catch (error: any) {
     console.error('Error getting addresses:', error);
+    throw error;
+    console.error('Error getting addresses:', error);
+    throw error;
+  }
+};
+
+// Update address
+export const updateUserAddress = async (userId: string, updatedAddress: any) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+
+    if (userSnap.exists()) {
+      let addresses = userSnap.data().savedAddresses || [];
+
+      // If setting as primary, unset others
+      if (updatedAddress.isPrimary) {
+        addresses = addresses.map((addr: any) => ({ ...addr, isPrimary: false }));
+      }
+
+      const newAddresses = addresses.map((addr: any) =>
+        addr.id === updatedAddress.id ? { ...updatedAddress, updatedAt: Timestamp.now() } : addr
+      );
+
+      await updateDoc(userRef, {
+        savedAddresses: newAddresses,
+        updatedAt: Timestamp.now(),
+      });
+    }
+  } catch (error: any) {
+    console.error('Error updating address:', error);
     throw error;
   }
 };
@@ -179,23 +236,25 @@ export const createOrder = async (userId: string, orderData: any) => {
   try {
     const ordersRef = collection(db, 'users', userId, 'orders');
     const orderId = doc(ordersRef).id;
-    
+
     const orderWithTimestamp = {
       ...orderData,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
-    
+
+    const cleanOrder = cleanData(orderWithTimestamp);
+
     // Save to user orders
-    await setDoc(doc(db, 'users', userId, 'orders', orderId), orderWithTimestamp);
-    
+    await setDoc(doc(db, 'users', userId, 'orders', orderId), cleanOrder);
+
     // Mirror to vendor orders
     await setDoc(doc(db, 'vendors', orderData.vendorId, 'orders', orderId), {
-      ...orderWithTimestamp,
+      ...cleanOrder,
       userId,
       userPhone: orderData.userPhone || '',
     });
-    
+
     return orderId;
   } catch (error: any) {
     console.error('Error creating order:', error);
@@ -236,13 +295,13 @@ export const updateOrderStatus = async (userId: string, orderId: string, status:
   try {
     const vendorId = 'vendor_1';
     const timestamp = Timestamp.now();
-    
+
     // Update user order
     await updateDoc(doc(db, 'users', userId, 'orders', orderId), {
       status,
       updatedAt: timestamp,
     });
-    
+
     // Update vendor order
     await updateDoc(doc(db, 'vendors', vendorId, 'orders', orderId), {
       status,
@@ -250,6 +309,83 @@ export const updateOrderStatus = async (userId: string, orderId: string, status:
     });
   } catch (error: any) {
     console.error('Error updating order status:', error);
+    throw error;
+  }
+};
+
+// --- Cart Management ---
+
+// Helper to remove undefined values
+// Helper to remove undefined values
+const cleanData = (data: any): any => {
+  if (data === undefined) return null;
+  if (data === null) return null;
+
+  if (Array.isArray(data)) {
+    return data
+      .map(cleanData)
+      .filter((item) => item !== undefined && item !== null);
+  } else if (typeof data === 'object') {
+    // Check if it's a Firestore Timestamp or Date, return as is
+    if (data instanceof Timestamp || data instanceof Date) return data;
+
+    return Object.entries(data).reduce((acc, [key, value]) => {
+      if (value !== undefined) {
+        const cleaned = cleanData(value);
+        if (cleaned !== undefined) { // Allow nulls, but not undefined
+          acc[key] = cleaned;
+        }
+      }
+      return acc;
+    }, {} as any);
+  }
+  return data;
+};
+
+// Save cart to Firestore
+export const saveCart = async (userId: string, cartItems: any[]) => {
+  try {
+    // Store cart inside the user document to avoid subcollection permission issues
+    const userRef = doc(db, 'users', userId);
+    const cleanItems = cleanData(cartItems);
+
+    // We use setDoc with merge to ensure we don't overwrite other user data
+    // and to create the document if it somehow doesn't exist (though it should)
+    await setDoc(userRef, {
+      activeCart: cleanItems,
+      updatedAt: Timestamp.now(),
+    }, { merge: true });
+  } catch (error: any) {
+    console.error('Error saving cart:', error);
+    throw error;
+  }
+};
+
+// Get cart from Firestore
+export const getCart = async (userId: string) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+      return userSnap.data().activeCart || [];
+    }
+    return [];
+  } catch (error: any) {
+    console.error('Error getting cart:', error);
+    throw error;
+  }
+};
+
+// Clear cart in Firestore
+export const clearCartInFirestore = async (userId: string) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      activeCart: [],
+      updatedAt: Timestamp.now(),
+    });
+  } catch (error: any) {
+    console.error('Error clearing cart in Firestore:', error);
     throw error;
   }
 };

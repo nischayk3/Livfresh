@@ -71,7 +71,7 @@ export const OTPScreen: React.FC = () => {
       });
       setOtp(newOtp);
       const lastFilledIndex = Math.min(index + pastedOtp.length - 1, 5);
-      
+
       // If all 6 digits pasted, dismiss keyboard
       if (newOtp.every(d => d !== '')) {
         setTimeout(() => {
@@ -123,18 +123,19 @@ export const OTPScreen: React.FC = () => {
 
     try {
       const user = await verifyOTP(otpCode);
-      
+
       // Get user name from Firestore (it was saved during verification)
       const { checkUserExists } = await import('../../services/firestore');
       const userData: any = await checkUserExists(phone);
-      
-      setUser({ 
-        uid: user.uid, 
-        phone: user.phoneNumber || phone, 
+
+      setUser({
+        uid: user.uid,
+        phone: user.phoneNumber || phone,
         name: userData?.name || ''
       });
-      
-      navigation.navigate('LocationPermission' as never);
+
+      // Navigation is handled by RootNavigator/Auth state change
+      // navigation.navigate('LocationPermission' as never); 
     } catch (error: any) {
       console.error('OTP verification error:', error);
       setError(error.message || 'Invalid OTP. Please try again.');
@@ -171,7 +172,7 @@ export const OTPScreen: React.FC = () => {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.container}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >

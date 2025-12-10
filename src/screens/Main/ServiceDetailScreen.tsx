@@ -117,6 +117,23 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     }
   };
 
+  // Service Illustrations Mapping
+  const SERVICE_IMAGES: Record<string, any> = {
+    'wash_fold': require('../../../assets/services/wash_fold.png'),
+    'wash_iron': require('../../../assets/services/wash_iron.png'),
+    'blanket_wash': require('../../../assets/services/blanket_wash.png'),
+    // Fallbacks or future services can use existing assets or default
+    'default': require('../../../assets/laundry_illustration.png'),
+  };
+
+  const getServiceImage = () => {
+    if (serviceId && SERVICE_IMAGES[serviceId]) {
+      return SERVICE_IMAGES[serviceId];
+    }
+    // Fallback for unmapped services or if vendor has specific image
+    return vendor?.imageUrl ? { uri: vendor.imageUrl } : SERVICE_IMAGES['default'];
+  };
+
   const handlePickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
@@ -280,9 +297,10 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       }
       // Check limits
       const maxPieces = selectedWeight === 'small' ? 25 : 50;
-      if (clothesCount > maxPieces) {
-        // Should ideally be prevented by UI but good to double check
-        alert(`Maximum ${maxPieces} clothes allowed for this weight.`);
+      // clothesCount validation removed as per request
+
+      if (ironingEnabled && ironingCount > maxPieces) {
+        alert(`Maximum ${maxPieces} ironing pieces allowed for this weight.`);
         return;
       }
     }
@@ -310,7 +328,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
     if (serviceId === 'wash_fold' || serviceId === 'wash_iron') {
       cartItem.weight = selectedWeight === 'small' ? 7 : 14;
-      cartItem.clothesCount = clothesCount; // Store actual count
+      cartItem.clothesCount = 0; // Default to 0 since we don't ask
       cartItem.ironingEnabled = ironingEnabled;
       cartItem.ironingCount = ironingCount;
       cartItem.ironingPrice = ironingEnabled ? ironingCount * 15 : 0;
@@ -328,9 +346,6 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       cartItem.doubleBlanketCount = doubleBlanketCount;
     }
 
-    // ... (Shoe/Dry Clean/Premium Logic - Skipping for brevity if unchanged, but need to be careful with replace)
-    // Wait, I need to output the FULL replaced sections if I use replace_file_content heavily. 
-    // To be safe, I will output the FULL relevant render functions below.
     addItem(cartItem);
     alert('Added to cart!');
     onClose();
@@ -350,7 +365,8 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
             style={[styles.weightOption, selectedWeight === 'small' && styles.weightOptionSelected]}
             onPress={() => {
               setSelectedWeight('small');
-              setClothesCount(0); // Reset count on weight change to avoid overflow
+              setClothesCount(0);
+              setIroningCount(0); // Reset ironing count too
             }}
           >
             <View style={styles.weightOptionContent}>
@@ -366,6 +382,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
             onPress={() => {
               setSelectedWeight('large');
               setClothesCount(0);
+              setIroningCount(0); // Reset ironing count
             }}
           >
             <View style={styles.weightOptionContent}>
@@ -378,31 +395,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* Clothes Count Selector (Only show if weight selected) */}
-        {selectedWeight && (
-          <View style={styles.section}>
-            <View style={styles.addonHeader}>
-              <Text style={styles.sectionTitle}>Number of Clothes</Text>
-              <Text style={styles.addonPrice}>Max {maxPieces}</Text>
-            </View>
-            <View style={styles.quantityControls}>
-              <TouchableOpacity
-                style={styles.quantityButton}
-                onPress={() => setClothesCount(Math.max(0, clothesCount - 1))}
-              >
-                <Text style={styles.quantityButtonText}>-</Text>
-              </TouchableOpacity>
-              <Text style={styles.quantityValue}>{clothesCount}</Text>
-              <TouchableOpacity
-                style={[styles.quantityButton, clothesCount >= maxPieces && styles.quantityButtonDisabled]}
-                onPress={() => setClothesCount(Math.min(maxPieces, clothesCount + 1))}
-                disabled={clothesCount >= maxPieces}
-              >
-                <Text style={[styles.quantityButtonText, clothesCount >= maxPieces && styles.quantityButtonTextDisabled]}>+</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+        {/* Number of Clothes Section REMOVED */}
 
         {/* Ironing Add-on */}
         <View style={[styles.section, !selectedWeight && { opacity: 0.5 }]}>
@@ -435,10 +428,11 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
                 </TouchableOpacity>
                 <Text style={styles.quantityValue}>{ironingCount}</Text>
                 <TouchableOpacity
-                  style={styles.quantityButton}
-                  onPress={() => setIroningCount(ironingCount + 1)}
+                  style={[styles.quantityButton, ironingCount >= maxPieces && styles.quantityButtonDisabled]}
+                  onPress={() => setIroningCount(Math.min(maxPieces, ironingCount + 1))}
+                  disabled={ironingCount >= maxPieces}
                 >
-                  <Text style={styles.quantityButtonText}>+</Text>
+                  <Text style={[styles.quantityButtonText, ironingCount >= maxPieces && styles.quantityButtonTextDisabled]}>+</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -793,7 +787,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
             >
               <View style={styles.serviceImageContainer}>
                 <Image
-                  source={{ uri: vendor?.imageUrl || 'https://via.placeholder.com/400x200' }}
+                  source={getServiceImage()}
                   style={styles.serviceImage}
                   resizeMode="cover"
                 />
@@ -1120,7 +1114,6 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.body,
     color: COLORS.text,
     flex: 1,
-    marginLeft: SPACING.md,
   },
   blanketPrice: {
     ...TYPOGRAPHY.bodyBold,

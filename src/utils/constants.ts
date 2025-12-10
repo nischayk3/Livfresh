@@ -112,42 +112,71 @@ export const RADIUS = {
 };
 
 // Shadows - Modern elevation
+// Shadows - Modern elevation
+import { Platform } from 'react-native';
+
+const shadowGenerator = (color: string, offset: { width: number, height: number }, opacity: number, radius: number, elevation: number) => {
+  if (Platform.OS === 'web') {
+    return {
+      boxShadow: `${offset.width}px ${offset.height}px ${radius}px ${color}${Math.round(opacity * 255).toString(16).padStart(2, '0')}` // Simple hex alpha approximation
+      // Or cleaner: boxShadow: `0px ${offset.height}px ${radius}px rgba(0,0,0,${opacity})`
+    };
+  }
+  return {
+    shadowColor: color,
+    shadowOffset: offset,
+    shadowOpacity: opacity,
+    shadowRadius: radius,
+    elevation: elevation,
+  };
+};
+
 export const SHADOWS = {
-  sm: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  md: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  lg: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  xl: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  primary: {
-    shadowColor: '#EC4899',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
-  },
+  sm: Platform.OS === 'web'
+    ? { boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.05)' }
+    : {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+  md: Platform.OS === 'web'
+    ? { boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)' }
+    : {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 4,
+    },
+  lg: Platform.OS === 'web'
+    ? { boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.15)' }
+    : {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
+      elevation: 8,
+    },
+  xl: Platform.OS === 'web'
+    ? { boxShadow: '0px 8px 16px rgba(0, 0, 0, 0.2)' }
+    : {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.2,
+      shadowRadius: 16,
+      elevation: 12,
+    },
+  primary: Platform.OS === 'web'
+    ? { boxShadow: '0px 4px 12px rgba(236, 72, 153, 0.3)' } // Pink shadow
+    : {
+      shadowColor: '#EC4899',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 12,
+      elevation: 8,
+    },
 };
 
 // Time slots

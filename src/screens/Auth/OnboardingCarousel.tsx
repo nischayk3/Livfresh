@@ -4,22 +4,21 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
-  Dimensions,
   NativeScrollEvent,
   NativeSyntheticEvent,
   StyleSheet,
   Image,
+  useWindowDimensions,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { COLORS, SPACING, TYPOGRAPHY } from '../../utils/constants';
-
-const { width, height } = Dimensions.get('window');
+import { COLORS, SPACING, TYPOGRAPHY, SHADOWS } from '../../utils/constants';
 
 // Import images directly or use require
 const IMAGES = {
   slide1: require('../../../assets/onboarding_lifecycle.png'),
-  slide2: require('../../../assets/onboarding_fast.png'), // Using placeholder for now (wash_fold)
-  slide3: require('../../../assets/onboarding_eco.png'), // Using placeholder for now (premium)
+  slide2: require('../../../assets/onboarding_fast.png'),
+  slide3: require('../../../assets/onboarding_eco.png'),
 };
 
 interface OnboardingSlide {
@@ -34,30 +33,33 @@ const slides: OnboardingSlide[] = [
     id: '1',
     title: 'Your Weekend is to Live',
     subtitle: 'Let us handle your laundry while you enjoy your free time',
-    image: IMAGES.slide1, // Weekend/Lifestyle illustration
+    image: IMAGES.slide1,
   },
   {
     id: '2',
     title: 'Fast, Affordable, Hygienic',
     subtitle: 'Quick service at your doorstep with premium quality',
-    image: IMAGES.slide2, // Fast Delivery illustration
+    image: IMAGES.slide2,
   },
   {
     id: '3',
     title: 'Eco-Friendly Service',
     subtitle: 'Sustainable cleaning that cares for your clothes and planet',
-    image: IMAGES.slide3, // Eco-friendly illustration
+    image: IMAGES.slide3,
   },
 ];
 
 export const OnboardingCarousel: React.FC = () => {
   const navigation = useNavigation();
+  const { width } = useWindowDimensions();
+  // Constrain width on web/tablets for consistent UI
+  const slideWidth = Math.min(width, 500);
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const scrollPosition = event.nativeEvent.contentOffset.x;
-    const index = Math.round(scrollPosition / width);
+    const index = Math.round(scrollPosition / slideWidth);
     setCurrentIndex(index);
   };
 
@@ -76,7 +78,7 @@ export const OnboardingCarousel: React.FC = () => {
   };
 
   const renderSlide = ({ item }: { item: OnboardingSlide }) => (
-    <View style={[styles.slide, { width }]}>
+    <View style={[styles.slide, { width: slideWidth }]}>
       <View style={styles.imageContainer}>
         <Image
           source={item.image}
@@ -107,34 +109,43 @@ export const OnboardingCarousel: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Background decoration */}
-      <View style={styles.circleDecoration} />
+      {/* Centered Wrapper for Web */}
+      <View style={[styles.contentWrapper, { width: slideWidth }]}>
 
-      <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
-        <Text style={styles.skipText}>Skip</Text>
-      </TouchableOpacity>
+        {/* Background decoration */}
+        <View style={styles.circleDecoration} />
 
-      <FlatList
-        ref={flatListRef}
-        data={slides}
-        renderItem={renderSlide}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-        keyExtractor={(item) => item.id}
-        bounces={false}
-      />
-
-      <View style={styles.bottomContainer}>
-        {renderPaginationDots()}
-
-        <TouchableOpacity onPress={handleNext} style={styles.nextButton} activeOpacity={0.8}>
-          <Text style={styles.nextButtonText}>
-            {currentIndex === slides.length - 1 ? 'Get Started' : 'Next'}
-          </Text>
+        <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
+          <Text style={styles.skipText}>Skip</Text>
         </TouchableOpacity>
+
+        <FlatList
+          ref={flatListRef}
+          data={slides}
+          renderItem={renderSlide}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          keyExtractor={(item) => item.id}
+          bounces={false}
+          snapToInterval={slideWidth}
+          decelerationRate="fast"
+          getItemLayout={(data, index) => (
+            { length: slideWidth, offset: slideWidth * index, index }
+          )}
+        />
+
+        <View style={styles.bottomContainer}>
+          {renderPaginationDots()}
+
+          <TouchableOpacity onPress={handleNext} style={styles.nextButton} activeOpacity={0.8}>
+            <Text style={styles.nextButtonText}>
+              {currentIndex === slides.length - 1 ? 'Get Started' : 'Next'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -145,37 +156,46 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
     overflow: 'hidden',
+    alignItems: 'center', // Center content on web
+  },
+  contentWrapper: {
+    flex: 1,
+    maxWidth: 500, // Constrain width on wide screens
+    width: '100%',
+    position: 'relative',
+    overflow: 'hidden', // Contain absolute positioned elements?
   },
   circleDecoration: {
     position: 'absolute',
-    top: -height * 0.15,
-    right: -width * 0.2,
-    width: width * 0.8,
-    height: width * 0.8,
-    borderRadius: width * 0.4,
-    backgroundColor: COLORS.primaryLight + '20', // 20% opacity using hex
+    top: -150,
+    right: -100,
+    width: 400,
+    height: 400,
+    borderRadius: 200,
+    backgroundColor: '#F9A8D4' + '33', // Hex opacity
     zIndex: -1,
   },
   slide: {
-    flex: 1,
+    height: '100%',
     alignItems: 'center',
-    paddingTop: height * 0.15,
+    paddingTop: 80, // Reduced top padding
   },
   imageContainer: {
-    width: width * 0.9,
-    height: width * 0.8,
+    width: '100%',
+    height: 350, // Fixed height for consistency
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: SPACING.xl,
     padding: SPACING.lg,
   },
   image: {
-    width: '100%',
+    width: '80%',
     height: '100%',
   },
   contentContainer: {
     paddingHorizontal: SPACING.xl,
     alignItems: 'center',
+    width: '100%',
   },
   title: {
     ...TYPOGRAPHY.heading,
@@ -193,7 +213,7 @@ const styles = StyleSheet.create({
   },
   bottomContainer: {
     position: 'absolute',
-    bottom: SPACING.xl * 1.5,
+    bottom: SPACING.xl,
     left: 0,
     right: 0,
     paddingHorizontal: SPACING.xl,
@@ -234,11 +254,10 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md + 4,
     borderRadius: 16,
     alignItems: 'center',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 8,
+    ...Platform.select({
+      web: { boxShadow: '0px 4px 10px rgba(236, 72, 153, 0.3)' }, // Manual shadow if SHADOWS.primary isn't working as expected
+      default: SHADOWS.primary,
+    }),
   },
   nextButtonText: {
     ...TYPOGRAPHY.button,

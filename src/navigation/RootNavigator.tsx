@@ -22,19 +22,13 @@ import { MyOrdersScreen } from '../screens/Main/MyOrdersScreen';
 import { ProfileScreen } from '../screens/Main/ProfileScreen';
 import { EditProfileScreen } from '../screens/Main/EditProfileScreen';
 import { HelpSupportScreen } from '../screens/Main/HelpSupportScreen';
-import { getCart, saveCart, getUserAddresses } from '../services/firestore';
-import { auth, db } from '../services/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { getCart, saveCart, getUserAddresses, getUser } from '../services/firestore';
+import { auth } from '../services/firebase';
 import { useCartStore, useAddressStore } from '../store';
 import { COLORS, TYPOGRAPHY } from '../utils/constants';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
-
-// Placeholder screens for tabs
-
-
-
 
 // Main Tab Navigator
 const MainTabs = () => {
@@ -60,7 +54,7 @@ const MainTabs = () => {
         component={HomeScreen}
         options={{
           tabBarLabel: 'Home',
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
             <Ionicons name="home" size={size} color={color} />
           ),
         }}
@@ -70,7 +64,7 @@ const MainTabs = () => {
         component={MyOrdersScreen}
         options={{
           tabBarLabel: 'Orders',
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
             <Ionicons name="receipt" size={size} color={color} />
           ),
         }}
@@ -80,7 +74,7 @@ const MainTabs = () => {
         component={ProfileScreen}
         options={{
           tabBarLabel: 'Profile',
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
             <Ionicons name="person" size={size} color={color} />
           ),
         }}
@@ -89,12 +83,11 @@ const MainTabs = () => {
   );
 };
 
-// Main Stack Navigator (includes modals and detail screens)
 const MainStack = () => (
-  <Stack.Navigator 
-    screenOptions={{ 
+  <Stack.Navigator
+    screenOptions={{
       headerShown: false,
-      cardStyle: { flex: 1 }, // Critical for web scrolling
+      cardStyle: { flex: 1 },
     }}
   >
     <Stack.Screen name="MainTabs" component={MainTabs} />
@@ -120,15 +113,14 @@ export const RootNavigator: React.FC = () => {
     const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
       if (firebaseUser) {
         try {
-          // Fetch user profile from Firestore
-          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
+          // Fetch user profile from Firestore using shared service
+          const userData = await getUser(firebaseUser.uid);
+          if (userData) {
             useAuthStore.getState().setUser({
               uid: firebaseUser.uid,
               phone: userData.phone || firebaseUser.phoneNumber || '',
               name: userData.name || '',
-              email: userData.email || '', // Add allowed fields
+              email: userData.email || '',
             } as any);
           } else {
             // Fallback if doc doesn't exist yet (rare)
@@ -227,8 +219,8 @@ export const RootNavigator: React.FC = () => {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator 
-        screenOptions={{ 
+      <Stack.Navigator
+        screenOptions={{
           headerShown: false,
           cardStyle: { flex: 1 }, // Critical for web scrolling
         }}

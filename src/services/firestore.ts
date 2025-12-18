@@ -23,6 +23,21 @@ export const getVendor = async (vendorId: string) => {
   return null;
 };
 
+// Get user profile
+export const getUser = async (userId: string) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+      return { id: userSnap.id, ...userSnap.data() } as any;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting user profile:', error);
+    return null;
+  }
+};
+
 // Get all vendors
 export const getAllVendors = async () => {
   try {

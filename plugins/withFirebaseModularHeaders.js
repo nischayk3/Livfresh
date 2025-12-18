@@ -3,11 +3,10 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * Enhanced Config plugin for Expo SDK 54 + Firebase.
- * Fixes massive compilation errors by:
- * 1. Enabling global modular headers.
- * 2. Relaxing modularity for all pods.
- * 3. Ensuring all pods define modules correctly for Swift interop.
+ * Surgical Config plugin for Expo SDK 54 + Firebase.
+ * Fixes "declaration of RCTBridgeModule must be imported" by:
+ * 1. Adding explicit Header Search Paths for React to RNFB targets.
+ * 2. Relaxing modularity specifically for Firebase pods.
  */
 module.exports = function withFirebaseModularHeaders(config) {
     return withDangerousMod(config, [
@@ -18,46 +17,51 @@ module.exports = function withFirebaseModularHeaders(config) {
 
             let podfileContent = fs.readFileSync(podfilePath, 'utf8');
 
-            // 1. Ensure global modular headers (Crucial for SDK 54 + Static Frameworks)
-            if (!podfileContent.includes('use_modular_headers!')) {
-                // Add after the platform line
-                podfileContent = podfileContent.replace(
-                    /platform :ios, .*/,
-                    (match) => `${match}\nuse_modular_headers!`
-                );
-                console.log('✅ Added use_modular_headers! to Podfile');
-            }
-
-            // 2. Refined post_install hook for SDK 54
-            const modularHeadersFix = `
+            // 1. We'll use a more refined post_install hook
+            const surgicalFix = `
     installer.pods_project.targets.each do |target|
-      target.build_configurations.each do |config|
-        # Allow non-modular includes for legacy compatibility
-        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
-        # Force define module for Swift/Header internal visibility
-        config.build_settings['DEFINES_MODULE'] = 'YES'
+      if target.name.start_with?('RNFB') || target.name.start_with?('Firebase')
+        target.build_configurations.each do |config|
+          # Fix for "declaration of RCTBridgeModule must be imported"
+          config.build_settings['HEADER_SEARCH_PATHS'] ||= '$(inherited) '
+          config.build_settings['HEADER_SEARCH_PATHS'] << '"$(SRCROOT)/../node_modules/react-native/React" '
+          config.build_settings['HEADER_SEARCH_PATHS'] << '"$(SRCROOT)/../node_modules/react-native/React/Base" '
+          config.build_settings['HEADER_SEARCH_PATHS'] << '"$(SRCROOT)/../node_modules/react-native/Libraries" '
+          
+          # Modularity relaxations
+          config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+          config.build_settings['DEFINES_MODULE'] = 'YES'
+          
+          # Preprocessor fixes for Firestore
+          if target.name.include?('Firestore')
+            config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= '$(inherited) '
+            config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'GPB_USE_PROTOBUF_FRAMEWORK_IMPORTS=1 '
+          end
+        end
       end
     end`;
 
-            // Check if our fix is already inside the post_install block
-            if (!podfileContent.includes('CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES')) {
+            // Remove the old aggressive fix if present
+            podfileContent = podfileContent.replace(/installer\.pods_project\.targets\.each do \|target\|.*?end\s+end/s, surgicalFix);
+
+            // Also ensure use_modular_headers! is NOT global as it can conflict with static frameworks in SDK 54
+            // podfileContent = podfileContent.replace(/use_modular_headers!\n/g, ''); 
+
+            if (!podfileContent.includes('HEADER_SEARCH_PATHS')) {
                 const postInstallMatch = podfileContent.match(/post_install\s+do\s+\|installer\|/);
 
                 if (postInstallMatch) {
-                    // Splice our fix into the existing block
                     podfileContent = podfileContent.replace(
                         /post_install\s+do\s+\|installer\|/,
-                        `post_install do |installer|${modularHeadersFix}`
+                        `post_install do |installer|${surgicalFix}`
                     );
-                    console.log('✅ Updated existing post_install with modular header fixes');
                 } else {
-                    // Append new block
-                    podfileContent += `\npost_install do |installer|${modularHeadersFix}\nend\n`;
-                    console.log('✅ Created new post_install with modular header fixes');
+                    podfileContent += `\npost_install do |installer|${surgicalFix}\nend\n`;
                 }
             }
 
             fs.writeFileSync(podfilePath, podfileContent);
+            console.log('✅ Applied surgical header fixes for RNFB targets');
             return config;
         },
     ]);

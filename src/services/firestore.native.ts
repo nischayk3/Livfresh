@@ -10,6 +10,21 @@ export const getVendor = async (vendorId: string) => {
     return null;
 };
 
+// Get user profile
+export const getUser = async (userId: string) => {
+    try {
+        const userRef = firestore().collection('users').doc(userId);
+        const userSnap = await userRef.get();
+        if (userSnap.exists()) {
+            return { id: userSnap.id, ...userSnap.data() } as any;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error getting user profile:', error);
+        return null;
+    }
+};
+
 // Get all vendors
 export const getAllVendors = async () => {
     try {

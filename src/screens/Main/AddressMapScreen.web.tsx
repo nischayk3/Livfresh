@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { addAddress, updateUserAddress } from '../../services/firestore';
 import { useAuthStore, useAddressStore } from '../../store';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Mock types
 type Region = {
@@ -37,6 +38,7 @@ export const AddressMapScreen: React.FC = () => {
     const route = useRoute();
     const { user } = useAuthStore();
     const { setCurrentAddress, addAddress: addAddressToStore, updateAddress: updateAddressInStore } = useAddressStore();
+    const insets = useSafeAreaInsets();
 
     // Params
     const { initialLat, initialLng, editingAddress } = route.params as {
@@ -186,7 +188,11 @@ export const AddressMapScreen: React.FC = () => {
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 style={styles.formContainer}
             >
-                <ScrollView showsVerticalScrollIndicator={false}>
+                <ScrollView
+                    style={styles.scrollView}
+                    showsVerticalScrollIndicator={true}
+                    contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 40) + 60 }]}
+                >
                     <Text style={styles.heading}>Address Details</Text>
 
                     <View style={styles.currentLocationContainer}>
@@ -260,7 +266,7 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.background,
     },
     webMapPlaceholder: {
-        flex: 0.5,
+        height: 180,
         backgroundColor: '#F3F4F6',
         alignItems: 'center',
         justifyContent: 'center',
@@ -289,13 +295,21 @@ const styles = StyleSheet.create({
         zIndex: 20,
     },
     formContainer: {
-        flex: 0.5,
+        flex: 1,
         backgroundColor: COLORS.background,
-        borderTopLeftRadius: 24, // Matches original
+        borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         padding: SPACING.md,
-        marginTop: -20, // Overlap placeholder
+        marginTop: -20,
         ...SHADOWS.lg,
+    },
+    scrollView: {
+        flex: 1,
+        // @ts-ignore - web-specific
+        overflow: 'auto',
+    },
+    scrollContent: {
+        flexGrow: 1,
     },
     heading: {
         ...TYPOGRAPHY.subheading,

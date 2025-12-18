@@ -399,47 +399,49 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
         {/* Number of Clothes Section REMOVED */}
 
-        {/* Ironing Add-on */}
-        <View style={[styles.section, !selectedWeight && { opacity: 0.5 }]}>
-          <View style={styles.addonHeader}>
-            <Text style={styles.sectionTitle}>Need Ironing?</Text>
-            <Text style={styles.addonPrice}>₹15 per piece</Text>
-          </View>
-          <View style={styles.toggleContainer}>
-            <Text style={styles.toggleLabel}>Ironing</Text>
-            <TouchableOpacity
-              style={[styles.toggle, ironingEnabled && styles.toggleActive]}
-              onPress={() => {
-                if (selectedWeight) setIroningEnabled(!ironingEnabled);
-                else alert("Select weight first");
-              }}
-              disabled={!selectedWeight}
-            >
-              <View style={[styles.toggleThumb, ironingEnabled && styles.toggleThumbActive]} />
-            </TouchableOpacity>
-          </View>
-          {ironingEnabled && (
-            <View style={styles.quantitySelector}>
-              <Text style={styles.quantityLabel}>Number of pieces</Text>
-              <View style={styles.quantityControls}>
-                <TouchableOpacity
-                  style={styles.quantityButton}
-                  onPress={() => setIroningCount(Math.max(0, ironingCount - 1))}
-                >
-                  <Text style={styles.quantityButtonText}>-</Text>
-                </TouchableOpacity>
-                <Text style={styles.quantityValue}>{ironingCount}</Text>
-                <TouchableOpacity
-                  style={[styles.quantityButton, ironingCount >= maxPieces && styles.quantityButtonDisabled]}
-                  onPress={() => setIroningCount(Math.min(maxPieces, ironingCount + 1))}
-                  disabled={ironingCount >= maxPieces}
-                >
-                  <Text style={[styles.quantityButtonText, ironingCount >= maxPieces && styles.quantityButtonTextDisabled]}>+</Text>
-                </TouchableOpacity>
-              </View>
+        {/* Ironing Add-on - Only for Wash & Fold */}
+        {serviceId === 'wash_fold' && (
+          <View style={[styles.section, !selectedWeight && { opacity: 0.5 }]}>
+            <View style={styles.addonHeader}>
+              <Text style={styles.sectionTitle}>Need Ironing?</Text>
+              <Text style={styles.addonPrice}>₹15 per piece</Text>
             </View>
-          )}
-        </View>
+            <View style={styles.toggleContainer}>
+              <Text style={styles.toggleLabel}>Ironing</Text>
+              <TouchableOpacity
+                style={[styles.toggle, ironingEnabled && styles.toggleActive]}
+                onPress={() => {
+                  if (selectedWeight) setIroningEnabled(!ironingEnabled);
+                  else alert("Select weight first");
+                }}
+                disabled={!selectedWeight}
+              >
+                <View style={[styles.toggleThumb, ironingEnabled && styles.toggleThumbActive]} />
+              </TouchableOpacity>
+            </View>
+            {ironingEnabled && (
+              <View style={styles.quantitySelector}>
+                <Text style={styles.quantityLabel}>Number of pieces</Text>
+                <View style={styles.quantityControls}>
+                  <TouchableOpacity
+                    style={styles.quantityButton}
+                    onPress={() => setIroningCount(Math.max(0, ironingCount - 1))}
+                  >
+                    <Text style={styles.quantityButtonText}>-</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.quantityValue}>{ironingCount}</Text>
+                  <TouchableOpacity
+                    style={[styles.quantityButton, ironingCount >= maxPieces && styles.quantityButtonDisabled]}
+                    onPress={() => setIroningCount(Math.min(maxPieces, ironingCount + 1))}
+                    disabled={ironingCount >= maxPieces}
+                  >
+                    <Text style={[styles.quantityButtonText, ironingCount >= maxPieces && styles.quantityButtonTextDisabled]}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Special Instructions */}
         <View style={styles.section}>

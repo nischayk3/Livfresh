@@ -1,6 +1,7 @@
 import React from 'react';
 // Address List Screen
-import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Platform } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, TYPOGRAPHY } from '../../utils/constants'; // Adjust path if needed
@@ -8,6 +9,7 @@ import { useAddressStore } from '../../store';
 
 export const AddressListScreen: React.FC = () => {
     const navigation = useNavigation();
+    const insets = useSafeAreaInsets();
     const { savedAddresses, currentAddress, setCurrentAddress } = useAddressStore();
 
     const renderItem = ({ item }: { item: any }) => {
@@ -56,7 +58,7 @@ export const AddressListScreen: React.FC = () => {
     };
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={COLORS.text} />
@@ -65,10 +67,12 @@ export const AddressListScreen: React.FC = () => {
             </View>
 
             <FlatList
+                style={styles.flatList}
                 data={savedAddresses}
                 renderItem={renderItem}
                 keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.listContent}
+                contentContainerStyle={[styles.listContent, { paddingBottom: 120 }]}
+                showsVerticalScrollIndicator={true}
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
                         <Text style={styles.emptyText}>No addresses saved yet.</Text>
@@ -77,12 +81,12 @@ export const AddressListScreen: React.FC = () => {
             />
 
             <TouchableOpacity
-                style={styles.addButton}
+                style={[styles.addButton, { marginBottom: Math.max(insets.bottom, 20) }]}
                 onPress={() => navigation.navigate('AddressMap' as never)}
             >
                 <Text style={styles.addButtonText}>+ Add New Address</Text>
             </TouchableOpacity>
-        </View>
+        </SafeAreaView>
     );
 };
 
@@ -92,7 +96,7 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.background,
     },
     header: {
-        paddingTop: 60,
+        paddingTop: SPACING.md,
         paddingHorizontal: SPACING.md,
         paddingBottom: SPACING.md,
         flexDirection: 'row',
@@ -107,8 +111,14 @@ const styles = StyleSheet.create({
         ...TYPOGRAPHY.subheading,
         fontSize: 20,
     },
+    flatList: {
+        flex: 1,
+        // @ts-ignore - web-specific
+        overflow: Platform.OS === 'web' ? 'auto' : undefined,
+    },
     listContent: {
         padding: SPACING.md,
+        flexGrow: 1,
     },
     addressItem: {
         flexDirection: 'row',
@@ -145,12 +155,11 @@ const styles = StyleSheet.create({
         color: COLORS.textSecondary,
     },
     addButton: {
-        margin: SPACING.lg,
+        marginHorizontal: SPACING.lg,
         backgroundColor: COLORS.primary,
         padding: SPACING.md,
         borderRadius: 12,
         alignItems: 'center',
-        marginBottom: 40,
     },
     addButtonText: {
         ...TYPOGRAPHY.button,

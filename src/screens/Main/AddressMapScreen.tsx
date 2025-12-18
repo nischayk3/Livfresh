@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { addAddress, updateUserAddress } from '../../services/firestore';
 import { useAuthStore, useAddressStore } from '../../store';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width, height } = Dimensions.get('window');
 const ASPECT_RATIO = width / height;
@@ -31,6 +32,7 @@ export const AddressMapScreen: React.FC = () => {
     const route = useRoute();
     const { user } = useAuthStore();
     const { setCurrentAddress, addAddress: addAddressToStore, updateAddress: updateAddressInStore } = useAddressStore();
+    const insets = useSafeAreaInsets();
 
     // Params: 'editingAddress' is passed when editing an existing address
     const { initialLat, initialLng, editingAddress } = route.params as {
@@ -257,7 +259,11 @@ export const AddressMapScreen: React.FC = () => {
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 style={styles.formContainer}
             >
-                <ScrollView showsVerticalScrollIndicator={false}>
+                <ScrollView
+                    style={styles.scrollView}
+                    showsVerticalScrollIndicator={true}
+                    contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 40) + 60 }]}
+                >
                     <Text style={styles.heading}>Select Location</Text>
 
                     <View style={styles.currentLocationContainer}>
@@ -360,13 +366,21 @@ const styles = StyleSheet.create({
         zIndex: 20,
     },
     formContainer: {
-        flex: 0.5,
+        flex: 1,
         backgroundColor: COLORS.background,
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         padding: SPACING.md,
         marginTop: -20,
         ...SHADOWS.lg,
+    },
+    scrollView: {
+        flex: 1,
+        // @ts-ignore - web-specific
+        overflow: Platform.OS === 'web' ? 'auto' : undefined,
+    },
+    scrollContent: {
+        flexGrow: 1,
     },
     heading: {
         ...TYPOGRAPHY.subheading,

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -58,6 +58,28 @@ export const OnboardingCarousel: React.FC = () => {
   const slideWidth = Math.min(width, 500);
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
+
+  // Auto-scroll effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (currentIndex < slides.length - 1) {
+        const nextIndex = currentIndex + 1;
+        flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
+        setCurrentIndex(nextIndex);
+      } else {
+        // Stop auto-scroll at the end or loop? User said "auto shift... currently user have click next next"
+        // Let's loop back to start for continuous engagement or stop?
+        // Usually onboarding stops or loops. Let's Loop for now as it's a "carousel".
+        // Actually, typical onboarding flows stop at the "Get Started" button.
+        // But "Carousel" implies looping. Let's make it go to 0 if at end,
+        // BUT the last slide has "Get Started", so auto-moving away from it might be annoying.
+        // Let's stop at the end.
+        clearInterval(interval);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [currentIndex]);
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const scrollPosition = event.nativeEvent.contentOffset.x;

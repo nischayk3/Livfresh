@@ -8,6 +8,7 @@ import {
     Alert,
     ActivityIndicator,
     Platform,
+    Dimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -199,7 +200,7 @@ export const CartScreen: React.FC = () => {
     }
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={COLORS.text} />
@@ -208,117 +209,125 @@ export const CartScreen: React.FC = () => {
                 <View style={{ width: 24 }} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                {/* Items List */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Items ({items.length})</Text>
-                    {items.map(renderCartItem)}
-                </View>
-
-                {/* Bill Details */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Bill Details</Text>
-                    <View style={styles.billRow}>
-                        <Text style={styles.billLabel}>Item Total</Text>
-                        <Text style={styles.billValue}>₹{subtotal}</Text>
-                    </View>
-                    <View style={styles.billRow}>
-                        <Text style={styles.billLabel}>Platform Fee</Text>
-                        <Text style={styles.billValue}>₹{PLATFORM_FEE}</Text>
-                    </View>
-                    <View style={styles.billRow}>
-                        <Text style={styles.billLabel}>GST (18%)</Text>
-                        <Text style={styles.billValue}>₹{gstAmount}</Text>
-                    </View>
-                    <View style={[styles.billRow, styles.totalRow]}>
-                        <Text style={styles.totalLabel}>Grand Total</Text>
-                        <Text style={styles.totalValue}>₹{totalAmount}</Text>
-                    </View>
-                </View>
-
-                {/* Pickup Details */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Pickup Details</Text>
-
-                    {/* Toggle */}
-                    <View style={styles.pickupToggle}>
-                        <TouchableOpacity
-                            style={[styles.toggleOption, pickupType === 'instant' && styles.toggleOptionActive]}
-                            onPress={() => setPickupType('instant')}
-                        >
-                            <Ionicons name="flash" size={16} color={pickupType === 'instant' ? '#FFF' : COLORS.text} />
-                            <Text style={[styles.toggleText, pickupType === 'instant' && styles.toggleTextActive]}>
-                                Instant (20-30 min)
-                            </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.toggleOption, pickupType === 'scheduled' && styles.toggleOptionActive]}
-                            onPress={() => setPickupType('scheduled')}
-                        >
-                            <Ionicons name="calendar" size={16} color={pickupType === 'scheduled' ? '#FFF' : COLORS.text} />
-                            <Text style={[styles.toggleText, pickupType === 'scheduled' && styles.toggleTextActive]}>
-                                Schedule Later
-                            </Text>
-                        </TouchableOpacity>
+            <View style={styles.scrollContainer}>
+                <ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={true}
+                    bounces={true}
+                    nestedScrollEnabled={true}
+                >
+                    {/* Items List */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Items ({items.length})</Text>
+                        {items.map(renderCartItem)}
                     </View>
 
-                    {/* Schedule Picker */}
-                    {pickupType === 'scheduled' && (
-                        <View style={styles.scheduleContainer}>
-                            <Text style={styles.pickerLabel}>Select Date</Text>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateScroll}>
-                                {dates.map((date) => (
-                                    <TouchableOpacity
-                                        key={date.id}
-                                        style={[styles.dateCard, selectedDate === date.id && styles.dateCardSelected]}
-                                        onPress={() => setSelectedDate(date.id)}
-                                    >
-                                        <Text style={[styles.dateDay, selectedDate === date.id && styles.dateTextSelected]}>{date.day}</Text>
-                                        <Text style={[styles.dateNum, selectedDate === date.id && styles.dateTextSelected]}>{date.date}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </ScrollView>
+                    {/* Bill Details */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Bill Details</Text>
+                        <View style={styles.billRow}>
+                            <Text style={styles.billLabel}>Item Total</Text>
+                            <Text style={styles.billValue}>₹{subtotal}</Text>
+                        </View>
+                        <View style={styles.billRow}>
+                            <Text style={styles.billLabel}>Platform Fee</Text>
+                            <Text style={styles.billValue}>₹{PLATFORM_FEE}</Text>
+                        </View>
+                        <View style={styles.billRow}>
+                            <Text style={styles.billLabel}>GST (18%)</Text>
+                            <Text style={styles.billValue}>₹{gstAmount}</Text>
+                        </View>
+                        <View style={[styles.billRow, styles.totalRow]}>
+                            <Text style={styles.totalLabel}>Grand Total</Text>
+                            <Text style={styles.totalValue}>₹{totalAmount}</Text>
+                        </View>
+                    </View>
 
-                            <Text style={styles.pickerLabel}>Select Time</Text>
-                            <View style={styles.timeGrid}>
-                                {timeSlots.map((slot) => (
-                                    <TouchableOpacity
-                                        key={slot}
-                                        style={[styles.timeSlot, selectedTimeSlot === slot && styles.timeSlotSelected]}
-                                        onPress={() => setSelectedTimeSlot(slot)}
-                                    >
-                                        <Text style={[styles.timeText, selectedTimeSlot === slot && styles.timeTextSelected]}>
-                                            {slot}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
+                    {/* Pickup Details */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Pickup Details</Text>
+
+                        {/* Toggle */}
+                        <View style={styles.pickupToggle}>
+                            <TouchableOpacity
+                                style={[styles.toggleOption, pickupType === 'instant' && styles.toggleOptionActive]}
+                                onPress={() => setPickupType('instant')}
+                            >
+                                <Ionicons name="flash" size={16} color={pickupType === 'instant' ? '#FFF' : COLORS.text} />
+                                <Text style={[styles.toggleText, pickupType === 'instant' && styles.toggleTextActive]}>
+                                    Instant (20-30 min)
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.toggleOption, pickupType === 'scheduled' && styles.toggleOptionActive]}
+                                onPress={() => setPickupType('scheduled')}
+                            >
+                                <Ionicons name="calendar" size={16} color={pickupType === 'scheduled' ? '#FFF' : COLORS.text} />
+                                <Text style={[styles.toggleText, pickupType === 'scheduled' && styles.toggleTextActive]}>
+                                    Schedule Later
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Schedule Picker */}
+                        {pickupType === 'scheduled' && (
+                            <View style={styles.scheduleContainer}>
+                                <Text style={styles.pickerLabel}>Select Date</Text>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateScroll}>
+                                    {dates.map((date) => (
+                                        <TouchableOpacity
+                                            key={date.id}
+                                            style={[styles.dateCard, selectedDate === date.id && styles.dateCardSelected]}
+                                            onPress={() => setSelectedDate(date.id)}
+                                        >
+                                            <Text style={[styles.dateDay, selectedDate === date.id && styles.dateTextSelected]}>{date.day}</Text>
+                                            <Text style={[styles.dateNum, selectedDate === date.id && styles.dateTextSelected]}>{date.date}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+
+                                <Text style={styles.pickerLabel}>Select Time</Text>
+                                <View style={styles.timeGrid}>
+                                    {timeSlots.map((slot) => (
+                                        <TouchableOpacity
+                                            key={slot}
+                                            style={[styles.timeSlot, selectedTimeSlot === slot && styles.timeSlotSelected]}
+                                            onPress={() => setSelectedTimeSlot(slot)}
+                                        >
+                                            <Text style={[styles.timeText, selectedTimeSlot === slot && styles.timeTextSelected]}>
+                                                {slot}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
                             </View>
-                        </View>
-                    )}
-                </View>
-
-                {/* Address Preview (Static for now) */}
-                <View style={styles.section}>
-                    <View style={styles.addressRow}>
-                        <View>
-                            <Text style={styles.sectionTitle}>Delivery Address</Text>
-                            <Text style={styles.addressText} numberOfLines={1}>
-                                {currentAddress || 'No Address Selected'}
-                            </Text>
-                        </View>
-                        <TouchableOpacity
-                            style={styles.changeAddressBtn}
-                            onPress={() => navigation.navigate('AddressList' as never)}
-                        >
-                            <Text style={styles.changeAddressText}>CHANGE</Text>
-                        </TouchableOpacity>
+                        )}
                     </View>
-                </View>
 
-            </ScrollView>
+                    {/* Address Preview (Static for now) */}
+                    <View style={styles.section}>
+                        <View style={styles.addressRow}>
+                            <View>
+                                <Text style={styles.sectionTitle}>Delivery Address</Text>
+                                <Text style={styles.addressText} numberOfLines={1}>
+                                    {currentAddress || 'No Address Selected'}
+                                </Text>
+                            </View>
+                            <TouchableOpacity
+                                style={styles.changeAddressBtn}
+                                onPress={() => navigation.navigate('AddressList' as never)}
+                            >
+                                <Text style={styles.changeAddressText}>CHANGE</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                </ScrollView>
+            </View>
 
             {/* Footer */}
-            <View style={[styles.footer, { paddingBottom: insets.bottom > 0 ? insets.bottom : SPACING.lg }]}>
+            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, SPACING.lg) }]}>
                 <View>
                     <Text style={styles.footerLabel}>Total to Pay</Text>
                     <Text style={styles.footerTotal}>₹{totalAmount}</Text>
@@ -346,6 +355,11 @@ const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
         backgroundColor: COLORS.background,
+        ...(Platform.OS === 'web' ? {
+            height: '100vh',
+            display: 'flex',
+            flexDirection: 'column',
+        } : {}),
     },
     header: {
         flexDirection: 'row',
@@ -356,6 +370,9 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: COLORS.borderLight,
         backgroundColor: COLORS.background,
+        ...(Platform.OS === 'web' ? {
+            flexShrink: 0,
+        } : {}),
     },
     headerTitle: {
         ...TYPOGRAPHY.subheading,
@@ -364,8 +381,32 @@ const styles = StyleSheet.create({
     backButton: {
         padding: 4,
     },
+    scrollContainer: {
+        flex: 1,
+        ...(Platform.OS === 'web' ? { 
+            minHeight: 0,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            flexShrink: 1,
+        } : {}),
+    },
+    scrollView: {
+        flex: 1,
+        ...(Platform.OS === 'web' ? { 
+            minHeight: 0,
+            overflowY: 'auto' as any,
+            overflowX: 'hidden' as any,
+            WebkitOverflowScrolling: 'touch' as any,
+            flexShrink: 1,
+        } : {}),
+    },
     scrollContent: {
-        paddingBottom: 100,
+        flexGrow: 1,
+        paddingBottom: 120,
+        ...(Platform.OS === 'web' ? {
+            minHeight: 'auto',
+        } : {}),
     },
     section: {
         paddingHorizontal: SPACING.lg,
@@ -583,10 +624,6 @@ const styles = StyleSheet.create({
         fontSize: 12,
     },
     footer: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
         backgroundColor: COLORS.background,
         padding: SPACING.lg,
         borderTopWidth: 1,
@@ -599,6 +636,13 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 8,
         elevation: 10,
+        ...(Platform.OS === 'web' ? {
+            position: 'relative' as any,
+            zIndex: 1000,
+            flexShrink: 0,
+            flexGrow: 0,
+            width: '100%',
+        } : {}),
     },
     footerLabel: {
         fontSize: 12,
@@ -618,6 +662,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 8,
         ...SHADOWS.md,
+        ...(Platform.OS === 'web' ? {
+            cursor: 'pointer',
+            userSelect: 'none' as any,
+        } : {}),
     },
     placeOrderText: {
         color: '#FFF',

@@ -2,6 +2,7 @@
   "expo": {
     "name": "Spinit",
     "slug": "Spinit",
+    "scheme": "spinit",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,7 +14,9 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nischayk3.Spinit",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
@@ -21,10 +24,31 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.nischayk3.Spinit",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "e7863fff-8d0c-4d99-ae2c-93f59d2b2bdc"
+      }
+    },
+    "plugins": [
+      "./plugins/withDisablePngCrunching",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ],
+      "./plugins/withFirebaseModularHeaders",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth"
+    ]
   }
 }

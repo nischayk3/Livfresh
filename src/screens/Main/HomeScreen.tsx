@@ -73,26 +73,10 @@ const SERVICES = [
     description: 'Comforters',
   },
   {
-    id: 'premium_laundry',
-    name: 'Premium',
-    icon: 'diamond-outline',
+    id: 'subscription',
+    name: 'Subscription',
+    icon: 'card-outline',
     color: '#FFD700',
-    description: 'Coming Soon',
-    disabled: true,
-  },
-  {
-    id: 'dry_clean',
-    name: 'Dry Clean',
-    icon: 'sparkles-outline',
-    color: '#9333EA',
-    description: 'Coming Soon',
-    disabled: true,
-  },
-  {
-    id: 'shoe_clean',
-    name: 'Shoe Clean',
-    icon: 'footsteps-outline',
-    color: COLORS.info,
     description: 'Coming Soon',
     disabled: true,
   },
@@ -193,7 +177,7 @@ export const HomeScreen: React.FC = () => {
             </View>
             <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate('Main' as never, { screen: 'Profile' } as never)}>
+          <TouchableOpacity style={styles.profileButton} onPress={() => (navigation as any).navigate('Main', { screen: 'Profile' })}>
             <View style={styles.avatarContainer}>
               <Text style={styles.avatarText}>
                 {user?.name ? user.name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() : 'U'}

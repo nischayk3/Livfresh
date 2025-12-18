@@ -1,0 +1,9 @@
+# Netlify configuration for React Native Web SPA
+[build]
+  publish = "dist"
+  command = "npx expo export -p web"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

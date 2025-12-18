@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
@@ -19,6 +20,7 @@ const ORDER_STEPS = [
 export const OrderDetailScreen: React.FC = () => {
     const navigation = useNavigation();
     const route = useRoute();
+    const insets = useSafeAreaInsets();
     const { user } = useAuthStore();
     const { orderId } = route.params as { orderId: string };
 
@@ -62,7 +64,7 @@ export const OrderDetailScreen: React.FC = () => {
     const activeStepIndex = currentStepIndex === -1 ? 0 : currentStepIndex; // Default to 0 if unknown
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={COLORS.text} />
@@ -70,7 +72,12 @@ export const OrderDetailScreen: React.FC = () => {
                 <Text style={styles.headerTitle}>Order #{order.id.slice(-6).toUpperCase()}</Text>
             </View>
 
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 40) + 80 }]}
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+            >
 
                 {/* Stepper Section */}
                 <View style={styles.section}>
@@ -149,7 +156,7 @@ export const OrderDetailScreen: React.FC = () => {
                 </View>
 
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 };
 
@@ -157,6 +164,11 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: COLORS.background,
+        ...(Platform.OS === 'web' ? {
+            height: '100vh',
+            display: 'flex',
+            flexDirection: 'column',
+        } : {}),
     },
     loadingContainer: {
         flex: 1,
@@ -166,7 +178,7 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingTop: 60,
+        paddingTop: SPACING.md,
         paddingHorizontal: SPACING.md,
         paddingBottom: SPACING.md,
         backgroundColor: COLORS.background,
@@ -180,9 +192,22 @@ const styles = StyleSheet.create({
         ...TYPOGRAPHY.subheading,
         fontWeight: '700',
     },
+    scrollView: {
+        flex: 1,
+        ...(Platform.OS === 'web' ? {
+            height: '100%',
+            minHeight: 0,
+            overflowY: 'auto' as any,
+            overflowX: 'hidden' as any,
+            WebkitOverflowScrolling: 'touch' as any,
+        } : {}),
+    },
     scrollContent: {
         padding: SPACING.md,
-        paddingBottom: 40,
+        flexGrow: 1,
+        ...(Platform.OS === 'web' ? {
+            minHeight: '100%',
+        } : {}),
     },
     section: {
         marginBottom: SPACING.xl,

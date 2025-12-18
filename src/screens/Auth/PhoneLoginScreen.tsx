@@ -18,9 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import { requestOTP } from '../../services/auth';
-import { firebaseConfig } from '../../services/firebase';
 import { checkUserExists } from '../../services/firestore';
 import { useAuthStore } from '../../store';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
@@ -30,10 +28,16 @@ const { width } = Dimensions.get('window');
 export const PhoneLoginScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const recaptchaVerifier = useRef(null);
   const { setLoading, setError } = useAuthStore();
   const [phone, setPhone] = useState('');
   const [loading, setLocalLoading] = useState(false);
+  const [recaptchaReady, setRecaptchaReady] = useState(false);
+
+  // RecaptchaVerifier logic moved to auth.web.ts or handled internally by the web SDK.
+  // We just ensure the container exists on web.
+  useEffect(() => {
+    // Platform specific setup checks if any
+  }, []);
 
   const formatPhone = (text: string) => {
     const numbers = text.replace(/\D/g, '');
@@ -65,8 +69,8 @@ export const PhoneLoginScreen: React.FC = () => {
       // Check if user exists
       const existingUser = await checkUserExists(formattedPhone);
 
-      // Request OTP
-      await requestOTP(formattedPhone, recaptchaVerifier.current);
+      // Request OTP - verifier handled internally by platform specific service
+      await requestOTP(formattedPhone);
 
       // Store phone in store
       const { setOTPData } = useAuthStore.getState();
@@ -78,7 +82,7 @@ export const PhoneLoginScreen: React.FC = () => {
         navigation.navigate('OTP' as never);
       } else {
         // New user - collect details first
-        navigation.navigate('UserDetails' as never, { phone: formattedPhone } as never);
+        (navigation as any).navigate('UserDetails', { phone: formattedPhone });
       }
     } catch (error: any) {
       console.error('Phone auth error:', error);
@@ -99,12 +103,8 @@ export const PhoneLoginScreen: React.FC = () => {
         colors={[COLORS.backgroundGradient, COLORS.background]}
         style={styles.gradient}
       >
-        {/* Recaptcha Verifier Modal */}
-        <FirebaseRecaptchaVerifierModal
-          ref={recaptchaVerifier}
-          firebaseConfig={firebaseConfig}
-          attemptInvisibleVerification={true} // Enable invisible captcha for better UX
-        />
+        {/* Recaptcha Container for Web */}
+        {Platform.OS === 'web' && <div id="recaptcha-container" />}
 
         <ScrollView
           contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + SPACING.lg, paddingBottom: insets.bottom + SPACING.xl }]}

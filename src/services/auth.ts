@@ -1,6 +1,16 @@
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from './firebase'; // Ensure auth is imported
-import { signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
+import {
+  signInWithPhoneNumber,
+  RecaptchaVerifier,
+  ConfirmationResult
+} from 'firebase/auth';
+
+declare global {
+  interface Window {
+    recaptchaVerifier: any;
+  }
+}
 
 // Store OTP confirmation result during verification flow
 let currentConfirmationResult: ConfirmationResult | null = null;
@@ -11,12 +21,29 @@ let currentUserData: {
   gender?: string;
 } = {};
 
-export const requestOTP = async (phoneNumber: string, verifier: any): Promise<any> => {
+// Helper to get or create verifier
+const getVerifier = () => {
+  // @ts-ignore - RecaptchaVerifier isn't typed on window clearly or we create a new one
+  if (!window.recaptchaVerifier) {
+    try {
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible',
+        callback: () => console.log('Recaptcha verified')
+      });
+    } catch (e) {
+      console.warn("Recaptcha init warning:", e);
+    }
+  }
+  return window.recaptchaVerifier;
+};
+
+export const requestOTP = async (phoneNumber: string, verifier?: any): Promise<any> => {
   currentPhoneNumber = phoneNumber.trim();
   console.log(`Requesting OTP for: '${currentPhoneNumber}'`);
 
   try {
-    const confirmation = await signInWithPhoneNumber(auth, currentPhoneNumber, verifier);
+    const appVerifier = verifier || getVerifier();
+    const confirmation = await signInWithPhoneNumber(auth, currentPhoneNumber, appVerifier);
     currentConfirmationResult = confirmation;
     console.log("✅ OTP Sent via Firebase Auth");
     return {
@@ -25,7 +52,7 @@ export const requestOTP = async (phoneNumber: string, verifier: any): Promise<an
     };
   } catch (error: any) {
     console.error("Error sending OTP:", error);
-    throw error;
+    throw error; // Rethrow to let caller handle alerts
   }
 };
 
@@ -40,7 +67,7 @@ export const verifyOTP = async (code: string): Promise<any> => {
     // 1. Confirm OTP with Firebase Auth
     const userCredential = await currentConfirmationResult.confirm(code);
     const user = userCredential.user;
-    console.log(`✅ Phone Authenticated. UID: ${user.uid}`);
+    console.log(`✅ Phone Authenticated.UID: ${user.uid} `);
 
     // 2. Create/Update User in Firestore
     // We utilize the Auth UID for the document ID to ensure straightforward permission rules (request.auth.uid == resource.id).

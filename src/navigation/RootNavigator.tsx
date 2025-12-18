@@ -91,7 +91,12 @@ const MainTabs = () => {
 
 // Main Stack Navigator (includes modals and detail screens)
 const MainStack = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
+  <Stack.Navigator 
+    screenOptions={{ 
+      headerShown: false,
+      cardStyle: { flex: 1 }, // Critical for web scrolling
+    }}
+  >
     <Stack.Screen name="MainTabs" component={MainTabs} />
     <Stack.Screen name="VendorDetail" component={VendorDetailScreen} />
     <Stack.Screen name="AddressList" component={AddressListScreen} />
@@ -222,7 +227,12 @@ export const RootNavigator: React.FC = () => {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator 
+        screenOptions={{ 
+          headerShown: false,
+          cardStyle: { flex: 1 }, // Critical for web scrolling
+        }}
+      >
         {!isLoggedIn ? (
           <>
             <Stack.Screen name="Onboarding" component={OnboardingCarousel} />

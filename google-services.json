@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "6391153790",
+    "project_id": "livfresh",
+    "storage_bucket": "livfresh.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:6391153790:android:480508c06bc405588bc42f",
+        "android_client_info": {
+          "package_name": "com.nischayk3.Spinit"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "6391153790-k69slni1i9jdaf7o3d1caechgt6v45fk.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBckUi-KV9qCclsybhoVGwAoXU9Z8NVmpg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "6391153790-k69slni1i9jdaf7o3d1caechgt6v45fk.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "6391153790-keact7vd1u6ec2bga9pn63mu13f9a9ta.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "spinit"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

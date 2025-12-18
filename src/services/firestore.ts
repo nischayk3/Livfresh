@@ -74,7 +74,7 @@ export const checkUserExists = async (phone: string) => {
 
     if (!querySnapshot.empty) {
       const userDoc = querySnapshot.docs[0];
-      return { id: userDoc.id, ...userDoc.data() };
+      return { id: userDoc.id, ...userDoc.data() } as any;
     }
     return null;
   } catch (error) {

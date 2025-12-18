@@ -3,8 +3,11 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * Config plugin to allow non-modular headers in Firebase targets.
- * This fixes the error: "include of non-modular header inside framework module"
+ * Enhanced Config plugin for Expo SDK 54 + Firebase.
+ * Fixes massive compilation errors by:
+ * 1. Enabling global modular headers.
+ * 2. Relaxing modularity for all pods.
+ * 3. Ensuring all pods define modules correctly for Swift interop.
  */
 module.exports = function withFirebaseModularHeaders(config) {
     return withDangerousMod(config, [
@@ -15,30 +18,42 @@ module.exports = function withFirebaseModularHeaders(config) {
 
             let podfileContent = fs.readFileSync(podfilePath, 'utf8');
 
+            // 1. Ensure global modular headers (Crucial for SDK 54 + Static Frameworks)
+            if (!podfileContent.includes('use_modular_headers!')) {
+                // Add after the platform line
+                podfileContent = podfileContent.replace(
+                    /platform :ios, .*/,
+                    (match) => `${match}\nuse_modular_headers!`
+                );
+                console.log('✅ Added use_modular_headers! to Podfile');
+            }
+
+            // 2. Refined post_install hook for SDK 54
             const modularHeadersFix = `
     installer.pods_project.targets.each do |target|
-      if target.name.start_with?('RNFB') || target.name.start_with?('Firebase')
-        target.build_configurations.each do |config|
-          config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
-        end
+      target.build_configurations.each do |config|
+        # Allow non-modular includes for legacy compatibility
+        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+        # Force define module for Swift/Header internal visibility
+        config.build_settings['DEFINES_MODULE'] = 'YES'
       end
     end`;
 
-            // Check if the fix is already there
+            // Check if our fix is already inside the post_install block
             if (!podfileContent.includes('CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES')) {
-                // Find the post_install block
                 const postInstallMatch = podfileContent.match(/post_install\s+do\s+\|installer\|/);
 
                 if (postInstallMatch) {
+                    // Splice our fix into the existing block
                     podfileContent = podfileContent.replace(
                         /post_install\s+do\s+\|installer\|/,
                         `post_install do |installer|${modularHeadersFix}`
                     );
-                    console.log('✅ Applied non-modular header fix to Podfile');
+                    console.log('✅ Updated existing post_install with modular header fixes');
                 } else {
-                    // If no post_install block, append one before the end
+                    // Append new block
                     podfileContent += `\npost_install do |installer|${modularHeadersFix}\nend\n`;
-                    console.log('✅ Created post_install block with non-modular header fix');
+                    console.log('✅ Created new post_install with modular header fixes');
                 }
             }
 

@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, TYPOGRAPHY } from '../../utils/constants';
 import { useAuthStore } from '../../store';
 import { updateUser } from '../../services/firestore';
+import { BrandLoader } from '../../components/BrandLoader';
 
 export const EditProfileScreen: React.FC = () => {
     const navigation = useNavigation();
@@ -53,6 +54,8 @@ export const EditProfileScreen: React.FC = () => {
 
     return (
         <View style={styles.container}>
+            {loading && <BrandLoader fullscreen message="Saving profile..." />}
+
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={COLORS.text} />
@@ -125,11 +128,7 @@ export const EditProfileScreen: React.FC = () => {
                     onPress={handleSave}
                     disabled={loading}
                 >
-                    {loading ? (
-                        <ActivityIndicator color="#FFF" />
-                    ) : (
-                        <Text style={styles.saveButtonText}>Save Changes</Text>
-                    )}
+                    <Text style={styles.saveButtonText}>Save Changes</Text>
                 </TouchableOpacity>
             </View>
         </View>

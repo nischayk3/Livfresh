@@ -1,0 +1,35 @@
+irules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users collection
+    match /users/{userId} {
+      allow create, read, update: if true; // Testing only!
+      
+      match /addresses/{addressId} {
+        allow read, write: if true;
+      }
+      
+      match /orders/{orderId} {
+        allow read, write: if true;
+      }
+
+      // [NEW] Allow access to subscriptions
+      match /subscriptions/{subscriptionId} {
+        allow read, write: if true;
+      }
+    }
+    
+    // Vendors collection
+    match /vendors/{vendorId} {
+      allow read, write: if true; // ⚠️ Testing only!
+      
+      match /services/{serviceId} {
+        allow read, write: if true;
+      }
+      
+      match /orders/{orderId} {
+        allow read, write: if true;
+      }
+    }
+  }
+}

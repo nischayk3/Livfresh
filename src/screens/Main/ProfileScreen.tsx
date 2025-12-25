@@ -1,5 +1,6 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, Modal, TouchableWithoutFeedback } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
@@ -8,30 +9,99 @@ import { useAuthStore } from '../../store';
 export const ProfileScreen: React.FC = () => {
     const navigation = useNavigation();
     const { user, logout } = useAuthStore();
+    const insets = useSafeAreaInsets();
+    const [showLogoutModal, setShowLogoutModal] = useState(false);
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
 
     const handleLogout = () => {
-        Alert.alert(
-            'Logout',
-            'Are you sure you want to logout?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Logout',
-                    style: 'destructive',
-                    onPress: () => logout()
-                }
-            ]
-        );
+        if (Platform.OS === 'web') {
+            // On web, show custom modal instead of Alert.alert
+            setShowLogoutModal(true);
+        } else {
+            // On native, use native Alert
+            Alert.alert(
+                'Logout',
+                'Are you sure you want to logout?',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                        text: 'Logout',
+                        style: 'destructive',
+                        onPress: executeLogout
+                    }
+                ]
+            );
+        }
+    };
+
+    const executeLogout = async () => {
+        setIsLoggingOut(true);
+        try {
+            await logout();
+            console.log('✅ User logged out successfully');
+        } catch (error) {
+            console.error('Logout error:', error);
+        } finally {
+            setIsLoggingOut(false);
+            setShowLogoutModal(false);
+        }
     };
 
     const getInitials = (name: string) => {
         return name ? name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() : 'U';
     };
 
+    // Web Logout Confirmation Modal
+    const renderLogoutModal = () => (
+        <Modal
+            visible={showLogoutModal}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setShowLogoutModal(false)}
+        >
+            <TouchableWithoutFeedback onPress={() => setShowLogoutModal(false)}>
+                <View style={styles.modalOverlay}>
+                    <TouchableWithoutFeedback>
+                        <View style={styles.modalContent}>
+                            <View style={styles.modalHeader}>
+                                <Ionicons name="log-out-outline" size={48} color={COLORS.error} />
+                            </View>
+                            <Text style={styles.modalTitle}>Logout</Text>
+                            <Text style={styles.modalMessage}>Are you sure you want to logout?</Text>
+
+                            <View style={styles.modalButtons}>
+                                <TouchableOpacity
+                                    style={[styles.modalButton, styles.cancelButton]}
+                                    onPress={() => setShowLogoutModal(false)}
+                                    disabled={isLoggingOut}
+                                >
+                                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.modalButton, styles.confirmButton, isLoggingOut && { opacity: 0.7 }]}
+                                    onPress={executeLogout}
+                                    disabled={isLoggingOut}
+                                >
+                                    <Text style={styles.confirmButtonText}>
+                                        {isLoggingOut ? 'Logging out...' : 'Logout'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </TouchableWithoutFeedback>
+                </View>
+            </TouchableWithoutFeedback>
+        </Modal>
+    );
+
     return (
         <View style={styles.container}>
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? SPACING.lg : insets.top + SPACING.sm }]}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                    <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+                </TouchableOpacity>
                 <Text style={styles.headerTitle}>Profile</Text>
+                <View style={{ width: 40 }} />
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -96,6 +166,9 @@ export const ProfileScreen: React.FC = () => {
                 </TouchableOpacity>
 
             </ScrollView>
+
+            {/* Web Logout Modal */}
+            {renderLogoutModal()}
         </View>
     );
 };
@@ -106,16 +179,21 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.background,
     },
     header: {
-        paddingTop: 60,
-        paddingHorizontal: SPACING.lg,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: SPACING.md,
         paddingBottom: SPACING.md,
         backgroundColor: COLORS.background,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.borderLight,
     },
+    backButton: {
+        padding: SPACING.xs,
+    },
     headerTitle: {
-        ...TYPOGRAPHY.heading,
-        fontSize: 24,
+        ...TYPOGRAPHY.subheading,
+        fontSize: 18,
     },
     scrollContent: {
         padding: SPACING.lg,
@@ -204,5 +282,62 @@ const styles = StyleSheet.create({
     logoutText: {
         ...TYPOGRAPHY.bodyBold,
         color: COLORS.error,
+    },
+    // Modal styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalContent: {
+        backgroundColor: COLORS.white,
+        borderRadius: RADIUS.xl,
+        padding: SPACING.xl,
+        width: '85%',
+        maxWidth: 340,
+        alignItems: 'center',
+        ...SHADOWS.lg,
+    },
+    modalHeader: {
+        marginBottom: SPACING.md,
+    },
+    modalTitle: {
+        ...TYPOGRAPHY.heading,
+        fontSize: 22,
+        marginBottom: SPACING.sm,
+    },
+    modalMessage: {
+        ...TYPOGRAPHY.body,
+        color: COLORS.textSecondary,
+        textAlign: 'center',
+        marginBottom: SPACING.xl,
+    },
+    modalButtons: {
+        flexDirection: 'row',
+        gap: SPACING.md,
+        width: '100%',
+    },
+    modalButton: {
+        flex: 1,
+        paddingVertical: SPACING.md,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+    },
+    cancelButton: {
+        backgroundColor: COLORS.backgroundLight,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    cancelButtonText: {
+        ...TYPOGRAPHY.bodyBold,
+        color: COLORS.text,
+    },
+    confirmButton: {
+        backgroundColor: COLORS.error,
+    },
+    confirmButtonText: {
+        ...TYPOGRAPHY.bodyBold,
+        color: COLORS.white,
     },
 });

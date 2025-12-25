@@ -22,6 +22,7 @@ import { requestOTP } from '../../services/auth';
 import { checkUserExists } from '../../services/firestore';
 import { useAuthStore } from '../../store';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
+import { BrandLoader } from '../../components/BrandLoader';
 
 const { width } = Dimensions.get('window');
 
@@ -165,22 +166,19 @@ export const PhoneLoginScreen: React.FC = () => {
             style={styles.buttonContainer}
             activeOpacity={0.8}
           >
-            {loading ? (
-              <View style={styles.button}>
-                <ActivityIndicator color="#FFFFFF" />
-              </View>
-            ) : (
-              <LinearGradient
-                colors={phone.length === 10 ? [COLORS.gradientStart, COLORS.gradientEnd] : [COLORS.disabled, COLORS.disabled]}
-                style={styles.button}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                <Text style={styles.buttonText}>Get OTP</Text>
-                <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={styles.buttonIcon} />
-              </LinearGradient>
-            )}
+            <LinearGradient
+              colors={phone.length === 10 ? [COLORS.gradientStart, COLORS.gradientEnd] : [COLORS.disabled, COLORS.disabled]}
+              style={styles.button}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={styles.buttonText}>Get OTP</Text>
+              <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={styles.buttonIcon} />
+            </LinearGradient>
           </TouchableOpacity>
+
+          {/* Fullscreen loader overlay */}
+          {loading && <BrandLoader fullscreen message="Sending OTP..." />}
 
           <Text style={styles.termsText}>
             By continuing, you agree to our{' '}

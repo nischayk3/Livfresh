@@ -49,45 +49,58 @@ export const COLORS = {
   service4Dark: '#A7F3D0',
 };
 
-// Typography - Enhanced with better weights
+// Typography - Refined for modern, compact feel
 export const TYPOGRAPHY = {
+  // Large titles (screen headers)
   heading: {
-    fontSize: 32,
+    fontSize: 26,
     fontWeight: '700' as const,
-    lineHeight: 40,
+    lineHeight: 32,
     letterSpacing: -0.5,
   },
+  // Section titles
   subheading: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '600' as const,
-    lineHeight: 28,
-    letterSpacing: -0.3,
+    lineHeight: 24,
+    letterSpacing: -0.2,
   },
+  // Regular body text
   body: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '400' as const,
-    lineHeight: 24,
+    lineHeight: 22,
   },
+  // Bold body text
   bodyBold: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600' as const,
-    lineHeight: 24,
+    lineHeight: 22,
   },
+  // Smaller body text
   bodySmall: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '400' as const,
-    lineHeight: 20,
+    lineHeight: 18,
   },
+  // Very small text (labels, badges)
   caption: {
-    fontSize: 12,
-    fontWeight: '400' as const,
-    lineHeight: 16,
+    fontSize: 11,
+    fontWeight: '500' as const,
+    lineHeight: 14,
   },
+  // Button text
   button: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600' as const,
-    lineHeight: 24,
-    letterSpacing: 0.5,
+    lineHeight: 22,
+    letterSpacing: 0.3,
+  },
+  // Tiny labels and badges
+  tiny: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    lineHeight: 12,
   },
 };
 

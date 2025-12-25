@@ -20,6 +20,7 @@ import { useAddressStore } from '../../store';
 import { useCartStore } from '../../store';
 import { ServiceDetailScreen } from './ServiceDetailScreen';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
+import { BrandLoader } from '../../components/BrandLoader';
 
 // Import assets
 const promoPickup = require('../../../assets/promo_pickup.png');
@@ -30,23 +31,23 @@ const PROMOS = [
   {
     id: '1',
     title: 'Quick Pickup',
-    subtitle: 'We Come to You',
+    subtitle: 'We come to your doorstep',
     image: promoPickup,
-    color: '#FFF0F7', // Very light pink
+    gradient: ['#FFF0F7', '#FCE7F3'],
   },
   {
     id: '2',
-    title: 'Fast Delivery',
-    subtitle: 'Same Day Service',
+    title: 'Same Day Delivery',
+    subtitle: 'Fresh clothes, fast',
     image: promoDelivery,
-    color: '#FCE7F3', // Light pink
+    gradient: ['#FCE7F3', '#FDF2F8'],
   },
   {
     id: '3',
-    title: 'Why Wait?',
-    subtitle: 'Book Now, Relax',
+    title: 'Relax & Unwind',
+    subtitle: 'We handle the rest',
     image: promoRelax,
-    color: '#FBCFE8', // Medium light pink
+    gradient: ['#FDF2F8', '#FFF0F7'],
   },
 ];
 
@@ -54,31 +55,31 @@ const SERVICES = [
   {
     id: 'wash_fold',
     name: 'Wash & Fold',
-    icon: 'water-outline',
+    icon: 'layers-outline',
     color: COLORS.primary,
-    description: 'Regular wash',
+    description: 'Regular laundry',
   },
   {
     id: 'wash_iron',
     name: 'Wash & Iron',
     icon: 'shirt-outline',
     color: COLORS.primary,
-    description: 'Wash, dry & iron',
+    description: 'Pressed & crisp',
   },
   {
     id: 'blanket_wash',
     name: 'Blanket Wash',
-    icon: 'home-outline',
-    color: COLORS.success,
-    description: 'Comforters',
+    icon: 'bed-outline',
+    color: '#8B5CF6',
+    description: 'Comforters & quilts',
   },
   {
     id: 'subscription',
-    name: 'Subscription',
-    icon: 'card-outline',
-    color: '#FFD700',
-    description: 'Coming Soon',
-    disabled: true,
+    name: 'Subscribe',
+    icon: 'sparkles-outline',
+    color: '#F59E0B',
+    description: 'Save more',
+    disabled: false,
   },
 ];
 
@@ -121,20 +122,24 @@ export const HomeScreen: React.FC = () => {
         animated: true,
         viewPosition: 0.5,
       });
-    }, 3000); // Scroll every 3 seconds
+    }, 4000); // Scroll every 4 seconds
 
     return () => clearInterval(timer);
   }, [currentIndex]);
 
   const getGreeting = (): string => {
     const hour = new Date().getHours();
-    if (hour >= 6 && hour < 12) return 'Good Morning!';
-    if (hour >= 12 && hour < 18) return 'Good Afternoon!';
-    if (hour >= 18 && hour < 22) return 'Good Evening!';
-    return 'Good Night!';
+    if (hour >= 6 && hour < 12) return 'Good Morning';
+    if (hour >= 12 && hour < 18) return 'Good Afternoon';
+    if (hour >= 18 && hour < 22) return 'Good Evening';
+    return 'Good Night';
   };
 
   const handleServicePress = (serviceId: string) => {
+    if (serviceId === 'subscription') {
+      navigation.navigate('Subscription' as never);
+      return;
+    }
     setSelectedService(serviceId);
     setServiceModalVisible(true);
   };
@@ -153,29 +158,51 @@ export const HomeScreen: React.FC = () => {
   };
 
   const renderPromoItem = ({ item }: { item: typeof PROMOS[0] }) => (
-    <View style={[styles.promoCard, { backgroundColor: item.color }]}>
-      <View style={styles.promoContent}>
-        <Text style={styles.promoTitle}>{item.title}</Text>
-        <Text style={styles.promoSubtitle}>{item.subtitle}</Text>
-      </View>
-      <Image source={item.image} style={styles.promoImage} resizeMode="contain" />
+    <View style={styles.promoCard}>
+      <LinearGradient
+        colors={item.gradient as [string, string]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.promoGradient}
+      >
+        <View style={styles.promoContent}>
+          <View style={styles.promoBadge}>
+            <Text style={styles.promoBadgeText}>Why Spinit?</Text>
+          </View>
+          <Text style={styles.promoTitle}>{item.title}</Text>
+          <Text style={styles.promoSubtitle}>{item.subtitle}</Text>
+        </View>
+        <Image source={item.image} style={styles.promoImage} resizeMode="contain" />
+      </LinearGradient>
     </View>
   );
+
+  const [initialLoading, setInitialLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate/Wait for initial data load
+    if (user) setInitialLoading(false);
+    else setTimeout(() => setInitialLoading(false), 2000); // Fallback
+  }, [user]);
+
+  if (initialLoading) {
+    return <BrandLoader message="Loading your experience..." />;
+  }
 
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
+      <View style={[styles.header, { paddingTop: insets.top + SPACING.xs }]}>
         <View style={styles.headerTop}>
           <TouchableOpacity style={styles.locationContainer} onPress={handleAddressPress}>
-            <Ionicons name="location-sharp" size={16} color={COLORS.primary} />
+            <Ionicons name="location-sharp" size={14} color={COLORS.primary} />
             <View style={styles.addressButton}>
-              <Text style={styles.locationLabel}>Location</Text>
+              <Text style={styles.locationLabel}>Deliver to</Text>
               <Text style={styles.locationText} numberOfLines={1}>
                 {currentAddress || 'Select Location'}
               </Text>
             </View>
-            <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
+            <Ionicons name="chevron-down" size={14} color={COLORS.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.profileButton} onPress={() => (navigation as any).navigate('Main', { screen: 'Profile' })}>
             <View style={styles.avatarContainer}>
@@ -187,8 +214,8 @@ export const HomeScreen: React.FC = () => {
         </View>
 
         <View style={styles.greetingContainer}>
-          <Text style={styles.greetingText}>{getGreeting()}</Text>
-          <Text style={styles.subGreeting}>Need some fresh clothes today?</Text>
+          <Text style={styles.greetingText}>{getGreeting()}, {user?.name?.split(' ')[0] || 'there'}!</Text>
+          <Text style={styles.subGreeting}>Fresh laundry, delivered to you</Text>
         </View>
       </View>
 
@@ -205,21 +232,32 @@ export const HomeScreen: React.FC = () => {
             keyExtractor={(item) => item.id}
             horizontal
             showsHorizontalScrollIndicator={false}
-            pagingEnabled
-            snapToInterval={316} // card width + margin
+            snapToInterval={Dimensions.get('window').width - 48}
             decelerationRate="fast"
             contentContainerStyle={styles.promoList}
             onMomentumScrollEnd={(ev) => {
-              const newIndex = Math.round(ev.nativeEvent.contentOffset.x / 316);
+              const cardWidth = Dimensions.get('window').width - 48;
+              const newIndex = Math.round(ev.nativeEvent.contentOffset.x / cardWidth);
               setCurrentIndex(newIndex);
             }}
           />
+          {/* Pagination dots */}
+          <View style={styles.paginationDots}>
+            {PROMOS.map((_, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.dot,
+                  currentIndex === index && styles.dotActive
+                ]}
+              />
+            ))}
+          </View>
         </View>
 
         {/* Services Grid */}
         <View style={styles.servicesSection}>
           <Text style={styles.sectionTitle}>Our Services</Text>
-          <Text style={styles.sectionSubtitle}>Select a service to get started</Text>
 
           <View style={styles.servicesGrid}>
             {SERVICES.map((service) => (
@@ -230,7 +268,7 @@ export const HomeScreen: React.FC = () => {
                   (service as any).disabled && styles.serviceCardDisabled
                 ]}
                 onPress={() => handleServicePress(service.id)}
-                activeOpacity={(service as any).disabled ? 1 : 0.8}
+                activeOpacity={(service as any).disabled ? 1 : 0.7}
                 disabled={(service as any).disabled}
               >
                 <View style={[
@@ -239,7 +277,7 @@ export const HomeScreen: React.FC = () => {
                 ]}>
                   <Ionicons
                     name={service.icon as any}
-                    size={32}
+                    size={24}
                     color={(service as any).disabled ? '#9CA3AF' : service.color}
                   />
                 </View>
@@ -259,7 +297,7 @@ export const HomeScreen: React.FC = () => {
 
       {/* Floating Cart Button */}
       {cartItemCount > 0 && (
-        <View style={[styles.cartButtonContainer, { bottom: insets.bottom + 20 }]}>
+        <View style={[styles.cartButtonContainer, { bottom: insets.bottom + 16 }]}>
           <TouchableOpacity style={styles.cartButton} onPress={handleViewCart} activeOpacity={0.9}>
             <View style={styles.cartInfo}>
               <View style={styles.cartCountBadge}>
@@ -270,7 +308,7 @@ export const HomeScreen: React.FC = () => {
                 <Text style={styles.cartButtonSubtext}>{cartItemCount} items • ₹{cartTotal}</Text>
               </View>
             </View>
-            <Ionicons name="arrow-forward" size={24} color="#FFFFFF" />
+            <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       )}
@@ -294,8 +332,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   header: {
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.sm,
     backgroundColor: COLORS.background,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.borderLight,
@@ -304,44 +342,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
   },
   locationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.backgroundLight, // Light gray pill
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.backgroundLight,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+    borderRadius: RADIUS.lg,
     flex: 1,
-    marginRight: SPACING.md,
+    marginRight: SPACING.sm,
     borderWidth: 1,
     borderColor: COLORS.borderLight,
   },
   addressButton: {
     flex: 1,
-    marginHorizontal: SPACING.xs,
+    marginHorizontal: 6,
   },
   locationLabel: {
-    ...TYPOGRAPHY.caption,
+    fontSize: 9,
     color: COLORS.primary,
-    fontSize: 10,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
     fontWeight: '700',
   },
   locationText: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.text, // Dark text
+    fontSize: 12,
+    color: COLORS.text,
     fontWeight: '600',
   },
-  profileButton: {
-    // padding: 4,
-  },
+  profileButton: {},
   avatarContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: COLORS.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
@@ -349,102 +384,123 @@ const styles = StyleSheet.create({
     borderColor: COLORS.primary,
   },
   avatarText: {
-    ...TYPOGRAPHY.bodyBold,
     color: COLORS.primary,
-    fontSize: 16,
+    fontSize: 13,
+    fontWeight: '700',
   },
   greetingContainer: {
-    marginTop: SPACING.xs,
+    marginTop: 2,
   },
   greetingText: {
-    ...TYPOGRAPHY.heading,
-    color: COLORS.text, // Dark text
-    fontSize: 24,
-    marginBottom: 4,
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 2,
   },
   subGreeting: {
-    ...TYPOGRAPHY.body,
+    fontSize: 13,
     color: COLORS.textSecondary,
-    fontSize: 16,
   },
   scrollContent: {
-    paddingBottom: SPACING.xl * 4, // Extra padding for cart button space
+    paddingBottom: SPACING.xl * 4,
   },
   promoSection: {
-    marginVertical: SPACING.md,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.sm,
   },
   promoList: {
-    paddingHorizontal: SPACING.lg,
+    paddingHorizontal: SPACING.md,
   },
   promoCard: {
-    width: 300,
-    height: 160,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.lg,
+    width: Dimensions.get('window').width - 64,
+    height: 110,
+    borderRadius: RADIUS.lg,
     marginRight: SPACING.md,
+    overflow: 'hidden',
+  },
+  promoGradient: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    overflow: 'hidden',
-    ...SHADOWS.md,
+    padding: SPACING.md,
   },
   promoContent: {
     flex: 1,
-    paddingRight: SPACING.sm,
-    justifyContent: 'center',
+    paddingRight: SPACING.xs,
+  },
+  promoBadge: {
+    backgroundColor: 'rgba(219, 39, 119, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: RADIUS.sm,
+    alignSelf: 'flex-start',
+    marginBottom: 6,
+  },
+  promoBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: COLORS.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   promoTitle: {
-    ...TYPOGRAPHY.subheading,
+    fontSize: 16,
     fontWeight: '800',
     color: COLORS.text,
-    marginBottom: 6,
-    fontSize: 20,
-    lineHeight: 26,
+    marginBottom: 2,
   },
   promoSubtitle: {
-    ...TYPOGRAPHY.bodySmall,
+    fontSize: 12,
     color: COLORS.textSecondary,
-    fontSize: 14,
     fontWeight: '500',
   },
   promoImage: {
-    width: 130,
-    height: 130,
-    marginRight: -10, // Slight negative margin to pull image to edge
+    width: 90,
+    height: 90,
+  },
+  paginationDots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: SPACING.sm,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.borderLight,
+    marginHorizontal: 3,
+  },
+  dotActive: {
+    backgroundColor: COLORS.primary,
+    width: 16,
   },
   servicesSection: {
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.md,
-    paddingBottom: SPACING.xl,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.lg,
   },
   sectionTitle: {
-    ...TYPOGRAPHY.subheading,
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
+    fontSize: 15,
     fontWeight: '700',
-  },
-  sectionSubtitle: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.lg,
-    lineHeight: 20,
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
   },
   servicesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: SPACING.md,
+    gap: SPACING.sm,
   },
   serviceCard: {
-    width: '47%',
+    width: '48%',
     backgroundColor: COLORS.background,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
+    borderRadius: RADIUS.md,
+    padding: SPACING.sm,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: COLORS.borderLight,
     ...SHADOWS.sm,
-    marginBottom: SPACING.sm,
   },
   serviceCardDisabled: {
     backgroundColor: '#F9FAFB',
@@ -452,38 +508,37 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   serviceIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: SPACING.sm,
+    marginBottom: 6,
   },
   serviceName: {
-    ...TYPOGRAPHY.bodyBold,
+    fontSize: 13,
+    fontWeight: '600',
     color: COLORS.text,
     textAlign: 'center',
-    fontWeight: '600',
     marginBottom: 2,
-    fontSize: 14,
   },
   serviceDescription: {
-    ...TYPOGRAPHY.caption,
+    fontSize: 10,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    fontSize: 11,
   },
   cartButtonContainer: {
     position: 'absolute',
-    left: SPACING.lg,
-    right: SPACING.lg,
+    left: SPACING.md,
+    right: SPACING.md,
   },
   cartButton: {
     backgroundColor: COLORS.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: SPACING.md,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
     borderRadius: RADIUS.lg,
     ...SHADOWS.lg,
   },
@@ -494,22 +549,22 @@ const styles = StyleSheet.create({
   cartCountBadge: {
     backgroundColor: 'rgba(255,255,255,0.2)',
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginRight: SPACING.md,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginRight: SPACING.sm,
   },
   cartCountText: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 12,
   },
   cartButtonText: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 16,
+    fontSize: 14,
   },
   cartButtonSubtext: {
     color: 'rgba(255,255,255,0.9)',
-    fontSize: 12,
+    fontSize: 11,
   },
 });

@@ -403,4 +403,97 @@ export const clearCartInFirestore = async (userId: string) => {
     console.error('Error clearing cart in Firestore:', error);
     throw error;
   }
-};
+}
+
+
+
+
+
+
+
+// --- Subscription Management ---
+
+/**
+ * Creates a new subscription for a user (Web)
+ * @param userId - Firebase Auth UID
+ * @param data - Subscription details
+ */
+export async function createSubscription(userId: string, data: any) {
+  try {
+    const subscriptionsRef = collection(db, 'users', userId, 'subscriptions');
+    const subDoc = doc(subscriptionsRef);
+    const subId = subDoc.id;
+
+    const subscriptionWithTimestamp = {
+      ...data,
+      status: 'active',
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+      startDate: Timestamp.now(),
+      endDate: Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)), // 30 days
+    };
+
+    const cleanedData = cleanData(subscriptionWithTimestamp);
+
+    // 1. Save to subcollection
+    await setDoc(subDoc, cleanedData);
+
+    // 2. Update user document
+    const userUpdate: any = {
+      subscriptionStatus: 'active',
+      subscriptionType: data.type,
+      subscriptionExpiry: cleanedData.endDate,
+      subscriptionSchedule: data.schedule || null,
+      updatedAt: Timestamp.now(),
+    };
+
+    if (data.type === 'credits') {
+      const userRef = doc(db, 'users', userId);
+      const userSnap = await getDoc(userRef);
+      const currentCredits = userSnap.exists() ? (userSnap.data().credits || 0) : 0;
+      userUpdate.credits = currentCredits + (data.creditAmount || 0);
+    }
+
+    await updateDoc(doc(db, 'users', userId), userUpdate);
+
+    return subId;
+  } catch (error: any) {
+    console.error('Error creating subscription (Web):', error);
+    throw error;
+  }
+}
+
+/**
+ * Cancels a user's active subscription (Web)
+ * @param userId - Firebase Auth UID
+ */
+export async function cancelSubscription(userId: string) {
+  try {
+    // 1. Update user document to inactive and clear credits
+    await updateDoc(doc(db, 'users', userId), {
+      subscriptionStatus: 'inactive',
+      credits: 0,
+      updatedAt: Timestamp.now()
+    });
+
+    // 2. Find and update the active subscription in subcollection
+    const subsRef = collection(db, 'users', userId, 'subscriptions');
+    const q = query(subsRef, where('status', '==', 'active'));
+    const snapshot = await getDocs(q);
+
+    // Using Promise.all to ensure all updates complete
+    const updates = snapshot.docs.map(docSnap =>
+      updateDoc(doc(db, 'users', userId, 'subscriptions', docSnap.id), {
+        status: 'cancelled',
+        cancelledAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      })
+    );
+
+    await Promise.all(updates);
+
+  } catch (error) {
+    console.error('Error cancelling subscription:', error);
+    throw error;
+  }
+}

@@ -22,6 +22,8 @@ import { MyOrdersScreen } from '../screens/Main/MyOrdersScreen';
 import { ProfileScreen } from '../screens/Main/ProfileScreen';
 import { EditProfileScreen } from '../screens/Main/EditProfileScreen';
 import { HelpSupportScreen } from '../screens/Main/HelpSupportScreen';
+import { SubscriptionScreen } from '../screens/Main/SubscriptionScreen';
+import { SubscriptionSuccessScreen } from '../screens/Main/SubscriptionSuccessScreen';
 import { getCart, saveCart, getUserAddresses, getUser } from '../services/firestore';
 import { auth } from '../services/firebase';
 import { useCartStore, useAddressStore } from '../store';
@@ -100,11 +102,13 @@ const MainStack = () => (
     <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
     <Stack.Screen name="EditProfile" component={EditProfileScreen} />
     <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
+    <Stack.Screen name="Subscription" component={SubscriptionScreen} />
+    <Stack.Screen name="SubscriptionSuccess" component={SubscriptionSuccessScreen} />
   </Stack.Navigator>
 );
 
 export const RootNavigator: React.FC = () => {
-  const { isLoggedIn, user } = useAuthStore();
+  const { isLoggedIn, user, isSessionExpired, logout } = useAuthStore();
   const { setItems, items } = useCartStore();
   const [isHydrated, setIsHydrated] = React.useState(false);
 
@@ -112,6 +116,14 @@ export const RootNavigator: React.FC = () => {
   React.useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
       if (firebaseUser) {
+        // Check session expiry first
+        const authStore = useAuthStore.getState();
+        if (authStore.isSessionExpired()) {
+          console.log('⏰ Session expired (12 hours). Logging out...');
+          await authStore.logout();
+          return;
+        }
+
         try {
           // Fetch user profile from Firestore using shared service
           const userData = await getUser(firebaseUser.uid);
@@ -121,7 +133,17 @@ export const RootNavigator: React.FC = () => {
               phone: userData.phone || firebaseUser.phoneNumber || '',
               name: userData.name || '',
               email: userData.email || '',
+              subscriptionStatus: userData.subscriptionStatus,
+              credits: userData.credits,
+              subscriptionType: userData.subscriptionType,
+              subscriptionSchedule: userData.subscriptionSchedule,
             } as any);
+
+            // Set login timestamp if not already set (session start)
+            if (!useAuthStore.getState().loginTimestamp) {
+              useAuthStore.getState().setLoginTimestamp(Date.now());
+              console.log('🕐 Login timestamp set:', new Date().toISOString());
+            }
           } else {
             // Fallback if doc doesn't exist yet (rare)
             useAuthStore.getState().setUser({
@@ -129,6 +151,7 @@ export const RootNavigator: React.FC = () => {
               phone: firebaseUser.phoneNumber || '',
               name: '',
             });
+            useAuthStore.getState().setLoginTimestamp(Date.now());
           }
         } catch (error) {
           console.error('Failed to fetch user profile:', error);

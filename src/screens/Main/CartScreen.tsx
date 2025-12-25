@@ -18,6 +18,7 @@ import { Timestamp } from 'firebase/firestore';
 import { useCartStore, useAuthStore, useAddressStore } from '../../store';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
 import { createOrder, saveCart, clearCartInFirestore } from '../../services/firestore';
+import { BrandLoader } from '../../components/BrandLoader';
 
 export const CartScreen: React.FC = () => {
     const navigation = useNavigation();
@@ -126,7 +127,7 @@ export const CartScreen: React.FC = () => {
             clearCart();
             await clearCartInFirestore(user.uid);
 
-            navigation.navigate('Main' as never, { screen: 'OrderSuccess' } as never);
+            (navigation as any).navigate('Main', { screen: 'OrderSuccess' });
 
         } catch (error) {
             console.error("Order placement failed", error);
@@ -199,8 +200,13 @@ export const CartScreen: React.FC = () => {
         );
     }
 
+    // removed import
+
+    // ... (render)
+
     return (
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
+            {loading && <BrandLoader fullscreen message="Placing your order..." />}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={COLORS.text} />
@@ -337,14 +343,8 @@ export const CartScreen: React.FC = () => {
                     onPress={handlePlaceOrder}
                     disabled={loading}
                 >
-                    {loading ? (
-                        <ActivityIndicator color="#FFF" />
-                    ) : (
-                        <>
-                            <Text style={styles.placeOrderText}>Place Order</Text>
-                            <Ionicons name="arrow-forward" size={20} color="#FFF" />
-                        </>
-                    )}
+                    <Text style={styles.placeOrderText}>Place Order</Text>
+                    <Ionicons name="arrow-forward" size={20} color="#FFF" />
                 </TouchableOpacity>
             </View>
         </SafeAreaView>
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
             height: '100vh',
             display: 'flex',
             flexDirection: 'column',
-        } : {}),
+        } : {}) as any,
     },
     header: {
         flexDirection: 'row',
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
     },
     scrollContainer: {
         flex: 1,
-        ...(Platform.OS === 'web' ? { 
+        ...(Platform.OS === 'web' ? {
             minHeight: 0,
             overflow: 'hidden',
             display: 'flex',
@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
     },
     scrollView: {
         flex: 1,
-        ...(Platform.OS === 'web' ? { 
+        ...(Platform.OS === 'web' ? {
             minHeight: 0,
             overflowY: 'auto' as any,
             overflowX: 'hidden' as any,

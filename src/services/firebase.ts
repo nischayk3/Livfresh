@@ -36,6 +36,7 @@ export const auth = initializeAuth(app, {
 
 // Initialize Firestore
 export const db = getFirestore(app);
+console.log('DEBUG: firebase.ts - db initialized:', db ? 'yes' : 'no');
 
 export default app;
 

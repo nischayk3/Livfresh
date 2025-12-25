@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
 import { useAuthStore } from '../../store';
 import { getOrder } from '../../services/firestore';
+import { BrandLoader } from '../../components/BrandLoader';
 
 // Order Status Steps
 const ORDER_STEPS = [
@@ -43,11 +44,7 @@ export const OrderDetailScreen: React.FC = () => {
     }, [orderId]);
 
     if (loading) {
-        return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
-            </View>
-        );
+        return <BrandLoader message="Loading order details..." />;
     }
 
     if (!order) {

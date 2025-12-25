@@ -403,3 +403,90 @@ export const clearCartInFirestore = async (userId: string) => {
         throw error;
     }
 };
+
+// --- Subscription Management ---
+
+/**
+ * Creates a new subscription for a user (Native)
+ * @param userId - Firebase Auth UID
+ * @param data - Subscription details
+ */
+export async function createSubscription(userId: string, data: any) {
+    try {
+        const subscriptionsRef = firestore().collection('users').doc(userId).collection('subscriptions');
+        const subDoc = subscriptionsRef.doc();
+        const subId = subDoc.id;
+
+        const subscriptionWithTimestamp = {
+            ...data,
+            status: 'active',
+            createdAt: firestore.FieldValue.serverTimestamp(),
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+            startDate: firestore.FieldValue.serverTimestamp(),
+            endDate: firestore.Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)), // 30 days
+        };
+
+        const cleanedData = cleanData(subscriptionWithTimestamp);
+
+        // 1. Save to subcollection
+        await subDoc.set(cleanedData);
+
+        // 2. Update user document
+        const userUpdate: any = {
+            subscriptionStatus: 'active',
+            subscriptionType: data.type,
+            subscriptionExpiry: cleanedData.endDate,
+            subscriptionSchedule: data.schedule || null,
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+        };
+
+        if (data.type === 'credits') {
+            const userRef = firestore().collection('users').doc(userId);
+            const userSnap = await userRef.get();
+            const currentCredits = userSnap.exists() ? (userSnap.data()?.credits || 0) : 0;
+            userUpdate.credits = currentCredits + (data.creditAmount || 0);
+        }
+
+        await firestore().collection('users').doc(userId).update(userUpdate);
+
+        return subId;
+    } catch (error: any) {
+        console.error('Error creating subscription (Native):', error);
+        throw error;
+    }
+}
+
+/**
+ * Cancels a user's active subscription (Native)
+ * @param userId - Firebase Auth UID
+ */
+export async function cancelSubscription(userId: string) {
+    try {
+        const batch = firestore().batch();
+        const userRef = firestore().collection('users').doc(userId);
+
+        // 1. Update user document
+        batch.update(userRef, {
+            subscriptionStatus: 'inactive',
+            credits: 0,
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+
+        // 2. Find active subscriptions to cancel
+        const subsRef = userRef.collection('subscriptions');
+        const activeSubs = await subsRef.where('status', '==', 'active').get();
+
+        activeSubs.forEach(doc => {
+            batch.update(doc.ref, {
+                status: 'cancelled',
+                cancelledAt: firestore.FieldValue.serverTimestamp(),
+                updatedAt: firestore.FieldValue.serverTimestamp(),
+            });
+        });
+
+        await batch.commit();
+    } catch (error) {
+        console.error('Error cancelling subscription:', error);
+        throw error;
+    }
+}

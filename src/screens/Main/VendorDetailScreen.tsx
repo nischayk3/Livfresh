@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getVendor, getVendorServices } from '../../services/firestore';
 import { ServiceDetailScreen } from './ServiceDetailScreen';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
+import { BrandLoader } from '../../components/BrandLoader';
 
 interface Service {
   id: string;
@@ -46,7 +47,7 @@ export const VendorDetailScreen: React.FC = () => {
       setLoading(true);
       const vendorData = await getVendor(vendorId);
       const vendorServices = await getVendorServices(vendorId);
-      
+
       setVendor(vendorData);
       setServices(vendorServices as Service[]);
     } catch (error: any) {
@@ -97,12 +98,7 @@ export const VendorDetailScreen: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Loading vendor details...</Text>
-      </View>
-    );
+    return <BrandLoader message="Loading vendor details..." />;
   }
 
   if (!vendor) {
@@ -119,14 +115,14 @@ export const VendorDetailScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <ScrollView 
+      <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
         {/* Header Image */}
         <View style={styles.imageContainer}>
-          <Image 
-            source={{ uri: vendor.imageUrl || 'https://via.placeholder.com/400x200' }} 
+          <Image
+            source={{ uri: vendor.imageUrl || 'https://via.placeholder.com/400x200' }}
             style={styles.vendorImage}
             resizeMode="cover"
           />
@@ -134,7 +130,7 @@ export const VendorDetailScreen: React.FC = () => {
             colors={['transparent', 'rgba(0,0,0,0.7)']}
             style={styles.imageGradient}
           />
-          
+
           {/* Back Button */}
           <TouchableOpacity
             style={styles.backButtonOverlay}
@@ -211,7 +207,7 @@ export const VendorDetailScreen: React.FC = () => {
                   'premium_laundry': { name: 'diamond-outline', color: '#FFD700' },
                 };
                 const icon = serviceIcons[service.id] || { name: 'shirt-outline', color: COLORS.primary };
-                
+
                 return (
                   <TouchableOpacity
                     key={service.id}

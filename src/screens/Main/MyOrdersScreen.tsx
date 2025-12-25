@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
 import { useAuthStore } from '../../store';
 import { getUserOrders } from '../../services/firestore';
+import { BrandLoader } from '../../components/BrandLoader';
 
 export const MyOrdersScreen: React.FC = () => {
     const navigation = useNavigation();
@@ -12,6 +14,7 @@ export const MyOrdersScreen: React.FC = () => {
     const [orders, setOrders] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const insets = useSafeAreaInsets();
 
     const fetchOrders = async () => {
         if (!user?.uid) return;
@@ -98,17 +101,17 @@ export const MyOrdersScreen: React.FC = () => {
     };
 
     if (loading && !refreshing) {
-        return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
-            </View>
-        );
+        return <BrandLoader message="Fetching your orders..." />;
     }
 
     return (
         <View style={styles.container}>
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? SPACING.lg : insets.top + SPACING.sm }]}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                    <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+                </TouchableOpacity>
                 <Text style={styles.headerTitle}>My Orders</Text>
+                <View style={{ width: 40 }} />
             </View>
 
             <FlatList
@@ -135,16 +138,21 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.background,
     },
     header: {
-        paddingTop: 60,
-        paddingHorizontal: SPACING.lg,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: SPACING.md,
         paddingBottom: SPACING.md,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.borderLight,
         backgroundColor: COLORS.background,
     },
+    backButton: {
+        padding: SPACING.xs,
+    },
     headerTitle: {
-        ...TYPOGRAPHY.heading,
-        fontSize: 24,
+        ...TYPOGRAPHY.subheading,
+        fontSize: 18,
     },
     loadingContainer: {
         flex: 1,

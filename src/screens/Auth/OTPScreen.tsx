@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -19,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { verifyOTP, getCurrentPhoneNumber } from '../../services/auth';
 import { useAuthStore } from '../../store';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
+import { BrandLoader } from '../../components/BrandLoader';
 
 export const OTPScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -271,19 +271,15 @@ export const OTPScreen: React.FC = () => {
               style={styles.verifyButton}
               activeOpacity={0.8}
             >
-              {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <LinearGradient
-                  colors={isOtpComplete ? [COLORS.gradientStart, COLORS.gradientEnd] : [COLORS.disabled, COLORS.disabled]}
-                  style={styles.verifyButtonGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                >
-                  <Text style={styles.verifyButtonText}>Verify</Text>
-                  <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" style={styles.verifyIcon} />
-                </LinearGradient>
-              )}
+              <LinearGradient
+                colors={isOtpComplete ? [COLORS.gradientStart, COLORS.gradientEnd] : [COLORS.disabled, COLORS.disabled]}
+                style={styles.verifyButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Text style={styles.verifyButtonText}>Verify</Text>
+                <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" style={styles.verifyIcon} />
+              </LinearGradient>
             </TouchableOpacity>
 
             {resendAttempts >= 3 && (
@@ -294,6 +290,9 @@ export const OTPScreen: React.FC = () => {
             )}
           </View>
         </ScrollView>
+
+        {/* Fullscreen loader overlay */}
+        {loading && <BrandLoader fullscreen message="Verifying OTP..." />}
       </LinearGradient>
     </KeyboardAvoidingView>
   );

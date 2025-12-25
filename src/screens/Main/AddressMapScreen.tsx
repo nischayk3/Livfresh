@@ -10,7 +10,6 @@ import {
     KeyboardAvoidingView,
     Platform,
     Alert,
-    ActivityIndicator,
     Keyboard,
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
@@ -19,8 +18,9 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { addAddress, updateUserAddress } from '../../services/firestore';
-import { useAuthStore, useAddressStore } from '../../store';
+import { useAuthStore, useAddressStore, useUIStore } from '../../store';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BrandLoader } from '../../components/BrandLoader';
 
 const { width, height } = Dimensions.get('window');
 const ASPECT_RATIO = width / height;
@@ -32,6 +32,7 @@ export const AddressMapScreen: React.FC = () => {
     const route = useRoute();
     const { user } = useAuthStore();
     const { setCurrentAddress, addAddress: addAddressToStore, updateAddress: updateAddressInStore } = useAddressStore();
+    const { showAlert } = useUIStore();
     const insets = useSafeAreaInsets();
 
     // Params: 'editingAddress' is passed when editing an existing address
@@ -159,12 +160,20 @@ export const AddressMapScreen: React.FC = () => {
     const handleSaveAddress = async () => {
         // Validation: If editing, maybe HouseNo is implied? Can check length.
         if (!addressDetails.houseNo.trim()) {
-            Alert.alert('Details Missing', 'Please enter House/Flat Number');
+            showAlert({
+                title: 'Details Missing',
+                message: 'Please enter House/Flat Number',
+                type: 'warning'
+            });
             return;
         }
 
         if (!user?.uid) {
-            Alert.alert('Error', 'User not logged in');
+            showAlert({
+                title: 'Error',
+                message: 'User not logged in',
+                type: 'error'
+            });
             return;
         }
 
@@ -190,9 +199,12 @@ export const AddressMapScreen: React.FC = () => {
                 updateAddressInStore(updatedData as any);
                 setCurrentAddress(fullAddress, regionToSave.latitude, regionToSave.longitude); // If current was edited
 
-                Alert.alert('Success', 'Address updated!', [
-                    { text: 'OK', onPress: () => navigation.goBack() }
-                ]);
+                showAlert({
+                    title: 'Success',
+                    message: 'Address updated!',
+                    type: 'success',
+                    onClose: () => navigation.goBack()
+                });
 
             } else {
                 // CREATE New
@@ -209,25 +221,28 @@ export const AddressMapScreen: React.FC = () => {
                 addAddressToStore(newAddress as any);
                 setCurrentAddress(fullAddress, regionToSave.latitude, regionToSave.longitude);
 
-                Alert.alert('Success', 'Address saved!', [
-                    { text: 'OK', onPress: () => navigation.navigate('MainTabs' as never, { screen: 'Home' } as never) }
-                ]);
+                showAlert({
+                    title: 'Success',
+                    message: 'Address saved!',
+                    type: 'success',
+                    onClose: () => (navigation as any).navigate('MainTabs', { screen: 'Home' })
+                });
             }
 
         } catch (error: any) {
             console.error('Save address error:', error);
-            Alert.alert('Error', 'Failed to save address: ' + (error.message || 'Unknown error'));
+            showAlert({
+                title: 'Error',
+                message: 'Failed to save address: ' + (error.message || 'Unknown error'),
+                type: 'error'
+            });
         } finally {
             setLoading(false);
         }
     };
 
     if (!initialRegion) {
-        return (
-            <View style={styles.container}>
-                <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 100 }} />
-            </View>
-        );
+        return <BrandLoader message="Initializing map..." />;
     }
 
     return (
@@ -319,12 +334,10 @@ export const AddressMapScreen: React.FC = () => {
                         onPress={handleSaveAddress}
                         disabled={loading || isDragging}
                     >
-                        {loading ? (
-                            <ActivityIndicator color="#FFF" />
-                        ) : (
-                            <Text style={styles.saveButtonText}>Confirm & Save Address</Text>
-                        )}
+                        <Text style={styles.saveButtonText}>Confirm & Save Address</Text>
                     </TouchableOpacity>
+
+                    {loading && <BrandLoader fullscreen message="Saving address..." />}
                 </ScrollView>
             </KeyboardAvoidingView>
         </View>

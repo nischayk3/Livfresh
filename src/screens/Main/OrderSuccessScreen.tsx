@@ -33,11 +33,11 @@ export const OrderSuccessScreen: React.FC = () => {
 
     const handleViewOrders = () => {
         // Reset stack and navigate to MyOrders tab
-        navigation.navigate('MainTabs' as never, { screen: 'MyOrders' } as never);
+        (navigation as any).navigate('MainTabs', { screen: 'MyOrders' });
     };
 
     const handleBackHome = () => {
-        navigation.navigate('MainTabs' as never, { screen: 'Home' } as never);
+        (navigation as any).navigate('MainTabs', { screen: 'Home' });
     };
 
     return (

@@ -4,23 +4,23 @@ import {
   Text,
   TouchableOpacity,
   Alert,
-  ActivityIndicator,
   StyleSheet,
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
-import { useAddressStore } from '../../store';
+import { useAddressStore, useAuthStore, useUIStore } from '../../store';
 import { addAddress } from '../../services/firestore';
-import { useAuthStore } from '../../store';
 import { COLORS, SPACING, TYPOGRAPHY } from '../../utils/constants';
+import { BrandLoader } from '../../components/BrandLoader';
 
 export const LocationPermissionScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const { setCurrentAddress } = useAddressStore();
+  const { showAlert } = useUIStore();
   const [loading, setLoading] = useState(false);
   const [statusText, setStatusText] = useState('');
 
@@ -83,7 +83,11 @@ export const LocationPermissionScreen: React.FC = () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
 
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required. Please enter manually.', [{ text: 'OK' }]);
+        showAlert({
+          title: 'Permission Denied',
+          message: 'Location permission is required. Please enter manually.',
+          type: 'warning'
+        });
         setLoading(false);
         return;
       }
@@ -118,16 +122,24 @@ export const LocationPermissionScreen: React.FC = () => {
         );
 
         // Navigate to AddressMap with coordinates for refinement
-        navigation.navigate('AddressMap' as never, {
+        (navigation as any).navigate('AddressMap', {
           initialLat: location.coords.latitude,
           initialLng: location.coords.longitude
-        } as never);
+        });
       } else {
-        Alert.alert('Error', 'Could not fetch address details. Please try again.');
+        showAlert({
+          title: 'Error',
+          message: 'Could not fetch address details. Please try again.',
+          type: 'error'
+        });
       }
     } catch (error: any) {
       console.error('Location error:', error);
-      Alert.alert('Error', 'Failed to get location. Please check your internet/GPS.');
+      showAlert({
+        title: 'Error',
+        message: 'Failed to get location. Please check your internet/GPS.',
+        type: 'error'
+      });
     } finally {
       setLoading(false);
       setStatusText('');
@@ -137,7 +149,7 @@ export const LocationPermissionScreen: React.FC = () => {
   const handleManualEntry = () => {
     // For now, navigating to Home, but ideally should go to an address search screen
     // navigation.navigate('AddAddress' as never);
-    navigation.navigate('MainTabs' as never, { screen: 'Home' } as never);
+    (navigation as any).navigate('MainTabs', { screen: 'Home' });
   };
 
   return (
@@ -151,15 +163,11 @@ export const LocationPermissionScreen: React.FC = () => {
         disabled={loading}
         style={[styles.button, loading && styles.buttonDisabled]}
       >
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator color="#FFFFFF" size="small" />
-            <Text style={styles.loadingText}>{statusText}</Text>
-          </View>
-        ) : (
-          <Text style={styles.buttonText}>Use Current Location</Text>
-        )}
+        <Text style={styles.buttonText}>Use Current Location</Text>
       </TouchableOpacity>
+
+      {/* Brand Loader overlay */}
+      {loading && <BrandLoader fullscreen message={statusText || "Getting location..."} />}
 
       <TouchableOpacity
         onPress={handleManualEntry}

@@ -1,33 +1,99 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store';
-import { OnboardingCarousel } from '../screens/Auth/OnboardingCarousel';
-import { PhoneLoginScreen } from '../screens/Auth/PhoneLoginScreen';
-import { UserDetailsScreen } from '../screens/Auth/UserDetailsScreen';
-import { OTPScreen } from '../screens/Auth/OTPScreen';
-import { LocationPermissionScreen } from '../screens/Auth/LocationPermissionScreen';
-import { AddressMapScreen } from '../screens/Main/AddressMapScreen';
-import { HomeScreen } from '../screens/Main/HomeScreen';
-import { VendorDetailScreen } from '../screens/Main/VendorDetailScreen';
-import { AddressListScreen } from '../screens/Main/AddressListScreen';
-import { CartScreen } from '../screens/Main/CartScreen';
-import { OrderSuccessScreen } from '../screens/Main/OrderSuccessScreen';
-import { OrderDetailScreen } from '../screens/Main/OrderDetailScreen';
-import { MyOrdersScreen } from '../screens/Main/MyOrdersScreen';
-import { ProfileScreen } from '../screens/Main/ProfileScreen';
-import { EditProfileScreen } from '../screens/Main/EditProfileScreen';
-import { HelpSupportScreen } from '../screens/Main/HelpSupportScreen';
-import { SubscriptionScreen } from '../screens/Main/SubscriptionScreen';
-import { SubscriptionSuccessScreen } from '../screens/Main/SubscriptionSuccessScreen';
 import { getCart, saveCart, getUserAddresses, getUser } from '../services/firestore';
 import { auth } from '../services/firebase';
 import { useCartStore, useAddressStore } from '../store';
 import { COLORS, TYPOGRAPHY } from '../utils/constants';
+import { BrandLoader } from '../components/BrandLoader';
+
+// Helper for lazy loading components with Web compatibility
+const lazyWeb = (importPath: () => Promise<any>) => {
+  if (Platform.OS === 'web') {
+    return lazy(importPath);
+  }
+  // Native doesn't support lazy as well/needed for this structure
+  return null;
+};
+
+// --- Auth Screens ---
+const OnboardingCarousel = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Auth/OnboardingCarousel').then(m => ({ default: m.OnboardingCarousel })))
+  : require('../screens/Auth/OnboardingCarousel').OnboardingCarousel;
+
+const PhoneLoginScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Auth/PhoneLoginScreen').then(m => ({ default: m.PhoneLoginScreen })))
+  : require('../screens/Auth/PhoneLoginScreen').PhoneLoginScreen;
+
+const UserDetailsScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Auth/UserDetailsScreen').then(m => ({ default: m.UserDetailsScreen })))
+  : require('../screens/Auth/UserDetailsScreen').UserDetailsScreen;
+
+const OTPScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Auth/OTPScreen').then(m => ({ default: m.OTPScreen })))
+  : require('../screens/Auth/OTPScreen').OTPScreen;
+
+const LocationPermissionScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Auth/LocationPermissionScreen').then(m => ({ default: m.LocationPermissionScreen })))
+  : require('../screens/Auth/LocationPermissionScreen').LocationPermissionScreen;
+
+// --- Main Screens ---
+const AddressMapScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Main/AddressMapScreen').then(m => ({ default: m.AddressMapScreen })))
+  : require('../screens/Main/AddressMapScreen').AddressMapScreen;
+
+const HomeScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Main/HomeScreen').then(m => ({ default: m.HomeScreen })))
+  : require('../screens/Main/HomeScreen').HomeScreen;
+
+const VendorDetailScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Main/VendorDetailScreen').then(m => ({ default: m.VendorDetailScreen })))
+  : require('../screens/Main/VendorDetailScreen').VendorDetailScreen;
+
+const AddressListScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Main/AddressListScreen').then(m => ({ default: m.AddressListScreen })))
+  : require('../screens/Main/AddressListScreen').AddressListScreen;
+
+const CartScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Main/CartScreen').then(m => ({ default: m.CartScreen })))
+  : require('../screens/Main/CartScreen').CartScreen;
+
+const OrderSuccessScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Main/OrderSuccessScreen').then(m => ({ default: m.OrderSuccessScreen })))
+  : require('../screens/Main/OrderSuccessScreen').OrderSuccessScreen;
+
+const OrderDetailScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Main/OrderDetailScreen').then(m => ({ default: m.OrderDetailScreen })))
+  : require('../screens/Main/OrderDetailScreen').OrderDetailScreen;
+
+const MyOrdersScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Main/MyOrdersScreen').then(m => ({ default: m.MyOrdersScreen })))
+  : require('../screens/Main/MyOrdersScreen').MyOrdersScreen;
+
+const ProfileScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Main/ProfileScreen').then(m => ({ default: m.ProfileScreen })))
+  : require('../screens/Main/ProfileScreen').ProfileScreen;
+
+const EditProfileScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Main/EditProfileScreen').then(m => ({ default: m.EditProfileScreen })))
+  : require('../screens/Main/EditProfileScreen').EditProfileScreen;
+
+const HelpSupportScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Main/HelpSupportScreen').then(m => ({ default: m.HelpSupportScreen })))
+  : require('../screens/Main/HelpSupportScreen').HelpSupportScreen;
+
+const SubscriptionScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Main/SubscriptionScreen').then(m => ({ default: m.SubscriptionScreen })))
+  : require('../screens/Main/SubscriptionScreen').SubscriptionScreen;
+
+const SubscriptionSuccessScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Main/SubscriptionSuccessScreen').then(m => ({ default: m.SubscriptionSuccessScreen })))
+  : require('../screens/Main/SubscriptionSuccessScreen').SubscriptionSuccessScreen;
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -111,6 +177,7 @@ export const RootNavigator: React.FC = () => {
   const { isLoggedIn, user, isSessionExpired, logout } = useAuthStore();
   const { setItems, items } = useCartStore();
   const [isHydrated, setIsHydrated] = React.useState(false);
+  const [isAuthLoading, setIsAuthLoading] = React.useState(true);
 
   // 1. Listen to Auth State & Hydrate User Profile
   React.useEffect(() => {
@@ -159,6 +226,7 @@ export const RootNavigator: React.FC = () => {
       } else {
         useAuthStore.getState().clearUser();
       }
+      setIsAuthLoading(false);
     });
 
     return () => unsubscribe();
@@ -240,26 +308,36 @@ export const RootNavigator: React.FC = () => {
   // A better spot is HomeScreen. HomeScreen checks "if (!currentAddress) navigate('LocationPermission')".
 
 
+  if (isAuthLoading || !isHydrated) {
+    return (
+      <View style={styles.loadingWrapper}>
+        <BrandLoader message="Initializing..." />
+      </View>
+    );
+  }
+
   return (
     <NavigationContainer>
-      <Stack.Navigator
-        screenOptions={{
-          headerShown: false,
-          cardStyle: { flex: 1 }, // Critical for web scrolling
-        }}
-      >
-        {!isLoggedIn ? (
-          <>
-            <Stack.Screen name="Onboarding" component={OnboardingCarousel} />
-            <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
-            <Stack.Screen name="UserDetails" component={UserDetailsScreen} />
-            <Stack.Screen name="OTP" component={OTPScreen} />
-            <Stack.Screen name="LocationPermission" component={LocationPermissionScreen} />
-          </>
-        ) : (
-          <Stack.Screen name="Main" component={MainStack} />
-        )}
-      </Stack.Navigator>
+      <Suspense fallback={<View style={styles.loadingWrapper}><BrandLoader message="Loading..." /></View>}>
+        <Stack.Navigator
+          screenOptions={{
+            headerShown: false,
+            cardStyle: { flex: 1 }, // Critical for web scrolling
+          }}
+        >
+          {!isLoggedIn ? (
+            <>
+              <Stack.Screen name="Onboarding" component={OnboardingCarousel} />
+              <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
+              <Stack.Screen name="UserDetails" component={UserDetailsScreen} />
+              <Stack.Screen name="OTP" component={OTPScreen} />
+              <Stack.Screen name="LocationPermission" component={LocationPermissionScreen} />
+            </>
+          ) : (
+            <Stack.Screen name="Main" component={MainStack} />
+          )}
+        </Stack.Navigator>
+      </Suspense>
     </NavigationContainer>
   );
 };
@@ -270,6 +348,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.background,
+  },
+  loadingWrapper: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   placeholderTitle: {
     ...TYPOGRAPHY.subheading,

@@ -12,13 +12,15 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { requestOTP, setOTPName } from '../../services/auth';
-import { useAuthStore } from '../../store';
+import { requestOTP, setUserData } from '../../services/auth';
+import { useAuthStore, useUIStore } from '../../store';
 import { COLORS, SPACING, TYPOGRAPHY } from '../../utils/constants';
+import { BrandLoader } from '../../components/BrandLoader';
 
 export const WelcomeBackScreen: React.FC = () => {
   const navigation = useNavigation();
   const { setLoading, setError } = useAuthStore();
+  const { showAlert } = useUIStore();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -38,7 +40,11 @@ export const WelcomeBackScreen: React.FC = () => {
 
   const handleContinue = async () => {
     if (!isValid) {
-      Alert.alert('Validation Error', 'Please fill all fields correctly');
+      showAlert({
+        title: 'Validation Error',
+        message: 'Please fill all fields correctly',
+        type: 'warning'
+      });
       return;
     }
 
@@ -47,21 +53,25 @@ export const WelcomeBackScreen: React.FC = () => {
 
     try {
       const formattedPhone = `+91${phone}`;
-      
+
       // Store name for later use
-      setOTPName(name);
-      
+      setUserData({ name });
+
       // Request OTP
       await requestOTP(formattedPhone);
-      
+
       // Store phone and name in store (not navigation params)
       const { setOTPData } = useAuthStore.getState();
       setOTPData(formattedPhone, name);
-      
+
       navigation.navigate('OTP' as never);
     } catch (error: any) {
       console.error('Phone auth error:', error);
-      Alert.alert('Error', error.message || 'Failed to send OTP. Please try again.');
+      showAlert({
+        title: 'Error',
+        message: error.message || 'Failed to send OTP. Please try again.',
+        type: 'error'
+      });
       setError(error.message);
     } finally {
       setLocalLoading(false);
@@ -128,12 +138,11 @@ export const WelcomeBackScreen: React.FC = () => {
           disabled={!isValid || loading}
           style={[styles.button, (!isValid || loading) && styles.buttonDisabled]}
         >
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.buttonText}>Continue</Text>
-          )}
+          <Text style={styles.buttonText}>Continue</Text>
         </TouchableOpacity>
+
+        {/* Branded Loader overlay */}
+        {loading && <BrandLoader fullscreen message="Sending OTP..." />}
       </ScrollView>
     </KeyboardAvoidingView>
   );

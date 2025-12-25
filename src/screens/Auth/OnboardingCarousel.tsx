@@ -7,10 +7,10 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   StyleSheet,
-  Image,
   useWindowDimensions,
   Platform,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS, SPACING, TYPOGRAPHY, SHADOWS } from '../../utils/constants';
@@ -107,7 +107,8 @@ export const OnboardingCarousel: React.FC = () => {
         <Image
           source={item.image}
           style={styles.image}
-          resizeMode="contain"
+          contentFit="contain"
+          transition={500}
         />
       </View>
       <View style={styles.contentContainer}>

@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { initializeApp } from 'firebase/app';
+// @ts-ignore - known issue with firebase/auth types in SDK 10+
 import { initializeAuth, getReactNativePersistence, getAuth, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';

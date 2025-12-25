@@ -16,7 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { verifyOTP, getCurrentPhoneNumber } from '../../services/auth';
-import { useAuthStore } from '../../store';
+import { useAuthStore, useUIStore } from '../../store';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandLoader } from '../../components/BrandLoader';
 
@@ -24,6 +24,7 @@ export const OTPScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { otpPhone, setUser, setLoading } = useAuthStore();
+  const { showAlert } = useUIStore();
   const phone = otpPhone || getCurrentPhoneNumber();
 
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -154,18 +155,30 @@ export const OTPScreen: React.FC = () => {
 
   const handleResend = async () => {
     if (resendAttempts >= 3) {
-      Alert.alert('Limit Reached', 'Maximum resend attempts reached. Please contact support.');
+      showAlert({
+        title: 'Limit Reached',
+        message: 'Maximum resend attempts reached. Please contact support.',
+        type: 'warning'
+      });
       return;
     }
 
     try {
       const { requestOTP } = await import('../../services/auth');
       await requestOTP(phone);
-      Alert.alert('OTP Resent', 'A new OTP has been sent to your number');
+      showAlert({
+        title: 'OTP Resent',
+        message: 'A new OTP has been sent to your number',
+        type: 'success'
+      });
       setResendCountdown(30);
       setResendAttempts(resendAttempts + 1);
     } catch (error) {
-      Alert.alert('Error', 'Failed to resend OTP. Please try again.');
+      showAlert({
+        title: 'Error',
+        message: 'Failed to resend OTP. Please try again.',
+        type: 'error'
+      });
     }
   };
 

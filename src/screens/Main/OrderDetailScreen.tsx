@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: COLORS.background,
         ...(Platform.OS === 'web' ? {
-            height: '100vh',
+            height: '100%',
             display: 'flex',
             flexDirection: 'column',
         } : {}),

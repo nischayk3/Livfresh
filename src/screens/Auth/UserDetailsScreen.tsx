@@ -15,8 +15,9 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { setUserData } from '../../services/auth';
-import { useAuthStore } from '../../store';
+import { useAuthStore, useUIStore } from '../../store';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
+import { BrandLoader } from '../../components/BrandLoader';
 
 type GenderOption = 'male' | 'female' | 'other' | 'prefer_not_to_say';
 
@@ -25,7 +26,8 @@ export const UserDetailsScreen: React.FC = () => {
   const route = useRoute();
   const { phone } = (route.params as any) || {};
   const { setOTPData } = useAuthStore();
-  
+  const { showAlert } = useUIStore();
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [gender, setGender] = useState<GenderOption | ''>('');
@@ -48,16 +50,20 @@ export const UserDetailsScreen: React.FC = () => {
 
   const handleContinue = () => {
     if (!isValid) {
-      Alert.alert('Validation Error', 'Please fill all required fields correctly');
+      showAlert({
+        title: 'Validation Error',
+        message: 'Please fill all required fields correctly',
+        type: 'warning'
+      });
       return;
     }
 
     // Store user data
     setUserData({ name, email: email || undefined, gender: gender || undefined });
-    
+
     // Store in auth store
     setOTPData(phone, name);
-    
+
     // Navigate to OTP
     navigation.navigate('OTP' as never);
   };
@@ -175,22 +181,19 @@ export const UserDetailsScreen: React.FC = () => {
             style={styles.buttonContainer}
             activeOpacity={0.8}
           >
-            {loading ? (
-              <View style={styles.button}>
-                <ActivityIndicator color="#FFFFFF" />
-              </View>
-            ) : (
-              <LinearGradient
-                colors={isValid ? [COLORS.gradientStart, COLORS.gradientEnd] : [COLORS.disabled, COLORS.disabled]}
-                style={styles.button}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                <Text style={styles.buttonText}>Continue</Text>
-                <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={styles.buttonIcon} />
-              </LinearGradient>
-            )}
+            <LinearGradient
+              colors={isValid ? [COLORS.gradientStart, COLORS.gradientEnd] : [COLORS.disabled, COLORS.disabled]}
+              style={styles.button}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={styles.buttonText}>Continue</Text>
+              <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={styles.buttonIcon} />
+            </LinearGradient>
           </TouchableOpacity>
+
+          {/* Branded Loader overlay */}
+          {loading && <BrandLoader fullscreen message="Saving details..." />}
         </ScrollView>
       </LinearGradient>
     </KeyboardAvoidingView>

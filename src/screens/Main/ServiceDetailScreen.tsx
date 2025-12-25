@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   Modal,
-  Image,
   TouchableOpacity,
   ScrollView,
   Platform,
@@ -12,6 +11,7 @@ import {
   TextInput,
   Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,7 +20,7 @@ import { Audio } from 'expo-av';
 import { useNavigation } from '@react-navigation/native';
 
 import { COLORS, SPACING, SHADOWS, RADIUS, TYPOGRAPHY } from '../../utils/constants';
-import { useCartStore } from '../../store';
+import { useCartStore, useUIStore } from '../../store';
 import { CartItem } from '../../store/cartStore';
 
 interface ServiceDetailScreenProps {
@@ -39,6 +39,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { addItem } = useCartStore();
+  const { showAlert } = useUIStore();
 
   const [vendor, setVendor] = useState<any>(null);
   const [service, setService] = useState<any>(null);
@@ -140,7 +141,11 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (permissionResult.granted === false) {
-      alert("Permission to access camera roll is required!");
+      showAlert({
+        title: 'Permission Required',
+        message: 'Permission to access camera roll is required!',
+        type: 'warning'
+      });
       return;
     }
 
@@ -159,7 +164,11 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   const handleCamera = async () => {
     const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
     if (permissionResult.granted === false) {
-      alert("Permission to access camera is required!");
+      showAlert({
+        title: 'Permission Required',
+        message: 'Permission to access camera is required!',
+        type: 'warning'
+      });
       return;
     }
 
@@ -188,7 +197,11 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
         setRecording(recording);
         setIsRecording(true);
       } else {
-        alert("Permission to record audio is required!");
+        showAlert({
+          title: 'Permission Required',
+          message: 'Permission to record audio is required!',
+          type: 'warning'
+        });
       }
     } catch (err) {
       console.error('Failed to start recording', err);
@@ -201,7 +214,11 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     await recording?.stopAndUnloadAsync();
     // const uri = recording?.getURI();
     // Logic to store/attach voice note would go here
-    alert('Voice note recorded!');
+    showAlert({
+      title: 'Success',
+      message: 'Voice note recorded!',
+      type: 'success'
+    });
   };
 
   const renderMediaButtons = () => (
@@ -246,7 +263,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
     return (
       <View style={styles.imagePreviewContainer}>
-        <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
+        <Image source={{ uri: selectedImage }} style={styles.imagePreview} contentFit="cover" transition={300} />
         <TouchableOpacity
           style={styles.removeImageButton}
           onPress={() => setSelectedImage(null)}
@@ -292,24 +309,40 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     const totalPrice = calculateTotal();
 
     // Validation
-    if (serviceId === 'wash_fold' || serviceId === 'wash_iron') {
-      if (!selectedWeight) {
-        alert('Please select weight first');
+    if (serviceId === 'wash_fold' || serviceId === 'wash_iron' || serviceId === 'premium_laundry') {
+      const weight = (serviceId === 'premium_laundry') ? premiumWeight : selectedWeight;
+
+      if (!weight) {
+        showAlert({
+          title: 'Required',
+          message: 'Please select weight first',
+          type: 'warning'
+        });
         return;
       }
-      // Check limits
-      const maxPieces = selectedWeight === 'small' ? 25 : 50;
-      // clothesCount validation removed as per request
 
-      if (ironingEnabled && ironingCount > maxPieces) {
-        alert(`Maximum ${maxPieces} ironing pieces allowed for this weight.`);
+      // Check limits
+      const maxPieces = weight === 'small' ? 25 : 50;
+      const currentIroningCount = (serviceId === 'premium_laundry') ? premiumIroningCount : ironingCount;
+      const isIroningEnabled = (serviceId === 'premium_laundry') ? premiumIroningEnabled : ironingEnabled;
+
+      if (isIroningEnabled && currentIroningCount > maxPieces) {
+        showAlert({
+          title: 'Limit Exceeded',
+          message: `Maximum ${maxPieces} ironing pieces allowed for this weight.`,
+          type: 'warning'
+        });
         return;
       }
     }
 
     if (serviceId === 'blanket_wash') {
       if (singleBlanketCount === 0 && doubleBlanketCount === 0) {
-        alert('Please add at least one blanket');
+        showAlert({
+          title: 'Selection Empty',
+          message: 'Please add at least one blanket',
+          type: 'warning'
+        });
         return;
       }
     }
@@ -348,9 +381,20 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       cartItem.doubleBlanketCount = doubleBlanketCount;
     }
 
+    if (serviceId === 'premium_laundry') {
+      cartItem.weight = premiumWeight === 'small' ? 7 : 14;
+      cartItem.ironingEnabled = premiumIroningEnabled;
+      cartItem.ironingCount = premiumIroningCount;
+      cartItem.ironingPrice = premiumIroningEnabled ? premiumIroningCount * 20 : 0;
+    }
+
     addItem(cartItem);
-    alert('Added to cart!');
     onClose();
+    showAlert({
+      title: 'Cart Updated',
+      message: 'Added to cart!',
+      type: 'success'
+    });
   };
 
   // ... (Media Logic)
@@ -412,7 +456,11 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
                 style={[styles.toggle, ironingEnabled && styles.toggleActive]}
                 onPress={() => {
                   if (selectedWeight) setIroningEnabled(!ironingEnabled);
-                  else alert("Select weight first");
+                  else showAlert({
+                    title: 'Weight Required',
+                    message: 'Select weight first',
+                    type: 'info'
+                  });
                 }}
                 disabled={!selectedWeight}
               >
@@ -793,7 +841,8 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
                 <Image
                   source={getServiceImage()}
                   style={styles.serviceImage}
-                  resizeMode="cover"
+                  contentFit="cover"
+                  transition={500}
                 />
               </View>
 
@@ -1036,7 +1085,7 @@ const styles = StyleSheet.create({
   quantityButtonText: {
     ...TYPOGRAPHY.bodyBold,
     color: COLORS.text,
-    fontSize: 18,
+    fontSize: 16,
   },
   quantityButtonTextActive: {
     color: COLORS.background,
@@ -1078,9 +1127,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   mediaButtonText: {
-    fontSize: 12,
+    ...TYPOGRAPHY.caption,
     color: COLORS.textSecondary,
-    fontWeight: '500',
   },
   imagePreviewContainer: {
     flexDirection: 'row',
@@ -1195,8 +1243,7 @@ const styles = StyleSheet.create({
     color: COLORS.text,
   },
   dryCleanItemSubtext: {
-    ...TYPOGRAPHY.caption,
-    fontSize: 10,
+    ...TYPOGRAPHY.tiny,
     color: COLORS.textSecondary,
     position: 'absolute',
     left: 60,
@@ -1225,7 +1272,6 @@ const styles = StyleSheet.create({
   totalAmount: {
     ...TYPOGRAPHY.heading,
     color: COLORS.text,
-    fontSize: 24,
   },
   addToCartButton: {
     flex: 1.5,
@@ -1241,9 +1287,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   addToCartText: {
-    ...TYPOGRAPHY.bodyBold,
+    ...TYPOGRAPHY.button,
     color: COLORS.white,
-    fontSize: 16,
   },
   quantityButtonDisabled: {
     backgroundColor: '#F3F4F6',

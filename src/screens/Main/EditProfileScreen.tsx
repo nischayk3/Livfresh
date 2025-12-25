@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, TYPOGRAPHY } from '../../utils/constants';
-import { useAuthStore } from '../../store';
+import { useAuthStore, useUIStore } from '../../store';
 import { updateUser } from '../../services/firestore';
 import { BrandLoader } from '../../components/BrandLoader';
 
 export const EditProfileScreen: React.FC = () => {
     const navigation = useNavigation();
     const { user, setUser } = useAuthStore();
+    const { showAlert } = useUIStore();
 
     // Fallback if user object is somehow null, shouldn't happen if navigating from Profile
     const [name, setName] = useState(user?.name || '');
@@ -27,7 +28,11 @@ export const EditProfileScreen: React.FC = () => {
 
     const handleSave = async () => {
         if (!name.trim()) {
-            Alert.alert('Error', 'Name cannot be empty');
+            showAlert({
+                title: 'Error',
+                message: 'Name cannot be empty',
+                type: 'error'
+            });
             return;
         }
 
@@ -40,13 +45,20 @@ export const EditProfileScreen: React.FC = () => {
                 // Update Local Store
                 setUser({ ...user, name, email } as any);
 
-                Alert.alert('Success', 'Profile updated successfully!', [
-                    { text: 'OK', onPress: () => navigation.goBack() }
-                ]);
+                showAlert({
+                    title: 'Success',
+                    message: 'Profile updated successfully!',
+                    type: 'success',
+                    onClose: () => navigation.goBack()
+                });
             }
         } catch (error) {
             console.error('Failed to update profile:', error);
-            Alert.alert('Error', 'Failed to update profile. Please try again.');
+            showAlert({
+                title: 'Error',
+                message: 'Failed to update profile. Please try again.',
+                type: 'error'
+            });
         } finally {
             setLoading(false);
         }

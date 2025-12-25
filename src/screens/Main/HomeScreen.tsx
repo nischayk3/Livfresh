@@ -8,9 +8,9 @@ import {
   ScrollView,
   Platform,
   StatusBar,
-  Image,
   Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -70,14 +70,14 @@ const SERVICES = [
     id: 'blanket_wash',
     name: 'Blanket Wash',
     icon: 'bed-outline',
-    color: '#8B5CF6',
+    color: COLORS.primary,
     description: 'Comforters & quilts',
   },
   {
     id: 'subscription',
     name: 'Subscribe',
     icon: 'sparkles-outline',
-    color: '#F59E0B',
+    color: COLORS.primary,
     description: 'Save more',
     disabled: false,
   },
@@ -172,7 +172,12 @@ export const HomeScreen: React.FC = () => {
           <Text style={styles.promoTitle}>{item.title}</Text>
           <Text style={styles.promoSubtitle}>{item.subtitle}</Text>
         </View>
-        <Image source={item.image} style={styles.promoImage} resizeMode="contain" />
+        <Image
+          source={item.image}
+          style={styles.promoImage}
+          contentFit="contain"
+          transition={500}
+        />
       </LinearGradient>
     </View>
   );
@@ -192,17 +197,17 @@ export const HomeScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + SPACING.xs }]}>
+      <View style={[styles.header, { paddingTop: insets.top + SPACING.headerTop }]}>
         <View style={styles.headerTop}>
           <TouchableOpacity style={styles.locationContainer} onPress={handleAddressPress}>
-            <Ionicons name="location-sharp" size={14} color={COLORS.primary} />
+            <Ionicons name="location-sharp" size={16} color={COLORS.primary} />
             <View style={styles.addressButton}>
               <Text style={styles.locationLabel}>Deliver to</Text>
               <Text style={styles.locationText} numberOfLines={1}>
                 {currentAddress || 'Select Location'}
               </Text>
             </View>
-            <Ionicons name="chevron-down" size={14} color={COLORS.textSecondary} />
+            <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.profileButton} onPress={() => (navigation as any).navigate('Main', { screen: 'Profile' })}>
             <View style={styles.avatarContainer}>
@@ -277,7 +282,7 @@ export const HomeScreen: React.FC = () => {
                 ]}>
                   <Ionicons
                     name={service.icon as any}
-                    size={24}
+                    size={28}
                     color={(service as any).disabled ? '#9CA3AF' : service.color}
                   />
                 </View>
@@ -333,7 +338,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: SPACING.md,
-    paddingBottom: SPACING.sm,
+    paddingBottom: SPACING.md,
     backgroundColor: COLORS.background,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.borderLight,
@@ -342,14 +347,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.headerGap,
   },
   locationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.backgroundLight,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 6,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm + 2,
     borderRadius: RADIUS.lg,
     flex: 1,
     marginRight: SPACING.sm,
@@ -358,25 +363,22 @@ const styles = StyleSheet.create({
   },
   addressButton: {
     flex: 1,
-    marginHorizontal: 6,
+    marginHorizontal: SPACING.sm,
   },
   locationLabel: {
-    fontSize: 9,
+    ...TYPOGRAPHY.addressLabel,
     color: COLORS.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    fontWeight: '700',
+    marginBottom: 2,
   },
   locationText: {
-    fontSize: 12,
+    ...TYPOGRAPHY.addressText,
     color: COLORS.text,
-    fontWeight: '600',
   },
   profileButton: {},
   avatarContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: COLORS.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
@@ -385,35 +387,34 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     color: COLORS.primary,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
   },
   greetingContainer: {
-    marginTop: 2,
+    marginTop: SPACING.xs,
   },
   greetingText: {
-    fontSize: 18,
-    fontWeight: '700',
+    ...TYPOGRAPHY.display,
     color: COLORS.text,
-    marginBottom: 2,
+    marginBottom: SPACING.xs,
   },
   subGreeting: {
-    fontSize: 13,
+    ...TYPOGRAPHY.bodySmall,
     color: COLORS.textSecondary,
   },
   scrollContent: {
     paddingBottom: SPACING.xl * 4,
   },
   promoSection: {
-    marginTop: SPACING.sm,
-    marginBottom: SPACING.sm,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.md,
   },
   promoList: {
     paddingHorizontal: SPACING.md,
   },
   promoCard: {
     width: Dimensions.get('window').width - 64,
-    height: 110,
+    height: 120,
     borderRadius: RADIUS.lg,
     marginRight: SPACING.md,
     overflow: 'hidden',
@@ -445,15 +446,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   promoTitle: {
-    fontSize: 16,
-    fontWeight: '800',
+    ...TYPOGRAPHY.subheading,
     color: COLORS.text,
-    marginBottom: 2,
+    marginBottom: SPACING.xs,
   },
   promoSubtitle: {
-    fontSize: 12,
+    ...TYPOGRAPHY.bodySmall,
     color: COLORS.textSecondary,
-    fontWeight: '500',
   },
   promoImage: {
     width: 90,
@@ -477,14 +476,13 @@ const styles = StyleSheet.create({
   },
   servicesSection: {
     paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.sm,
+    paddingTop: SPACING.md,
     paddingBottom: SPACING.lg,
   },
   sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
+    ...TYPOGRAPHY.subheading,
     color: COLORS.text,
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.md,
   },
   servicesGrid: {
     flexDirection: 'row',
@@ -496,11 +494,12 @@ const styles = StyleSheet.create({
     width: '48%',
     backgroundColor: COLORS.background,
     borderRadius: RADIUS.md,
-    padding: SPACING.sm,
+    padding: SPACING.md,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: COLORS.borderLight,
     ...SHADOWS.sm,
+    marginBottom: SPACING.sm,
   },
   serviceCardDisabled: {
     backgroundColor: '#F9FAFB',
@@ -508,22 +507,21 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   serviceIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
+    marginBottom: SPACING.sm,
   },
   serviceName: {
-    fontSize: 13,
-    fontWeight: '600',
+    ...TYPOGRAPHY.bodyBold,
     color: COLORS.text,
     textAlign: 'center',
-    marginBottom: 2,
+    marginBottom: SPACING.xs,
   },
   serviceDescription: {
-    fontSize: 10,
+    ...TYPOGRAPHY.caption,
     color: COLORS.textSecondary,
     textAlign: 'center',
   },

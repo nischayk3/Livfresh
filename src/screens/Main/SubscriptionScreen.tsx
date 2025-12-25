@@ -6,18 +6,18 @@ import {
     TouchableOpacity,
     ScrollView,
     Platform,
-    Image,
     Modal,
     FlatList,
     TouchableWithoutFeedback,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { createSubscription, cancelSubscription } from '../../services/firestore';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore, useUIStore } from '../../store';
 import { BrandLoader } from '../../components/BrandLoader';
 
 const subscriptionIllustration = require('../../../assets/subscription_illustration.png');
@@ -49,6 +49,7 @@ export const SubscriptionScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation();
     const { user, updateSubscription, cancelLocalSubscription } = useAuthStore();
+    const { showAlert } = useUIStore();
     const [selectedType, setSelectedType] = useState<SubscriptionType>('schedule');
     const [credits, setCredits] = useState(1);
     const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success'>('idle');
@@ -243,8 +244,11 @@ export const SubscriptionScreen: React.FC = () => {
             }
         } catch (error) {
             console.error('Cancellation failed', error);
-            // Fallback for error - maybe just log for now or show a generic error text
-            alert('Failed to cancel. Please try again.');
+            showAlert({
+                title: 'Error',
+                message: 'Failed to cancel subscription. Please try again.',
+                type: 'error'
+            });
         } finally {
             setCancelling(false);
         }
@@ -304,7 +308,8 @@ export const SubscriptionScreen: React.FC = () => {
                     <Image
                         source={subscriptionIllustration}
                         style={styles.illustration}
-                        resizeMode="contain"
+                        contentFit="contain"
+                        transition={500}
                     />
                 </View>
 
@@ -400,7 +405,8 @@ export const SubscriptionScreen: React.FC = () => {
                     <Image
                         source={subscriptionIllustration}
                         style={styles.illustration}
-                        resizeMode="contain"
+                        contentFit="contain"
+                        transition={500}
                     />
                 </View>
 

@@ -4,34 +4,29 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
-import { useAuthStore } from '../../store';
+import { useAuthStore, useUIStore } from '../../store';
 
 export const ProfileScreen: React.FC = () => {
     const navigation = useNavigation();
     const { user, logout } = useAuthStore();
+    const { showAlert } = useUIStore();
     const insets = useSafeAreaInsets();
-    const [showLogoutModal, setShowLogoutModal] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
 
     const handleLogout = () => {
-        if (Platform.OS === 'web') {
-            // On web, show custom modal instead of Alert.alert
-            setShowLogoutModal(true);
-        } else {
-            // On native, use native Alert
-            Alert.alert(
-                'Logout',
-                'Are you sure you want to logout?',
-                [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                        text: 'Logout',
-                        style: 'destructive',
-                        onPress: executeLogout
-                    }
-                ]
-            );
-        }
+        showAlert({
+            title: 'Logout',
+            message: 'Are you sure you want to logout?',
+            type: 'warning',
+            buttons: [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Logout',
+                    style: 'destructive',
+                    onPress: executeLogout
+                }
+            ]
+        });
     };
 
     const executeLogout = async () => {
@@ -43,7 +38,6 @@ export const ProfileScreen: React.FC = () => {
             console.error('Logout error:', error);
         } finally {
             setIsLoggingOut(false);
-            setShowLogoutModal(false);
         }
     };
 
@@ -51,52 +45,12 @@ export const ProfileScreen: React.FC = () => {
         return name ? name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() : 'U';
     };
 
-    // Web Logout Confirmation Modal
-    const renderLogoutModal = () => (
-        <Modal
-            visible={showLogoutModal}
-            transparent={true}
-            animationType="fade"
-            onRequestClose={() => setShowLogoutModal(false)}
-        >
-            <TouchableWithoutFeedback onPress={() => setShowLogoutModal(false)}>
-                <View style={styles.modalOverlay}>
-                    <TouchableWithoutFeedback>
-                        <View style={styles.modalContent}>
-                            <View style={styles.modalHeader}>
-                                <Ionicons name="log-out-outline" size={48} color={COLORS.error} />
-                            </View>
-                            <Text style={styles.modalTitle}>Logout</Text>
-                            <Text style={styles.modalMessage}>Are you sure you want to logout?</Text>
 
-                            <View style={styles.modalButtons}>
-                                <TouchableOpacity
-                                    style={[styles.modalButton, styles.cancelButton]}
-                                    onPress={() => setShowLogoutModal(false)}
-                                    disabled={isLoggingOut}
-                                >
-                                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[styles.modalButton, styles.confirmButton, isLoggingOut && { opacity: 0.7 }]}
-                                    onPress={executeLogout}
-                                    disabled={isLoggingOut}
-                                >
-                                    <Text style={styles.confirmButtonText}>
-                                        {isLoggingOut ? 'Logging out...' : 'Logout'}
-                                    </Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    </TouchableWithoutFeedback>
-                </View>
-            </TouchableWithoutFeedback>
-        </Modal>
-    );
+
 
     return (
         <View style={styles.container}>
-            <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? SPACING.lg : insets.top + SPACING.sm }]}>
+            <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? SPACING.lg : insets.top + SPACING.headerTop }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={COLORS.text} />
                 </TouchableOpacity>
@@ -117,7 +71,7 @@ export const ProfileScreen: React.FC = () => {
                     </View>
                     <TouchableOpacity
                         style={styles.editButton}
-                        onPress={() => navigation.navigate('Main' as never, { screen: 'EditProfile' } as never)}
+                        onPress={() => (navigation as any).navigate('Main', { screen: 'EditProfile' })}
                     >
                         <Ionicons name="pencil" size={20} color={COLORS.primary} />
                     </TouchableOpacity>
@@ -127,7 +81,7 @@ export const ProfileScreen: React.FC = () => {
                 <View style={styles.menuContainer}>
                     <TouchableOpacity
                         style={styles.menuItem}
-                        onPress={() => navigation.navigate('Main' as never, { screen: 'AddressList' } as never)}
+                        onPress={() => (navigation as any).navigate('Main', { screen: 'AddressList' })}
                     >
                         <View style={[styles.menuIcon, { backgroundColor: COLORS.primaryLight }]}>
                             <Ionicons name="location-outline" size={22} color={COLORS.primary} />
@@ -138,7 +92,7 @@ export const ProfileScreen: React.FC = () => {
 
                     <TouchableOpacity
                         style={styles.menuItem}
-                        onPress={() => navigation.navigate('MyOrders' as never)}
+                        onPress={() => (navigation as any).navigate('MyOrders')}
                     >
                         <View style={[styles.menuIcon, { backgroundColor: COLORS.info + '20' }]}>
                             <Ionicons name="receipt-outline" size={22} color={COLORS.info} />
@@ -149,7 +103,7 @@ export const ProfileScreen: React.FC = () => {
 
                     <TouchableOpacity
                         style={styles.menuItem}
-                        onPress={() => navigation.navigate('Main' as never, { screen: 'HelpSupport' } as never)}
+                        onPress={() => (navigation as any).navigate('Main', { screen: 'HelpSupport' })}
                     >
                         <View style={[styles.menuIcon, { backgroundColor: COLORS.warning + '20' }]}>
                             <Ionicons name="headset-outline" size={22} color={COLORS.warning} />
@@ -157,7 +111,7 @@ export const ProfileScreen: React.FC = () => {
                         <Text style={styles.menuText}>Help & Support</Text>
                         <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
                     </TouchableOpacity>
-                </View>
+                </View >
 
                 {/* Logout Button */}
                 <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -166,9 +120,6 @@ export const ProfileScreen: React.FC = () => {
                 </TouchableOpacity>
 
             </ScrollView>
-
-            {/* Web Logout Modal */}
-            {renderLogoutModal()}
         </View>
     );
 };
@@ -193,7 +144,6 @@ const styles = StyleSheet.create({
     },
     headerTitle: {
         ...TYPOGRAPHY.subheading,
-        fontSize: 18,
     },
     scrollContent: {
         padding: SPACING.lg,

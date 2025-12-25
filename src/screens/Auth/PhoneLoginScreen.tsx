@@ -20,7 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { requestOTP } from '../../services/auth';
 import { checkUserExists } from '../../services/firestore';
-import { useAuthStore } from '../../store';
+import { useAuthStore, useUIStore } from '../../store';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandLoader } from '../../components/BrandLoader';
 
@@ -30,6 +30,7 @@ export const PhoneLoginScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { setLoading, setError } = useAuthStore();
+  const { showAlert } = useUIStore();
   const [phone, setPhone] = useState('');
   const [loading, setLocalLoading] = useState(false);
   const [recaptchaReady, setRecaptchaReady] = useState(false);
@@ -57,7 +58,11 @@ export const PhoneLoginScreen: React.FC = () => {
 
   const handleContinue = async () => {
     if (phone.length !== 10) {
-      Alert.alert('Invalid Phone', 'Please enter a valid 10-digit phone number');
+      showAlert({
+        title: 'Invalid Phone',
+        message: 'Please enter a valid 10-digit phone number',
+        type: 'warning'
+      });
       return;
     }
 
@@ -87,7 +92,11 @@ export const PhoneLoginScreen: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Phone auth error:', error);
-      Alert.alert('Error', error.message || 'Failed to send OTP. Please try again.');
+      showAlert({
+        title: 'Error',
+        message: error.message || 'Failed to send OTP. Please try again.',
+        type: 'error'
+      });
       setError(error.message);
     } finally {
       setLocalLoading(false);

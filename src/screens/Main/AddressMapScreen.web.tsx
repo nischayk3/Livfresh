@@ -11,13 +11,14 @@ import {
     Platform,
     ActivityIndicator,
 } from 'react-native';
+import { BrandLoader } from '../../components/BrandLoader';
 import { GoogleMap, useJsApiLoader, Autocomplete } from '@react-google-maps/api';
 import * as Location from 'expo-location';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { addAddress, updateUserAddress } from '../../services/firestore';
-import { useAuthStore, useAddressStore } from '../../store';
+import { useAuthStore, useAddressStore, useUIStore } from '../../store';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Google Maps API Configuration
@@ -67,6 +68,7 @@ export const AddressMapScreen: React.FC = () => {
     const route = useRoute();
     const { user } = useAuthStore();
     const { setCurrentAddress, addAddress: addAddressToStore, updateAddress: updateAddressInStore } = useAddressStore();
+    const { showAlert } = useUIStore();
     const insets = useSafeAreaInsets();
 
     // Load Google Maps API
@@ -292,11 +294,19 @@ export const AddressMapScreen: React.FC = () => {
 
                 fetchAddress(lat, lng);
             } else {
-                alert('Location permission denied. Please enable it in your browser settings.');
+                showAlert({
+                    title: 'Location Permission',
+                    message: 'Location permission denied. Please enable it in your browser settings.',
+                    type: 'warning'
+                });
             }
         } catch (error) {
             console.error('Error getting current location:', error);
-            alert('Could not get your current location. Please try again.');
+            showAlert({
+                title: 'Error',
+                message: 'Could not get your current location. Please try again.',
+                type: 'error'
+            });
         } finally {
             setIsLocating(false);
         }
@@ -305,12 +315,20 @@ export const AddressMapScreen: React.FC = () => {
     // Save address handler
     const handleSaveAddress = async () => {
         if (!addressDetails.houseNo.trim()) {
-            alert('Please enter House/Flat Number');
+            showAlert({
+                title: 'Details Missing',
+                message: 'Please enter House/Flat Number',
+                type: 'warning'
+            });
             return;
         }
 
         if (!user?.uid) {
-            alert('User not logged in');
+            showAlert({
+                title: 'Error',
+                message: 'User not logged in',
+                type: 'error'
+            });
             return;
         }
 
@@ -333,8 +351,12 @@ export const AddressMapScreen: React.FC = () => {
                 await updateUserAddress(user.uid, addressData as any);
                 updateAddressInStore(addressData as any);
                 setCurrentAddress(fullAddress, regionToSave.latitude, regionToSave.longitude);
-                alert('Address updated!');
-                navigation.goBack();
+                showAlert({
+                    title: 'Success',
+                    message: 'Address updated!',
+                    type: 'success',
+                    onClose: () => navigation.goBack()
+                });
             } else {
                 const newAddress = await addAddress(
                     user.uid,
@@ -346,13 +368,21 @@ export const AddressMapScreen: React.FC = () => {
                 );
                 addAddressToStore(newAddress as any);
                 setCurrentAddress(fullAddress, regionToSave.latitude, regionToSave.longitude);
-                alert('Address saved!');
-                navigation.navigate('MainTabs' as never);
+                showAlert({
+                    title: 'Success',
+                    message: 'Address saved!',
+                    type: 'success',
+                    onClose: () => navigation.navigate('MainTabs' as never)
+                });
             }
 
         } catch (error: any) {
             console.error('Save address error:', error);
-            alert('Failed to save address: ' + (error.message || 'Unknown error'));
+            showAlert({
+                title: 'Error',
+                message: 'Failed to save address: ' + (error.message || 'Unknown error'),
+                type: 'error'
+            });
         } finally {
             setLoading(false);
         }

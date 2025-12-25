@@ -3,18 +3,18 @@ import {
   View,
   Text,
   ScrollView,
-  Image,
   TouchableOpacity,
-  ActivityIndicator,
   StyleSheet,
   Alert,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { getVendor, getVendorServices } from '../../services/firestore';
 import { ServiceDetailScreen } from './ServiceDetailScreen';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
+import { useUIStore } from '../../store';
 import { BrandLoader } from '../../components/BrandLoader';
 
 interface Service {
@@ -28,6 +28,7 @@ interface Service {
 
 export const VendorDetailScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { showAlert } = useUIStore();
   const route = useRoute();
   const { vendorId } = route.params as { vendorId: string };
 
@@ -52,8 +53,12 @@ export const VendorDetailScreen: React.FC = () => {
       setServices(vendorServices as Service[]);
     } catch (error: any) {
       console.error('Error loading vendor:', error);
-      Alert.alert('Error', 'Failed to load vendor details. Please try again.');
-      navigation.goBack();
+      showAlert({
+        title: 'Error',
+        message: 'Failed to load vendor details. Please try again.',
+        type: 'error',
+        onClose: () => navigation.goBack()
+      });
     } finally {
       setLoading(false);
     }
@@ -124,7 +129,8 @@ export const VendorDetailScreen: React.FC = () => {
           <Image
             source={{ uri: vendor.imageUrl || 'https://via.placeholder.com/400x200' }}
             style={styles.vendorImage}
-            resizeMode="cover"
+            contentFit="cover"
+            transition={500}
           />
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.7)']}

@@ -6,7 +6,6 @@ import {
     ScrollView,
     TouchableOpacity,
     Alert,
-    ActivityIndicator,
     Platform,
     Dimensions,
 } from 'react-native';
@@ -15,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { Timestamp } from 'firebase/firestore';
 
-import { useCartStore, useAuthStore, useAddressStore } from '../../store';
+import { useCartStore, useAuthStore, useAddressStore, useUIStore } from '../../store';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
 import { createOrder, saveCart, clearCartInFirestore } from '../../services/firestore';
 import { BrandLoader } from '../../components/BrandLoader';
@@ -26,6 +25,7 @@ export const CartScreen: React.FC = () => {
     const { items, removeItem, getTotalAmount, clearCart } = useCartStore();
     const { user } = useAuthStore();
     const { currentAddress } = useAddressStore();
+    const { showAlert } = useUIStore();
 
     const [loading, setLoading] = useState(false);
     const [pickupType, setPickupType] = useState<'instant' | 'scheduled'>('instant');
@@ -79,17 +79,29 @@ export const CartScreen: React.FC = () => {
 
     const handlePlaceOrder = async () => {
         if (!user) {
-            Alert.alert('Login Required', 'Please login to place an order');
+            showAlert({
+                title: 'Login Required',
+                message: 'Please login to place an order',
+                type: 'info'
+            });
             return;
         }
 
         if (!currentAddress) {
-            Alert.alert('Address Required', 'Please select a delivery address');
+            showAlert({
+                title: 'Address Required',
+                message: 'Please select a delivery address',
+                type: 'warning'
+            });
             return;
         }
 
         if (pickupType === 'scheduled' && (!selectedDate || !selectedTimeSlot)) {
-            Alert.alert('Incomplete Details', 'Please select a date and time for pickup');
+            showAlert({
+                title: 'Incomplete Details',
+                message: 'Please select a date and time for pickup',
+                type: 'warning'
+            });
             return;
         }
 
@@ -131,7 +143,11 @@ export const CartScreen: React.FC = () => {
 
         } catch (error) {
             console.error("Order placement failed", error);
-            Alert.alert('Error', 'Failed to place order. Please try again.');
+            showAlert({
+                title: 'Error',
+                message: 'Failed to place order. Please try again.',
+                type: 'error'
+            });
         } finally {
             setLoading(false);
         }
@@ -152,11 +168,11 @@ export const CartScreen: React.FC = () => {
 
             {/* Dynamic details based on service type */}
             <View style={styles.itemDetails}>
-                {/* Wash & Fold Details */}
-                {(item.serviceType === 'wash_fold' || item.serviceType === 'wash_iron') && (
+                {/* Wash & Fold / Premium Laundry Details */}
+                {(item.serviceType === 'wash_fold' || item.serviceType === 'wash_iron' || item.serviceType === 'premium_laundry') && (
                     <Text style={styles.detailText}>
-                        {item.weight}kg ({item.clothesCount} clothes)
-                        {item.ironingEnabled ? ` + ${item.ironingCount} Ironing` : ''}
+                        {item.weight}kg
+                        {item.ironingEnabled && item.ironingCount > 0 ? ` + ${item.ironingCount} Ironing` : ''}
                     </Text>
                 )}
 

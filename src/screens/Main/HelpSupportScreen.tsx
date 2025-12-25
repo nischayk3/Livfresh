@@ -3,9 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity, Linking, TextInput, Alert, Sc
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, TYPOGRAPHY } from '../../utils/constants';
+import { useUIStore } from '../../store';
 
 export const HelpSupportScreen: React.FC = () => {
     const navigation = useNavigation();
+    const { showAlert } = useUIStore();
     const SUPPORT_PHONE = '+91 9108558715';
     const [message, setMessage] = useState('');
 
@@ -15,14 +17,21 @@ export const HelpSupportScreen: React.FC = () => {
 
     const handleSendMessage = () => {
         if (!message.trim()) {
-            Alert.alert('Empty Message', 'Please enter your query before sending.');
+            showAlert({
+                title: 'Empty Message',
+                message: 'Please enter your query before sending.',
+                type: 'warning'
+            });
             return;
         }
 
         // Mock sending message
-        Alert.alert('Message Sent', 'We have received your query. Our support team will contact you shortly.', [
-            { text: 'OK', onPress: () => setMessage('') }
-        ]);
+        showAlert({
+            title: 'Message Sent',
+            message: 'We have received your query. Our support team will contact you shortly.',
+            type: 'success',
+            onClose: () => setMessage('')
+        });
     };
 
     return (

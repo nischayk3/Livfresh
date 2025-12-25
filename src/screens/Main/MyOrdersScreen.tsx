@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Platform } from 'react-native';
+import { BrandLoader } from '../../components/BrandLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
 import { useAuthStore } from '../../store';
 import { getUserOrders } from '../../services/firestore';
-import { BrandLoader } from '../../components/BrandLoader';
 
 export const MyOrdersScreen: React.FC = () => {
     const navigation = useNavigation();
@@ -65,7 +65,7 @@ export const MyOrdersScreen: React.FC = () => {
         return (
             <TouchableOpacity
                 style={styles.orderCard}
-                onPress={() => navigation.navigate('Main' as never, { screen: 'OrderDetail', params: { orderId: item.id } } as never)}
+                onPress={() => (navigation as any).navigate('Main', { screen: 'OrderDetail', params: { orderId: item.id } })}
             >
                 <View style={styles.cardHeader}>
                     <Text style={styles.orderDate}>{dateString}</Text>
@@ -106,7 +106,7 @@ export const MyOrdersScreen: React.FC = () => {
 
     return (
         <View style={styles.container}>
-            <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? SPACING.lg : insets.top + SPACING.sm }]}>
+            <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? SPACING.lg : insets.top + SPACING.headerTop }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={COLORS.text} />
                 </TouchableOpacity>
@@ -152,7 +152,6 @@ const styles = StyleSheet.create({
     },
     headerTitle: {
         ...TYPOGRAPHY.subheading,
-        fontSize: 18,
     },
     loadingContainer: {
         flex: 1,

@@ -49,23 +49,30 @@ export const COLORS = {
   service4Dark: '#A7F3D0',
 };
 
-// Typography - Refined for modern, compact feel
+// Typography - Standardized for professional, aesthetic look
 export const TYPOGRAPHY = {
-  // Large titles (screen headers)
-  heading: {
-    fontSize: 26,
+  // Extra large titles (main greetings, hero text)
+  display: {
+    fontSize: 28,
     fontWeight: '700' as const,
-    lineHeight: 32,
+    lineHeight: 36,
     letterSpacing: -0.5,
   },
-  // Section titles
+  // Large titles (screen headers, main headings)
+  heading: {
+    fontSize: 24,
+    fontWeight: '700' as const,
+    lineHeight: 30,
+    letterSpacing: -0.3,
+  },
+  // Section titles, card titles
   subheading: {
     fontSize: 18,
     fontWeight: '600' as const,
     lineHeight: 24,
     letterSpacing: -0.2,
   },
-  // Regular body text
+  // Regular body text (primary content)
   body: {
     fontSize: 15,
     fontWeight: '400' as const,
@@ -77,17 +84,17 @@ export const TYPOGRAPHY = {
     fontWeight: '600' as const,
     lineHeight: 22,
   },
-  // Smaller body text
+  // Smaller body text (secondary content)
   bodySmall: {
     fontSize: 13,
     fontWeight: '400' as const,
     lineHeight: 18,
   },
-  // Very small text (labels, badges)
+  // Labels, badges, small text
   caption: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '500' as const,
-    lineHeight: 14,
+    lineHeight: 16,
   },
   // Button text
   button: {
@@ -96,15 +103,29 @@ export const TYPOGRAPHY = {
     lineHeight: 22,
     letterSpacing: 0.3,
   },
-  // Tiny labels and badges
+  // Very small labels and badges
   tiny: {
     fontSize: 10,
     fontWeight: '600' as const,
-    lineHeight: 12,
+    lineHeight: 14,
+  },
+  // Address label (DELIVER TO style)
+  addressLabel: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    lineHeight: 14,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase' as const,
+  },
+  // Address text
+  addressText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    lineHeight: 20,
   },
 };
 
-// Spacing - Enhanced with more options
+// Spacing - Enhanced with more options for better visual hierarchy
 export const SPACING = {
   xs: 4,
   sm: 8,
@@ -113,6 +134,9 @@ export const SPACING = {
   xl: 32,
   xxl: 48,
   xxxl: 64,
+  // Header specific spacing
+  headerTop: 12, // Top padding for header sections
+  headerGap: 16, // Gap between address and greeting sections
 };
 
 // Border Radius

@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, TYPOGRAPHY, SHADOWS } from '../../utils/constants';
 import { useAdminStore } from '../../store/adminStore';
+import { useUIStore } from '../../store/uiStore';
 import { format } from 'date-fns';
 import { BrandLoader } from '../../components/BrandLoader';
 
@@ -46,6 +47,7 @@ export const AdminOrdersScreen: React.FC = () => {
     fetchAllOrders,
     updateOrderStatus
   } = useAdminStore();
+  const { showAlert } = useUIStore();
 
   // Local State
   const [activeTab, setActiveTab] = useState('confirmed');
@@ -157,26 +159,28 @@ export const AdminOrdersScreen: React.FC = () => {
   };
 
   const handleMarkProcessed = (order: any) => {
-    Alert.alert(
-      "Confirm Processing",
-      "Are you sure you want to move this order to Processing?",
-      [
+    showAlert({
+      title: "Confirm Processing",
+      message: "Are you sure you want to move this order to Processing?",
+      type: 'info',
+      buttons: [
         { text: "Cancel", style: "cancel" },
         {
           text: "Confirm",
+          style: "default",
           onPress: async () => {
             setProcessing(true);
             try {
               await updateOrderStatus(order.userId, order.id, 'processing');
-              setProcessing(false);
             } catch (error) {
+              showAlert({ title: "Error", message: "Failed to update status", type: 'error' });
+            } finally {
               setProcessing(false);
-              Alert.alert("Error", "Failed to update status");
             }
           }
         }
       ]
-    );
+    });
   };
 
   const handleCancelOrder = (order: any) => {
@@ -221,49 +225,53 @@ export const AdminOrdersScreen: React.FC = () => {
 
 
   const handleMarkReady = (order: any) => {
-    Alert.alert(
-      "Confirm Ready",
-      "Is the order packed and ready for delivery? A delivery OTP will be generated.",
-      [
+    showAlert({
+      title: "Confirm Ready",
+      message: "Is the order packed and ready for delivery? A delivery OTP will be generated.",
+      type: 'warning',
+      buttons: [
         { text: "Cancel", style: "cancel" },
         {
           text: "Mark Ready",
+          style: "default",
           onPress: async () => {
             setProcessing(true);
             try {
               await updateOrderStatus(order.userId, order.id, 'ready');
-              setProcessing(false);
             } catch (error) {
+              showAlert({ title: "Error", message: "Failed to update status", type: 'error' });
+            } finally {
               setProcessing(false);
-              Alert.alert("Error", "Failed to update status");
             }
           }
         }
       ]
-    );
+    });
   };
 
   const handleMarkOutForDelivery = (order: any) => {
-    Alert.alert(
-      "Start Delivery",
-      "Are you sending this order out for delivery now?",
-      [
+    showAlert({
+      title: "Start Delivery",
+      message: "Are you sending this order out for delivery now?",
+      type: 'info',
+      buttons: [
         { text: "Cancel", style: "cancel" },
         {
           text: "Yes, Out for Delivery",
+          style: "default",
           onPress: async () => {
             setProcessing(true);
             try {
               await updateOrderStatus(order.userId, order.id, 'out_for_delivery');
-              setProcessing(false);
             } catch (error) {
+              showAlert({ title: "Error", message: "Failed to update status", type: 'error' });
+            } finally {
               setProcessing(false);
-              Alert.alert("Error", "Failed to update status");
             }
           }
         }
       ]
-    );
+    });
   };
 
   const handleSubmitOTP = async () => {

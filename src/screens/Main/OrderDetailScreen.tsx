@@ -9,13 +9,15 @@ import { getOrder } from '../../services/firestore';
 import { BrandLoader } from '../../components/BrandLoader';
 
 // Order Status Steps
+// Order Status Steps - Aligned with Admin Flow
 const ORDER_STEPS = [
-    { key: 'placed', label: 'Order Info Received', icon: 'clipboard-outline' },
-    { key: 'pickup_assigned', label: 'Pickup Partner Assigned', icon: 'bicycle-outline' },
-    { key: 'reached_store', label: 'Reached Store', icon: 'storefront-outline' },
-    { key: 'in_progress', label: 'Washing / Ironing', icon: 'water-outline' },
-    { key: 'out_for_delivery', label: 'Scheduled for Delivery', icon: 'rocket-outline' },
-    { key: 'delivered', label: 'Delivered', icon: 'checkmark-done-circle-outline' },
+    { key: 'placed', label: 'Order Placed', icon: 'clipboard-outline' },
+    { key: 'confirmed', label: 'Confirmed', icon: 'checkmark-circle-outline' },
+    { key: 'pickup_completed', label: 'Pickup Completed', icon: 'bicycle-outline' },
+    { key: 'processing', label: 'Processing', icon: 'water-outline' },
+    { key: 'ready', label: 'Ready for Delivery', icon: 'cube-outline' },
+    { key: 'out_for_delivery', label: 'Out for Delivery', icon: 'rocket-outline' },
+    { key: 'delivered', label: 'Delivered', icon: 'home-outline' },
 ];
 
 export const OrderDetailScreen: React.FC = () => {
@@ -75,6 +77,21 @@ export const OrderDetailScreen: React.FC = () => {
                 showsVerticalScrollIndicator={true}
                 nestedScrollEnabled={true}
             >
+
+                {/* OTP Banner - Critical for End-to-End Flow */}
+                {((['placed', 'confirmed', 'pickup_assigned'].includes(order.status)) && order.pickupOTP) && (
+                    <View style={styles.otpContainer}>
+                        <Text style={styles.otpLabel}>Share this OTP for Pickup</Text>
+                        <Text style={styles.otpValue}>{order.pickupOTP}</Text>
+                    </View>
+                )}
+
+                {((['ready', 'out_for_delivery'].includes(order.status)) && order.deliveryOTP) && (
+                    <View style={styles.otpContainer}>
+                        <Text style={styles.otpLabel}>Share this OTP for Delivery</Text>
+                        <Text style={styles.otpValue}>{order.deliveryOTP}</Text>
+                    </View>
+                )}
 
                 {/* Stepper Section */}
                 <View style={styles.section}>
@@ -171,6 +188,27 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    otpContainer: {
+        backgroundColor: COLORS.primary,
+        padding: SPACING.lg,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        marginBottom: SPACING.md,
+        ...SHADOWS.sm,
+    },
+    otpLabel: {
+        color: '#FFF',
+        fontSize: 14,
+        fontWeight: '600',
+        marginBottom: 4,
+        opacity: 0.9,
+    },
+    otpValue: {
+        color: '#FFF',
+        fontSize: 32,
+        fontWeight: '800',
+        letterSpacing: 4,
     },
     header: {
         flexDirection: 'row',

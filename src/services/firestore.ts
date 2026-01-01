@@ -12,6 +12,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { generateOTP } from '../utils/otpHelpers';
 
 // Get vendor data
 export const getVendor = async (vendorId: string) => {
@@ -252,8 +253,16 @@ export const createOrder = async (userId: string, orderData: any) => {
     const ordersRef = collection(db, 'users', userId, 'orders');
     const orderId = doc(ordersRef).id;
 
+    // Generate pickup OTP (4-digit)
+    const pickupOTP = generateOTP();
+
     const orderWithTimestamp = {
       ...orderData,
+      pickupOTP, // Add pickup OTP
+      status: orderData.status || 'confirmed', // Ensure status is set
+      pickupVerified: false, // OTP not verified yet
+      deliveryOTP: null, // Will be generated when order is ready
+      deliveryVerified: false,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
@@ -305,25 +314,107 @@ export const getOrder = async (userId: string, orderId: string) => {
   }
 };
 
-// Update order status
-export const updateOrderStatus = async (userId: string, orderId: string, status: string) => {
+// Update order status with OTP verification support
+export const updateOrderStatus = async (
+  userId: string,
+  orderId: string,
+  status: string,
+  options?: {
+    verifyPickup?: boolean;
+    verifyDelivery?: boolean;
+    tokenNumber?: string;
+    pickupOTP?: string; // For verification
+    deliveryOTP?: string; // For verification
+  }
+) => {
   try {
-    const vendorId = 'vendor_1';
+    const orderRef = doc(db, 'users', userId, 'orders', orderId);
+    const orderSnap = await getDoc(orderRef);
+
+    if (!orderSnap.exists()) {
+      throw new Error('Order not found');
+    }
+
+    const currentOrder = orderSnap.data();
+    const vendorId = currentOrder.vendorId || 'vendor_1';
     const timestamp = Timestamp.now();
 
-    // Update user order
-    await updateDoc(doc(db, 'users', userId, 'orders', orderId), {
+    const updateData: any = {
       status,
       updatedAt: timestamp,
-    });
+    };
+
+    // Generate delivery OTP when order becomes ready
+    if (status === 'ready' && !currentOrder.deliveryOTP) {
+      updateData.deliveryOTP = generateOTP();
+    }
+
+    // Verify pickup OTP
+    if (options?.verifyPickup) {
+      if (options.pickupOTP !== currentOrder.pickupOTP) {
+        throw new Error('Invalid pickup OTP');
+      }
+      updateData.pickupVerified = true;
+      updateData.pickedUpAt = timestamp;
+    }
+
+    // Verify delivery OTP
+    if (options?.verifyDelivery) {
+      if (options.deliveryOTP !== currentOrder.deliveryOTP) {
+        throw new Error('Invalid delivery OTP');
+      }
+      updateData.deliveryVerified = true;
+      updateData.deliveredAt = timestamp;
+    }
+
+    // Add token number
+    if (options?.tokenNumber) {
+      updateData.tokenNumber = options.tokenNumber;
+    }
+
+    // Update user order
+    await updateDoc(orderRef, updateData);
 
     // Update vendor order
-    await updateDoc(doc(db, 'vendors', vendorId, 'orders', orderId), {
-      status,
-      updatedAt: timestamp,
-    });
+    await updateDoc(doc(db, 'vendors', vendorId, 'orders', orderId), updateData);
+
+    return true;
   } catch (error: any) {
     console.error('Error updating order status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Generate delivery OTP for an order (when order becomes ready)
+ */
+export const generateDeliveryOTP = async (userId: string, orderId: string): Promise<string> => {
+  try {
+    const orderRef = doc(db, 'users', userId, 'orders', orderId);
+    const orderSnap = await getDoc(orderRef);
+
+    if (!orderSnap.exists()) {
+      throw new Error('Order not found');
+    }
+
+    const deliveryOTP = generateOTP();
+    const currentOrder = orderSnap.data();
+    const vendorId = currentOrder.vendorId || 'vendor_1';
+
+    await updateDoc(orderRef, {
+      deliveryOTP,
+      updatedAt: Timestamp.now(),
+    });
+
+    // Also update vendor order
+    await updateDoc(doc(db, 'vendors', vendorId, 'orders', orderId), {
+      deliveryOTP,
+      updatedAt: Timestamp.now(),
+    });
+
+    return deliveryOTP;
+  } catch (error: any) {
+    console.error('Error generating delivery OTP:', error);
     throw error;
   }
 };
@@ -342,7 +433,8 @@ const cleanData = (data: any): any => {
       .filter((item) => item !== undefined && item !== null);
   } else if (typeof data === 'object') {
     // Check if it's a Firestore Timestamp or Date, return as is
-    if (data instanceof Timestamp || data instanceof Date) return data;
+    // safer check than instanceof which can fail across bundles
+    if (data instanceof Date || (data && typeof data.toDate === 'function') || (data && data.seconds !== undefined && data.nanoseconds !== undefined)) return data;
 
     return Object.entries(data).reduce((acc, [key, value]) => {
       if (value !== undefined) {

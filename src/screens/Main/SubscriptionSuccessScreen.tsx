@@ -11,7 +11,7 @@ export const SubscriptionSuccessScreen: React.FC = () => {
     const navigation = useNavigation();
     const route = useRoute();
     const insets = useSafeAreaInsets();
-    const { amount, type, details } = (route.params as any) || {};
+    const { subscriptionId, planType, creditCount, totalAmount } = (route.params as any) || {};
 
     const scaleValue = useRef(new Animated.Value(0)).current;
     const fadeValue = useRef(new Animated.Value(0)).current;
@@ -30,10 +30,21 @@ export const SubscriptionSuccessScreen: React.FC = () => {
                 useNativeDriver: true,
             })
         ]).start();
-    }, []);
+
+        // Auto-navigate to Credits tab after 3 seconds
+        const timer = setTimeout(() => {
+            (navigation.navigate as any)('Main', { screen: 'Credits' });
+        }, 3000);
+
+        return () => clearTimeout(timer);
+    }, [navigation]);
 
     const handleBackHome = () => {
-        (navigation.navigate as any)('MainTabs', { screen: 'Home' });
+        (navigation.navigate as any)('Main', { screen: 'Home' });
+    };
+
+    const handleViewCredits = () => {
+        (navigation.navigate as any)('Main', { screen: 'Credits' });
     };
 
     return (
@@ -47,35 +58,54 @@ export const SubscriptionSuccessScreen: React.FC = () => {
                 </Animated.View>
 
                 <Animated.View style={[styles.textContainer, { opacity: fadeValue }]}>
-                    {/* Welcome Text Removed */}
-                    <Text style={styles.title}>Subscription Active</Text>
+                    <Text style={styles.title}>Credits Purchased Successfully! 🎉</Text>
 
                     <View style={styles.summaryCard}>
                         <View style={styles.summaryItem}>
                             <Text style={styles.summaryLabel}>Plan Type</Text>
-                            <Text style={styles.summaryValue}>{type === 'schedule' ? 'Monthly Schedule' : 'Laundry Credits'}</Text>
+                            <Text style={styles.summaryValue}>
+                                {planType ? planType.charAt(0).toUpperCase() + planType.slice(1) : 'Credit'} Plan
+                            </Text>
                         </View>
                         <View style={styles.summaryItem}>
-                            <Text style={styles.summaryLabel}>Details</Text>
-                            <Text style={styles.summaryValue}>{details}</Text>
+                            <Text style={styles.summaryLabel}>Credits Purchased</Text>
+                            <Text style={styles.summaryValue}>{creditCount || 0} Credits</Text>
+                        </View>
+                        <View style={styles.summaryItem}>
+                            <Text style={styles.summaryLabel}>Validity</Text>
+                            <Text style={styles.summaryValue}>30 days</Text>
                         </View>
                         <View style={[styles.summaryItem, styles.totalRow]}>
-                            <Text style={styles.totalLabel}>Total Value</Text>
-                            <Text style={styles.totalValue}>₹{amount}</Text>
+                            <Text style={styles.totalLabel}>Total Amount</Text>
+                            <Text style={styles.totalValue}>₹{totalAmount || 0}</Text>
                         </View>
                     </View>
 
                     <Text style={styles.benefitsText}>
-                        You can now enjoy priority pickups and exclusive discounts on all services.
+                        Credits added successfully! You can start using them now.
                     </Text>
                 </Animated.View>
             </View>
 
             <Animated.View style={[styles.footer, { opacity: fadeValue, paddingBottom: insets.bottom + SPACING.xl }]}>
-                <TouchableOpacity style={styles.primaryButton} onPress={handleBackHome}>
-                    <Text style={styles.primaryButtonText}>Go to Home</Text>
-                    <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-                </TouchableOpacity>
+                <View style={styles.buttonRow}>
+                    <TouchableOpacity 
+                        style={[styles.secondaryButton, { flex: 1 }]} 
+                        onPress={handleBackHome}
+                    >
+                        <Text style={styles.secondaryButtonText}>Go to Home</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                        style={[styles.primaryButton, { flex: 1 }]} 
+                        onPress={handleViewCredits}
+                    >
+                        <Text style={styles.primaryButtonText}>View Credits</Text>
+                        <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                    </TouchableOpacity>
+                </View>
+                <Text style={styles.autoNavigateText}>
+                    Redirecting to Credits in 3 seconds...
+                </Text>
             </Animated.View>
         </View>
     );
@@ -176,6 +206,11 @@ const styles = StyleSheet.create({
     footer: {
         paddingHorizontal: SPACING.xl,
     },
+    buttonRow: {
+        flexDirection: 'row',
+        gap: SPACING.md,
+        marginBottom: SPACING.sm,
+    },
     primaryButton: {
         backgroundColor: COLORS.primary,
         paddingVertical: 18,
@@ -189,6 +224,27 @@ const styles = StyleSheet.create({
     primaryButtonText: {
         color: '#FFFFFF',
         fontWeight: '700',
-        fontSize: 18,
+        fontSize: 16,
+    },
+    secondaryButton: {
+        backgroundColor: COLORS.background,
+        paddingVertical: 18,
+        borderRadius: RADIUS.xl,
+        borderWidth: 1.5,
+        borderColor: COLORS.primary,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    secondaryButtonText: {
+        color: COLORS.primary,
+        fontWeight: '700',
+        fontSize: 16,
+    },
+    autoNavigateText: {
+        ...TYPOGRAPHY.caption,
+        color: COLORS.textSecondary,
+        textAlign: 'center',
+        marginTop: SPACING.sm,
+        fontSize: 11,
     },
 });

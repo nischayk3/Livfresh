@@ -111,6 +111,18 @@ export const ProfileScreen: React.FC = () => {
                         <Text style={styles.menuText}>Help & Support</Text>
                         <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
                     </TouchableOpacity>
+
+                    {/* Admin Access - For Testing */}
+                    <TouchableOpacity
+                        style={styles.menuItem}
+                        onPress={() => (navigation as any).navigate('AdminLogin')}
+                    >
+                        <View style={[styles.menuIcon, { backgroundColor: COLORS.primary + '20' }]}>
+                            <Ionicons name="shield-checkmark-outline" size={22} color={COLORS.primary} />
+                        </View>
+                        <Text style={styles.menuText}>Admin Panel</Text>
+                        <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
                 </View >
 
                 {/* Logout Button */}

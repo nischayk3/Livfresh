@@ -1,0 +1,718 @@
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  Timestamp,
+  updateDoc,
+  setDoc,
+  writeBatch,
+  collectionGroup,
+} from 'firebase/firestore';
+import { db } from './firebase';
+import { generateOTP } from '../utils/otpHelpers';
+
+/**
+ * Get list of admin phone numbers from Firestore config
+ * Stored as a map for easy lookup in security rules: { "9108558715": true, "SECOND_NUMBER": true }
+ */
+export const getAdminPhones = async (): Promise<string[]> => {
+  try {
+    const configRef = doc(db, 'config', 'adminPhones');
+    const configSnap = await getDoc(configRef);
+
+    if (configSnap.exists()) {
+      const data = configSnap.data();
+      // Convert map to array
+      if (data.adminPhones && typeof data.adminPhones === 'object') {
+        return Object.keys(data.adminPhones).filter(key => data.adminPhones[key] === true);
+      }
+      // Fallback to array format (legacy)
+      return data.adminPhones || [];
+    }
+
+    // If config doesn't exist, create it with default admin phones as a map
+    const defaultAdminPhones = { '9108558715': true }; // Add second number later
+    await setDoc(configRef, {
+      adminPhones: defaultAdminPhones,
+      updatedAt: Timestamp.now(),
+    });
+
+    return Object.keys(defaultAdminPhones);
+  } catch (error) {
+    console.error('Error getting admin phones:', error);
+    // Fallback to hardcoded list if Firestore fails
+    return ['9108558715'];
+  }
+};
+
+/**
+ * Check if a phone number is an admin phone
+ */
+export const isAdminPhone = async (phone: string): Promise<boolean> => {
+  try {
+    const configRef = doc(db, 'config', 'adminPhones');
+    const configSnap = await getDoc(configRef);
+
+    if (!configSnap.exists()) {
+      // Fallback to hardcoded check if config doesn't exist
+      const cleanPhone = phone.replace(/^\+91/, '').replace(/\D/g, '').slice(-10);
+      return cleanPhone === '9108558715'; // Hardcoded admin phone
+    }
+
+    const data = configSnap.data();
+    const adminPhones = data.adminPhones || {};
+
+    // Clean phone: remove +91 prefix and get last 10 digits
+    const cleanPhone = phone.replace(/^\+91/, '').replace(/\D/g, '').slice(-10);
+
+    // Check if phone exists in map
+    if (typeof adminPhones === 'object' && !Array.isArray(adminPhones)) {
+      return adminPhones[cleanPhone] === true;
+    }
+
+    // Fallback to array check (legacy)
+    const adminPhonesArray = Array.isArray(adminPhones) ? adminPhones : Object.keys(adminPhones);
+    return adminPhonesArray.some((adminPhone: string) => {
+      const cleanAdminPhone = adminPhone.replace(/^\+91/, '').replace(/\D/g, '').slice(-10);
+      return cleanAdminPhone === cleanPhone;
+    });
+  } catch (error) {
+    console.error('Error checking admin phone:', error);
+    // Fallback to hardcoded check if Firestore fails
+    const cleanPhone = phone.replace(/^\+91/, '').replace(/\D/g, '').slice(-10);
+    return cleanPhone === '9108558715'; // Hardcoded admin phone
+  }
+};
+
+/**
+ * Get user statistics
+ */
+export const getUserStats = async (): Promise<{
+  totalUsers: number;
+  activeUsers: number;
+  currentUser: any | null;
+}> => {
+  try {
+    const usersRef = collection(db, 'users');
+    const usersSnap = await getDocs(usersRef);
+
+    const totalUsers = usersSnap.size;
+    let activeUsers = 0;
+
+    // We can use collectionGroup for orders to find active users more efficiently?
+    // Actually, iterating users is okay for small scale, but let's try to be safe.
+    // If permission denied on list users, we might get 0.
+
+    // Attempting to calculate active users via orders collection group
+    // This requires reading ALL orders which is also expensive, but safe.
+    const ordersQuery = query(collectionGroup(db, 'orders'));
+    const ordersSnap = await getDocs(ordersQuery);
+
+    const activeUserIds = new Set();
+    ordersSnap.docs.forEach(doc => {
+      const order = doc.data();
+      if (order.status && order.status !== 'cancelled') {
+        // The order doc might have userId, or we can look at ref.parent.parent.id
+        const userId = order.userId || doc.ref.parent.parent?.id;
+        if (userId) activeUserIds.add(userId);
+      }
+    });
+
+    activeUsers = activeUserIds.size;
+
+    return {
+      totalUsers,
+      activeUsers,
+      currentUser: null,
+    };
+  } catch (error) {
+    console.error('Error getting user stats:', error);
+    return {
+      totalUsers: 0,
+      activeUsers: 0,
+      currentUser: null,
+    };
+  }
+};
+
+/**
+ * Get order statistics for today
+ */
+export const getOrderStats = async (): Promise<{
+  total: number;
+  confirmed: number;
+  pickup_completed: number;
+  processing: number;
+  ready: number;
+  out_for_delivery: number;
+  delivered: number;
+}> => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStart = Timestamp.fromDate(today);
+    const todayEnd = Timestamp.fromDate(new Date(today.getTime() + 24 * 60 * 60 * 1000));
+
+    let total = 0;
+    let confirmed = 0;
+    let pickup_completed = 0;
+    let processing = 0;
+    let ready = 0;
+    let out_for_delivery = 0;
+    let delivered = 0;
+
+    // Use Collection Group Query to get ALL orders across the system
+    const ordersQuery = query(collectionGroup(db, 'orders'));
+    const ordersSnap = await getDocs(ordersQuery);
+
+    const todayStartTime = todayStart.toMillis ? todayStart.toMillis() : (todayStart instanceof Date ? todayStart.getTime() : 0);
+    const todayEndTime = todayEnd.toMillis ? todayEnd.toMillis() : (todayEnd instanceof Date ? todayEnd.getTime() : 0);
+
+    ordersSnap.docs.forEach((orderDoc) => {
+      const order = orderDoc.data();
+
+      // Check if order was created today
+      const orderCreatedAt = order.createdAt;
+      if (!orderCreatedAt) return;
+
+      const getTime = (date: any) => {
+        if (!date) return 0;
+        if (date.toMillis) return date.toMillis();
+        if (date.toDate) return date.toDate().getTime();
+        if (date instanceof Date) return date.getTime();
+        return new Date(date).getTime() || 0;
+      };
+
+      const orderTime = getTime(orderCreatedAt);
+
+      // Check if order is from today
+      if (orderTime >= todayStartTime && orderTime < todayEndTime) {
+        total++;
+
+        const status = order.status || 'pending';
+        switch (status) {
+          case 'confirmed':
+          case 'placed':
+            confirmed++;
+            break;
+          case 'pickup_completed':
+            pickup_completed++;
+            break;
+          case 'processing':
+            processing++;
+            break;
+          case 'ready':
+            ready++;
+            break;
+          case 'out_for_delivery':
+            out_for_delivery++;
+            break;
+          case 'delivered':
+            delivered++;
+            break;
+        }
+      }
+    });
+
+    return {
+      total,
+      confirmed,
+      pickup_completed,
+      processing,
+      ready,
+      out_for_delivery,
+      delivered,
+    };
+  } catch (error) {
+    console.error('Error getting order stats:', error);
+    return {
+      total: 0,
+      confirmed: 0,
+      pickup_completed: 0,
+      processing: 0,
+      ready: 0,
+      out_for_delivery: 0,
+      delivered: 0,
+    };
+  }
+};
+
+/**
+ * Get all orders from all users (for admin)
+ */
+export const getAllOrders = async (): Promise<any[]> => {
+  try {
+    // UPDATED: Use Collection Group Query without orderBy to avoid index requirement
+    // We sort client-side at the end of this function
+    console.log('[Admin] Fetching all orders via collectionGroup...');
+    const ordersQuery = query(collectionGroup(db, 'orders'));
+    const ordersSnap = await getDocs(ordersQuery);
+    console.log(`[Admin] Fetched ${ordersSnap.size} orders from Firestore.`);
+
+    const allOrders: any[] = [];
+
+    // We need to fetch user details for each order if not present
+    // To optimize, we can cache users
+    const userCache: Record<string, any> = {};
+
+    for (const orderDoc of ordersSnap.docs) {
+      const order = orderDoc.data();
+      // Robust userId extraction:
+      // 1. Direct field in order
+      // 2. Parent collection (users/{userId}/orders/{orderId}) -> parent.parent.id
+      let userId = order.userId;
+      if (!userId && orderDoc.ref.parent && orderDoc.ref.parent.parent) {
+        userId = orderDoc.ref.parent.parent.id;
+      }
+
+      let userName = order.customerName || order.userName || 'Unknown';
+      let userPhone = order.customerPhone || order.userPhone || '';
+      const orderAddress = order.address || order.deliveryAddress || null;
+
+      // If user details are missing in order, try to fetch from user doc
+      if (userId && (userName === 'Unknown' || !userPhone)) {
+        if (userCache[userId]) {
+          userName = userCache[userId].name || userName;
+          userPhone = userCache[userId].phone || userPhone;
+        } else {
+          try {
+            const userDocSnap = await getDoc(doc(db, 'users', userId));
+            if (userDocSnap.exists()) {
+              const userData = userDocSnap.data();
+              userCache[userId] = userData;
+              // Enriched data
+              userName = userData.name || userName;
+              userPhone = userData.phone || userPhone;
+            }
+          } catch (e) {
+            console.warn(`[Admin] Failed to fetch user ${userId} for order ${orderDoc.id}`);
+          }
+        }
+      }
+
+      allOrders.push({
+        id: orderDoc.id,
+        userId: userId,
+        customerName: userName,
+        customerPhone: userPhone,
+        address: orderAddress,
+        ...order,
+      });
+    }
+
+    const uniqueOrders = Array.from(new Map(allOrders.map(item => [item.id, item])).values());
+
+    // Client-side sorting: Newest first (descending)
+    uniqueOrders.sort((a, b) => {
+      const getTime = (date: any) => {
+        if (!date) return 0;
+        if (typeof date === 'number') return date; // Already millis
+        if (typeof date === 'string') return new Date(date).getTime();
+        if (date.toDate && typeof date.toDate === 'function') return date.toDate().getTime(); // Firestore Timestamp
+        if (date.seconds) return date.seconds * 1000; // Stripped Timestamp
+        if (date instanceof Date) return date.getTime();
+        return 0;
+      };
+
+      const timeA = getTime(a.createdAt);
+      const timeB = getTime(b.createdAt);
+      return timeB - timeA; // Descending
+    });
+
+    return uniqueOrders;
+  } catch (error) {
+    console.error('Error getting all orders:', error);
+    return [];
+  }
+};
+
+/**
+ * Get revenue data for a date range
+ */
+export const getRevenue = async (startDate: Date, endDate: Date): Promise<{
+  revenue: number;
+  orderRevenue: number;
+  subscriptionRevenue: number;
+  orderCount: number;
+  subscriptionCount: number;
+  orders: any[];
+}> => {
+  try {
+    const start = Timestamp.fromDate(startDate);
+    const end = Timestamp.fromDate(endDate);
+
+    let orderRevenue = 0;
+    let subscriptionRevenue = 0;
+    let orderCount = 0;
+    let subscriptionCount = 0;
+    const orders: any[] = [];
+
+    const startTime = start.toMillis ? start.toMillis() : (start instanceof Date ? start.getTime() : 0);
+    const endTime = end.toMillis ? end.toMillis() : (end instanceof Date ? end.getTime() : 0);
+
+    const getTime = (date: any) => {
+      if (!date) return 0;
+      if (date.toMillis) return date.toMillis();
+      if (date.toDate) return date.toDate().getTime();
+      if (date instanceof Date) return date.getTime();
+      return new Date(date).getTime() || 0;
+    };
+
+    // 1. Calculate Order Revenue (Collection Group)
+    const ordersQuery = query(collectionGroup(db, 'orders'));
+    const ordersSnap = await getDocs(ordersQuery);
+
+    ordersSnap.docs.forEach((orderDoc) => {
+      const order = orderDoc.data();
+      const orderCreatedAt = order.createdAt || order.created_at;
+      if (!orderCreatedAt) return;
+
+      const orderTime = getTime(orderCreatedAt);
+
+      if (orderTime >= startTime && orderTime <= endTime) {
+        const amount = order.totalAmount || order.total || 0;
+        orderRevenue += amount;
+        orderCount++;
+
+        orders.push({
+          id: orderDoc.id,
+          userId: order.userId || orderDoc.ref.parent.parent?.id,
+          customerName: order.customerName || 'Unknown',
+          ...order,
+        });
+      }
+    });
+
+    // 2. Calculate Subscription Revenue (Collection Group)
+    const subsQuery = query(collectionGroup(db, 'subscriptions'));
+    const subsSnap = await getDocs(subsQuery);
+
+    subsSnap.docs.forEach((subDoc) => {
+      const sub = subDoc.data();
+      const purchasedAt = sub.purchasedAt || sub.purchased_at || sub.createdAt || sub.created_at;
+
+      if (purchasedAt) {
+        const purchaseTime = getTime(purchasedAt);
+
+        // Check if subscription purchase is in date range
+        if (purchaseTime >= startTime && purchaseTime <= endTime) {
+          subscriptionRevenue += sub.totalAmount || 0;
+          subscriptionCount++;
+        }
+      }
+    });
+
+    return {
+      revenue: orderRevenue + subscriptionRevenue,
+      orderRevenue,
+      subscriptionRevenue,
+      orderCount,
+      subscriptionCount,
+      orders,
+    };
+  } catch (error) {
+    console.error('Error getting revenue:', error);
+    return {
+      revenue: 0,
+      orderRevenue: 0,
+      subscriptionRevenue: 0,
+      orderCount: 0,
+      subscriptionCount: 0,
+      orders: [],
+    };
+  }
+};
+
+/**
+ * Update order status (admin function)
+ */
+export const updateOrderStatusAdmin = async (
+  userId: string,
+  orderId: string,
+  newStatus: string,
+  options?: {
+    verifyPickup?: boolean;
+    verifyDelivery?: boolean;
+    tokenNumber?: string;
+    pickupOTP?: string;
+    deliveryOTP?: string;
+    additionalData?: any; // Allow arbitrary data (e.g., cancellation reason)
+  }
+): Promise<boolean> => {
+  try {
+    const orderRef = doc(db, 'users', userId, 'orders', orderId);
+    const orderSnap = await getDoc(orderRef);
+
+    if (!orderSnap.exists()) {
+      throw new Error('Order not found');
+    }
+
+    const currentOrder = orderSnap.data();
+    const vendorId = currentOrder.vendorId || 'vendor_1';
+    const timestamp = Timestamp.now();
+
+    const updateData: any = {
+      status: newStatus,
+      updatedAt: timestamp,
+      ...options?.additionalData // Merge additional data
+    };
+
+    // Generate delivery OTP when order becomes ready
+    if (newStatus === 'ready' && !currentOrder.deliveryOTP) {
+      updateData.deliveryOTP = generateOTP();
+    }
+
+    // Verify pickup OTP
+    if (options?.verifyPickup) {
+      if (options.pickupOTP !== currentOrder.pickupOTP) {
+        throw new Error('Invalid pickup OTP');
+      }
+      updateData.pickupVerified = true;
+      updateData.pickedUpAt = timestamp;
+    }
+
+    // Verify delivery OTP
+    if (options?.verifyDelivery) {
+      if (options.deliveryOTP !== currentOrder.deliveryOTP) {
+        throw new Error('Invalid delivery OTP');
+      }
+      updateData.deliveryVerified = true;
+      updateData.deliveredAt = timestamp;
+    }
+
+    // Add token number
+    if (options?.tokenNumber) {
+      updateData.tokenNumber = options.tokenNumber;
+    }
+
+    // Update user order
+    await updateDoc(orderRef, updateData);
+
+    // Update vendor order
+    await updateDoc(doc(db, 'vendors', vendorId, 'orders', orderId), updateData);
+
+    return true;
+  } catch (error: any) {
+    console.error('Error updating order status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get subscription statistics
+ */
+export const getSubscriptionStats = async (): Promise<{
+  totalSubscribers: number;
+  activeSubscribers: number;
+  subscribers: any[];
+}> => {
+  try {
+    const usersRef = collection(db, 'users');
+    const usersSnap = await getDocs(usersRef);
+
+    let totalSubscribers = 0;
+    let activeSubscribers = 0;
+    const subscribers: any[] = [];
+
+    for (const userDoc of usersSnap.docs) {
+      try {
+        const userData = userDoc.data();
+        const subscriptionsRef = collection(db, 'users', userDoc.id, 'subscriptions');
+        // Get all subscriptions and filter client-side to avoid index issues
+        const subsSnap = await getDocs(subscriptionsRef);
+
+        // Find active subscriptions
+        const activeSubs = subsSnap.docs
+          .map(doc => ({ id: doc.id, ...doc.data() } as any))
+          .filter((sub: any) => {
+            const status = sub.status || 'active';
+            const isActive = sub.isActive !== false; // Default to true if not set
+            return status === 'active' && isActive;
+          });
+
+        if (activeSubs.length > 0) {
+          totalSubscribers++;
+          const activeSub = activeSubs[0] as any; // Get first active subscription
+
+          activeSubscribers++;
+
+          subscribers.push({
+            user_id: userDoc.id,
+            phone: userData.phone || '',
+            name: userData.name || '',
+            plan_type: activeSub.planType || 'single',
+            total_credits: activeSub.totalCredits || 0,
+            credits_remaining: activeSub.creditsRemaining || 0,
+            credits_used: activeSub.creditsUsed || 0,
+            status: activeSub.status || 'active',
+            expires_at: activeSub.expiresAt?.toDate ? activeSub.expiresAt.toDate().toISOString() : (activeSub.expiresAt || ''),
+            created_at: activeSub.createdAt?.toDate ? activeSub.createdAt.toDate().toISOString() : (activeSub.createdAt || ''),
+          });
+        }
+      } catch (error: any) {
+        // Skip this user if we can't access their subscriptions
+        console.warn(`Cannot access subscriptions for user ${userDoc.id}:`, error.message);
+        continue;
+      }
+    }
+
+    return {
+      totalSubscribers,
+      activeSubscribers,
+      subscribers,
+    };
+  } catch (error) {
+    console.error('Error getting subscription stats:', error);
+    return {
+      totalSubscribers: 0,
+      activeSubscribers: 0,
+      subscribers: [],
+    };
+  }
+};
+
+/**
+ * Add credits to a user (admin function)
+ */
+export const addCreditsAdmin = async (
+  name: string,
+  phone: string,
+  planType: 'single' | 'couple',
+  credits: number
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    // Find user by phone
+    const usersRef = collection(db, 'users');
+    const userQuery = query(usersRef, where('phone', '==', phone));
+    const userSnap = await getDocs(userQuery);
+
+    let userId: string;
+    let userData: any;
+
+    if (userSnap.empty) {
+      // User doesn't exist - would need to create user first
+      // For now, return error
+      return { success: false, error: 'User not found. Please ensure user has signed up first.' };
+    }
+
+    const userDoc = userSnap.docs[0];
+    userId = userDoc.id;
+    userData = userDoc.data();
+
+    // Update user name if provided
+    if (name && name.trim()) {
+      await updateDoc(doc(db, 'users', userId), {
+        name: name.trim(),
+        updatedAt: Timestamp.now(),
+      });
+    }
+
+    // Check if user has active subscription
+    const subscriptionsRef = collection(db, 'users', userId, 'subscriptions');
+    const activeSubQuery = query(
+      subscriptionsRef,
+      where('status', '==', 'active'),
+      where('isActive', '==', true)
+    );
+    const activeSubSnap = await getDocs(activeSubQuery);
+
+    const kgPerCredit = planType === 'single' ? 7 : 14;
+    const pricePerCredit = 199; // Default price
+    const totalAmount = credits * pricePerCredit;
+    const expiresAt = Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)); // 30 days
+
+    if (!activeSubSnap.empty) {
+      // Update existing subscription
+      const existingSub = activeSubSnap.docs[0];
+      const existingData = existingSub.data();
+
+      await updateDoc(existingSub.ref, {
+        totalCredits: (existingData.totalCredits || 0) + credits,
+        creditsRemaining: (existingData.creditsRemaining || 0) + credits,
+        totalAmount: (existingData.totalAmount || 0) + totalAmount,
+        updatedAt: Timestamp.now(),
+      });
+    } else {
+      // Create new subscription
+      const subRef = doc(subscriptionsRef);
+      await setDoc(subRef, {
+        userId,
+        planType,
+        totalCredits: credits,
+        creditsUsed: 0,
+        creditsRemaining: credits,
+        currentCreditIndex: 0,
+        pricePerCredit,
+        totalAmount,
+        kgPerCredit,
+        status: 'active',
+        purchasedAt: Timestamp.now(),
+        expiresAt,
+        isActive: true,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error adding credits:', error);
+    return { success: false, error: error.message || 'Failed to add credits' };
+  }
+};
+
+/**
+ * Bulk add credits from CSV
+ */
+export const bulkAddCreditsAdmin = async (
+  rows: { name: string; phone: string; planType: string; credits: number }[]
+): Promise<{ success: boolean; processed?: number; failed?: number; errors?: string[] }> => {
+  const batch = writeBatch(db);
+  let processed = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  try {
+    for (const row of rows) {
+      try {
+        const result = await addCreditsAdmin(
+          row.name,
+          row.phone,
+          row.planType as 'single' | 'couple',
+          row.credits
+        );
+
+        if (result.success) {
+          processed++;
+        } else {
+          failed++;
+          errors.push(`${row.phone}: ${result.error || 'Unknown error'}`);
+        }
+      } catch (error: any) {
+        failed++;
+        errors.push(`${row.phone}: ${error.message || 'Unknown error'}`);
+      }
+    }
+
+    await batch.commit();
+
+    return {
+      success: true,
+      processed,
+      failed,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+  } catch (error: any) {
+    console.error('Error bulk adding credits:', error);
+    return {
+      success: false,
+      processed,
+      failed,
+      errors: [error.message || 'Bulk operation failed'],
+    };
+  }
+};

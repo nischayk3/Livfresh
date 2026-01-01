@@ -12,10 +12,10 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore } from '../../store';
+import { useAuthStore, useSubscriptionStore } from '../../store';
 import { useAddressStore } from '../../store';
 import { useCartStore } from '../../store';
 import { ServiceDetailScreen } from './ServiceDetailScreen';
@@ -89,6 +89,7 @@ export const HomeScreen: React.FC = () => {
   const { user } = useAuthStore();
   const { currentAddress } = useAddressStore();
   const { items, getTotalAmount } = useCartStore();
+  const { activeSubscription, fetchSubscriptions, getTotalCredits } = useSubscriptionStore();
   const flatListRef = useRef<FlatList>(null);
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -97,6 +98,22 @@ export const HomeScreen: React.FC = () => {
 
   const cartItemCount = items.length;
   const cartTotal = getTotalAmount();
+
+  // Fetch subscriptions when user is available
+  useEffect(() => {
+    if (user?.uid) {
+      fetchSubscriptions(user.uid);
+    }
+  }, [user?.uid, fetchSubscriptions]);
+
+  // Refresh subscriptions when screen comes into focus (e.g., after purchase)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user?.uid) {
+        fetchSubscriptions(user.uid);
+      }
+    }, [user?.uid, fetchSubscriptions])
+  );
 
   // Redirect to Location Permission if no address is set (e.g. fresh login)
   useEffect(() => {
@@ -137,7 +154,7 @@ export const HomeScreen: React.FC = () => {
 
   const handleServicePress = (serviceId: string) => {
     if (serviceId === 'subscription') {
-      navigation.navigate('Subscription' as never);
+      (navigation as any).navigate('BuyCredits');
       return;
     }
     setSelectedService(serviceId);
@@ -209,12 +226,24 @@ export const HomeScreen: React.FC = () => {
             </View>
             <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.profileButton} onPress={() => (navigation as any).navigate('Main', { screen: 'Profile' })}>
-            <View style={styles.avatarContainer}>
-              <Text style={styles.avatarText}>
-                {user?.name ? user.name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() : 'U'}
-              </Text>
-            </View>
+          <TouchableOpacity 
+            style={[
+              styles.creditsButton,
+              getTotalCredits() > 0 && styles.creditsButtonActive
+            ]} 
+            onPress={() => (navigation as any).navigate('Main', { screen: 'Credits' })}
+          >
+            <Ionicons 
+              name="card" 
+              size={14} 
+              color={getTotalCredits() > 0 ? COLORS.primary : COLORS.textSecondary} 
+            />
+            <Text style={[
+              styles.creditsText,
+              { color: getTotalCredits() > 0 ? COLORS.primary : COLORS.textSecondary }
+            ]}>
+              {getTotalCredits() > 0 ? `${getTotalCredits()} Credits` : '0 Credits'}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -374,21 +403,24 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.addressText,
     color: COLORS.text,
   },
-  profileButton: {},
-  avatarContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primaryLight,
+  creditsButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  creditsButtonActive: {
+    backgroundColor: COLORS.primaryLight,
     borderColor: COLORS.primary,
   },
-  avatarText: {
-    color: COLORS.primary,
-    fontSize: 14,
-    fontWeight: '700',
+  creditsText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   greetingContainer: {
     marginTop: SPACING.xs,

@@ -20,7 +20,20 @@ export const MyOrdersScreen: React.FC = () => {
         if (!user?.uid) return;
         try {
             const userOrders = await getUserOrders(user.uid);
-            setOrders(userOrders);
+            // Sort manually to ensure time-based sorting (handling potential stripped timestamps)
+            const sortedOrders = userOrders.sort((a: any, b: any) => {
+                const getTime = (date: any) => {
+                    if (!date) return 0;
+                    if (date.toDate && typeof date.toDate === 'function') return date.toDate().getTime();
+                    if (date.seconds) return date.seconds * 1000;
+                    if (date instanceof Date) return date.getTime();
+                    if (typeof date === 'string') return new Date(date).getTime();
+                    return 0;
+                };
+                return getTime(b.createdAt) - getTime(a.createdAt);
+            });
+
+            setOrders(sortedOrders);
         } catch (error) {
             console.error('Failed to fetch orders:', error);
         } finally {

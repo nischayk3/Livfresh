@@ -5,7 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore } from '../store';
+import { useAuthStore, useSubscriptionStore } from '../store';
 import { getCart, saveCart, getUserAddresses, getUser } from '../services/firestore';
 import { auth } from '../services/firebase';
 import { useCartStore, useAddressStore } from '../store';
@@ -87,13 +87,26 @@ const HelpSupportScreen = Platform.OS === 'web'
   ? lazy(() => import('../screens/Main/HelpSupportScreen').then(m => ({ default: m.HelpSupportScreen })))
   : require('../screens/Main/HelpSupportScreen').HelpSupportScreen;
 
-const SubscriptionScreen = Platform.OS === 'web'
-  ? lazy(() => import('../screens/Main/SubscriptionScreen').then(m => ({ default: m.SubscriptionScreen })))
-  : require('../screens/Main/SubscriptionScreen').SubscriptionScreen;
+const SubscriptionsScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Main/SubscriptionsScreen').then(m => ({ default: m.SubscriptionsScreen })))
+  : require('../screens/Main/SubscriptionsScreen').SubscriptionsScreen;
+
+const BuyCreditsScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Main/BuyCreditsScreen').then(m => ({ default: m.BuyCreditsScreen })))
+  : require('../screens/Main/BuyCreditsScreen').BuyCreditsScreen;
 
 const SubscriptionSuccessScreen = Platform.OS === 'web'
   ? lazy(() => import('../screens/Main/SubscriptionSuccessScreen').then(m => ({ default: m.SubscriptionSuccessScreen })))
   : require('../screens/Main/SubscriptionSuccessScreen').SubscriptionSuccessScreen;
+
+// --- Admin Screens ---
+const AdminLoginScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Admin/AdminLoginScreen').then(m => ({ default: m.AdminLoginScreen })))
+  : require('../screens/Admin/AdminLoginScreen').AdminLoginScreen;
+
+const AdminNavigator = Platform.OS === 'web'
+  ? lazy(() => import('./AdminNavigator').then(m => ({ default: m.AdminNavigator })))
+  : require('./AdminNavigator').AdminNavigator;
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -138,6 +151,16 @@ const MainTabs = () => {
         }}
       />
       <Tab.Screen
+        name="Credits"
+        component={SubscriptionsScreen}
+        options={{
+          tabBarLabel: 'Credits',
+          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
+            <Ionicons name="card" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
         name="Profile"
         component={ProfileScreen}
         options={{
@@ -168,7 +191,7 @@ const MainStack = () => (
     <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
     <Stack.Screen name="EditProfile" component={EditProfileScreen} />
     <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
-    <Stack.Screen name="Subscription" component={SubscriptionScreen} />
+    <Stack.Screen name="BuyCredits" component={BuyCreditsScreen} />
     <Stack.Screen name="SubscriptionSuccess" component={SubscriptionSuccessScreen} />
   </Stack.Navigator>
 );
@@ -297,6 +320,17 @@ export const RootNavigator: React.FC = () => {
     hydrateAddresses();
   }, [user]);
 
+  // 4. Hydrate Subscriptions on login
+  React.useEffect(() => {
+    if (user?.uid) {
+      try {
+        useSubscriptionStore.getState().fetchSubscriptions(user.uid);
+      } catch (error) {
+        console.error('Failed to hydrate subscriptions:', error);
+      }
+    }
+  }, [user]);
+
   // 4. Force Navigation to Location/Address if no address exists (Post-login flow)
   // note: We use a ref or check to ensure we only do this once per session/login if needed, 
   // but react-navigation 'replace' or 'reset' is better handled inside a specific screen or via this effect carefully.
@@ -317,7 +351,64 @@ export const RootNavigator: React.FC = () => {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer linking={{
+      prefixes: [
+        'spinit://',
+        'http://localhost:8081',
+        'exp://',
+        'https://spinit.app'
+      ],
+      config: {
+        screens: {
+          // Auth Routes
+          Onboarding: 'onboarding',
+          PhoneLogin: 'login',
+          UserDetails: 'signup',
+          OTP: 'verify-otp',
+          LocationPermission: 'location-permission',
+
+          // Main App Routes
+          Main: {
+            screens: {
+              MainTabs: {
+                screens: {
+                  Home: 'home',
+                  MyOrders: 'my-orders',
+                  Credits: 'credits',
+                  Profile: 'profile',
+                },
+              },
+              VendorDetail: 'vendor/:id',
+              Cart: 'cart',
+              AddressList: 'addresses',
+              AddressMap: 'map',
+              OrderSuccess: 'order-success',
+              OrderDetail: 'order/:id',
+              EditProfile: 'edit-profile',
+              HelpSupport: 'support',
+              BuyCredits: 'buy-credits',
+              SubscriptionSuccess: 'subscription-success',
+            },
+          },
+
+          // Admin Routes
+          AdminLogin: 'admin/login',
+          Admin: {
+            path: 'admin',
+            screens: {
+              AdminTabs: {
+                screens: {
+                  Dashboard: 'dashboard',
+                  Orders: 'orders',
+                  Subscriptions: 'subscriptions',
+                  Settings: 'settings',
+                },
+              },
+            },
+          },
+        },
+      },
+    }}>
       <Suspense fallback={<View style={styles.loadingWrapper}><BrandLoader message="Loading..." /></View>}>
         <Stack.Navigator
           screenOptions={{
@@ -325,7 +416,8 @@ export const RootNavigator: React.FC = () => {
             cardStyle: { flex: 1 }, // Critical for web scrolling
           }}
         >
-          {!isLoggedIn ? (
+          {/* Public routes - accessible when not logged in */}
+          {!isLoggedIn && (
             <>
               <Stack.Screen name="Onboarding" component={OnboardingCarousel} />
               <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
@@ -333,9 +425,16 @@ export const RootNavigator: React.FC = () => {
               <Stack.Screen name="OTP" component={OTPScreen} />
               <Stack.Screen name="LocationPermission" component={LocationPermissionScreen} />
             </>
-          ) : (
+          )}
+
+          {/* Main app routes - accessible when logged in */}
+          {isLoggedIn && (
             <Stack.Screen name="Main" component={MainStack} />
           )}
+
+          {/* Admin routes - accessible from anywhere */}
+          <Stack.Screen name="AdminLogin" component={AdminLoginScreen} />
+          <Stack.Screen name="Admin" component={AdminNavigator} />
         </Stack.Navigator>
       </Suspense>
     </NavigationContainer>

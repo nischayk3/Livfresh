@@ -1,0 +1,23 @@
+
+  const handleMarkProcessed = (order: any) => {
+    Alert.alert(
+      "Confirm Processing",
+      "Are you sure you want to move this order to Processing?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm",
+          onPress: async () => {
+            setProcessing(true);
+            try {
+              await updateOrderStatus(order.userId, order.id, 'processing');
+              setProcessing(false);
+            } catch (error) {
+              setProcessing(false);
+              Alert.alert("Error", "Failed to update status");
+            }
+          }
+        }
+      ]
+    );
+  };

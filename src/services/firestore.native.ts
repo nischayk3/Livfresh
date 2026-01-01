@@ -233,8 +233,16 @@ export const createOrder = async (userId: string, orderData: any) => {
         const orderDoc = ordersRef.doc(); // Auto ID
         const orderId = orderDoc.id;
 
+        // Generate pickup OTP (4-digit)
+        const pickupOTP = Math.floor(1000 + Math.random() * 9000).toString();
+
         const orderWithTimestamp = {
             ...orderData,
+            pickupOTP, // Add pickup OTP
+            status: orderData.status || 'confirmed', // Ensure status is set
+            pickupVerified: false, // OTP not verified yet
+            deliveryOTP: null, // Will be generated when order is ready
+            deliveryVerified: false,
             createdAt: firestore.FieldValue.serverTimestamp(),
             updatedAt: firestore.FieldValue.serverTimestamp(),
         };
@@ -300,35 +308,117 @@ export const getOrder = async (userId: string, orderId: string) => {
     }
 };
 
-// Update order status
-export const updateOrderStatus = async (userId: string, orderId: string, status: string) => {
+// Update order status with OTP verification support
+export const updateOrderStatus = async (
+    userId: string,
+    orderId: string,
+    status: string,
+    options?: {
+        verifyPickup?: boolean;
+        verifyDelivery?: boolean;
+        tokenNumber?: string;
+        pickupOTP?: string; // For verification
+        deliveryOTP?: string; // For verification
+    }
+) => {
     try {
-        const vendorId = 'vendor_1'; // Hardcoded as per original
+        const orderRef = firestore().collection('users').doc(userId).collection('orders').doc(orderId);
+        const orderSnap = await orderRef.get();
+        
+        if (!orderSnap.exists) {
+            throw new Error('Order not found');
+        }
+        
+        const currentOrder = orderSnap.data();
+        const vendorId = currentOrder?.vendorId || 'vendor_1';
         const timestamp = firestore.FieldValue.serverTimestamp();
-
+        
+        const updateData: any = {
+            status,
+            updatedAt: timestamp,
+        };
+        
+        // Generate delivery OTP when order becomes ready
+        if (status === 'ready' && !currentOrder?.deliveryOTP) {
+            updateData.deliveryOTP = Math.floor(1000 + Math.random() * 9000).toString();
+        }
+        
+        // Verify pickup OTP
+        if (options?.verifyPickup) {
+            if (options.pickupOTP !== currentOrder?.pickupOTP) {
+                throw new Error('Invalid pickup OTP');
+            }
+            updateData.pickupVerified = true;
+            updateData.pickedUpAt = timestamp;
+        }
+        
+        // Verify delivery OTP
+        if (options?.verifyDelivery) {
+            if (options.deliveryOTP !== currentOrder?.deliveryOTP) {
+                throw new Error('Invalid delivery OTP');
+            }
+            updateData.deliveryVerified = true;
+            updateData.deliveredAt = timestamp;
+        }
+        
+        // Add token number
+        if (options?.tokenNumber) {
+            updateData.tokenNumber = options.tokenNumber;
+        }
+        
         // Update user order
-        await firestore()
-            .collection('users')
-            .doc(userId)
-            .collection('orders')
-            .doc(orderId)
-            .update({
-                status,
-                updatedAt: timestamp,
-            });
-
+        await orderRef.update(updateData);
+        
         // Update vendor order
         await firestore()
             .collection('vendors')
             .doc(vendorId)
             .collection('orders')
             .doc(orderId)
-            .update({
-                status,
-                updatedAt: timestamp,
-            });
+            .update(updateData);
+        
+        return true;
     } catch (error: any) {
         console.error('Error updating order status:', error);
+        throw error;
+    }
+};
+
+/**
+ * Generate delivery OTP for an order (when order becomes ready)
+ */
+export const generateDeliveryOTP = async (userId: string, orderId: string): Promise<string> => {
+    try {
+        const orderRef = firestore().collection('users').doc(userId).collection('orders').doc(orderId);
+        const orderSnap = await orderRef.get();
+        
+        if (!orderSnap.exists) {
+            throw new Error('Order not found');
+        }
+        
+        const deliveryOTP = Math.floor(1000 + Math.random() * 9000).toString();
+        const currentOrder = orderSnap.data();
+        const vendorId = currentOrder?.vendorId || 'vendor_1';
+        
+        await orderRef.update({
+            deliveryOTP,
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+        
+        // Also update vendor order
+        await firestore()
+            .collection('vendors')
+            .doc(vendorId)
+            .collection('orders')
+            .doc(orderId)
+            .update({
+                deliveryOTP,
+                updatedAt: firestore.FieldValue.serverTimestamp(),
+            });
+        
+        return deliveryOTP;
+    } catch (error: any) {
+        console.error('Error generating delivery OTP:', error);
         throw error;
     }
 };

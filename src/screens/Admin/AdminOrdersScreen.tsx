@@ -1,0 +1,1070 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  TextInput,
+  ActivityIndicator,
+  Modal,
+  ScrollView,
+  Alert,
+  Platform
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { COLORS, SPACING, TYPOGRAPHY, SHADOWS } from '../../utils/constants';
+import { useAdminStore } from '../../store/adminStore';
+import { format } from 'date-fns';
+import { BrandLoader } from '../../components/BrandLoader';
+
+// Status tabs configuration - mirroring Sipzo flow
+const STATUS_TABS = [
+  { id: 'confirmed', label: 'Confirmed' },
+  { id: 'pickup_completed', label: 'Pickup' }, // "Pickup" means completed, waiting processing
+  { id: 'processing', label: 'Processing' }, // Washing/Ironing
+  { id: 'ready', label: 'Ready' }, // Ready for delivery
+  { id: 'out_for_delivery', label: 'Out' },
+  { id: 'delivered', label: 'Delivered' },
+  { id: 'cancelled', label: 'Cancelled' },
+];
+
+const CANCELLATION_REASONS = [
+  "Out of Service Area",
+  "Item Not Available",
+  "Customer Request",
+  "Operational Issue",
+  "Other"
+];
+
+export const AdminOrdersScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
+  const {
+    orders,
+    isLoading,
+    fetchAllOrders,
+    updateOrderStatus
+  } = useAdminStore();
+
+  // Local State
+  const [activeTab, setActiveTab] = useState('confirmed');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+
+  // OTP Modal State
+  const [otpModalVisible, setOtpModalVisible] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [otpInput, setOtpInput] = useState('');
+  const [tokenInput, setTokenInput] = useState('');
+  const [actionType, setActionType] = useState<'pickup' | 'delivery'>('pickup');
+  const [processing, setProcessing] = useState(false);
+
+  // Cancel Modal State
+  const [cancelModalVisible, setCancelModalVisible] = useState(false);
+  const [cancelReason, setCancelReason] = useState(CANCELLATION_REASONS[0]);
+  const [cancelNote, setCancelNote] = useState('');
+  const [orderToCancel, setOrderToCancel] = useState<any>(null);
+
+  // Initial Fetch
+  useEffect(() => {
+    fetchAllOrders();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <BrandLoader />
+      </View>
+    );
+  }
+
+  // Debug: Inspect raw order count
+  useEffect(() => {
+    console.log(`[UI DEBUG] Total Fetched Orders: ${orders.length}`);
+    if (orders.length > 0) {
+      // Check for any orders from today to verify "recent" fetch
+      const today = new Date().toISOString().split('T')[0];
+      const todayOrders = orders.filter(o => {
+        const created = (o.createdAt as any);
+        const d = created?.toDate ? created.toDate() : new Date(created);
+        try { return d.toISOString().split('T')[0] === today; } catch (e) { return false; }
+      });
+      console.log(`[UI DEBUG] Orders with date ${today}: ${todayOrders.length}`);
+
+      // Log top 5 orders to identify missing ones
+      console.log('[UI DEBUG] Top 5 Recent Orders:', orders.slice(0, 5).map(o => `${o.id} (${o.status})`));
+    }
+  }, [orders]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchAllOrders();
+    setRefreshing(false);
+  };
+
+  // Filter Orders
+  const filteredOrders = useMemo(() => {
+    console.log(`[UI] Filtering ${orders.length} orders. ActiveTab: ${activeTab}`);
+
+    // Log available statuses
+    if (orders.length > 0) {
+      const statuses = [...new Set(orders.map(o => o.status))];
+      console.log('[UI] Available statuses in orders:', statuses);
+    }
+
+    let filtered = orders;
+
+    // 1. Filter by Tab Status
+    // Special handling for 'pickup_completed' tab which might show 'pickup_completed' status
+    filtered = filtered.filter(order => {
+      // DEBUG: If you want to see ALL orders regardless of tab, comment the return logic below temporarily
+      if (activeTab === 'confirmed') return order.status === 'confirmed' || order.status === 'placed';
+      if (activeTab === 'pickup_completed') return order.status === 'pickup_completed';
+      if (activeTab === 'out_for_delivery') return order.status === 'out_for_delivery';
+      return order.status === activeTab;
+    });
+
+    // 2. Filter by Search Query
+    if (searchQuery) {
+      const lowerQuery = searchQuery.toLowerCase();
+      filtered = filtered.filter(order =>
+        order.id.toLowerCase().includes(lowerQuery) ||
+        (order.userPhone || '').includes(lowerQuery) ||
+        (order.userName || '').toLowerCase().includes(lowerQuery) ||
+        (order.pickupOTP || '').includes(lowerQuery)
+      );
+    }
+
+    console.log(`[UI] Returning ${filtered.length} filtered orders for ${activeTab}`);
+    return filtered;
+  }, [orders, activeTab, searchQuery]);
+
+  // Action Handlers
+  const handleVerifyPickup = (order: any) => {
+    setSelectedOrder(order);
+    setActionType('pickup');
+    setOtpInput('');
+    setTokenInput('');
+    setOtpModalVisible(true);
+  };
+
+  const handleVerifyDelivery = (order: any) => {
+    setSelectedOrder(order);
+    setActionType('delivery');
+    setOtpInput('');
+    setOtpModalVisible(true);
+  };
+
+  const handleMarkProcessed = (order: any) => {
+    Alert.alert(
+      "Confirm Processing",
+      "Are you sure you want to move this order to Processing?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm",
+          onPress: async () => {
+            setProcessing(true);
+            try {
+              await updateOrderStatus(order.userId, order.id, 'processing');
+              setProcessing(false);
+            } catch (error) {
+              setProcessing(false);
+              Alert.alert("Error", "Failed to update status");
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleCancelOrder = (order: any) => {
+    setOrderToCancel(order);
+    setCancelReason(CANCELLATION_REASONS[0]);
+    setCancelNote('');
+    setCancelModalVisible(true);
+  };
+
+  const processCancellation = async () => {
+    if (!orderToCancel) return;
+
+    setProcessing(true);
+    try {
+      const additionalData = {
+        cancellationReason: cancelReason,
+        cancellationNote: cancelNote,
+        isCancelled: true, // redundancy for easy querying
+        cancelledAt: new Date(), // Client side date, server timestamp added in service
+      };
+
+      await updateOrderStatus(
+        orderToCancel.userId,
+        orderToCancel.id,
+        'cancelled',
+        { additionalData }
+      );
+
+      setCancelModalVisible(false);
+      setProcessing(false);
+      Alert.alert("Success", "Order cancelled successfully");
+    } catch (error) {
+      setProcessing(false);
+      Alert.alert("Error", "Failed to cancel order");
+    }
+  };
+
+  // Render Item
+  // ... (render item logic is above)
+
+
+
+
+  const handleMarkReady = (order: any) => {
+    Alert.alert(
+      "Confirm Ready",
+      "Is the order packed and ready for delivery? A delivery OTP will be generated.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Mark Ready",
+          onPress: async () => {
+            setProcessing(true);
+            try {
+              await updateOrderStatus(order.userId, order.id, 'ready');
+              setProcessing(false);
+            } catch (error) {
+              setProcessing(false);
+              Alert.alert("Error", "Failed to update status");
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleMarkOutForDelivery = (order: any) => {
+    Alert.alert(
+      "Start Delivery",
+      "Are you sending this order out for delivery now?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Yes, Out for Delivery",
+          onPress: async () => {
+            setProcessing(true);
+            try {
+              await updateOrderStatus(order.userId, order.id, 'out_for_delivery');
+              setProcessing(false);
+            } catch (error) {
+              setProcessing(false);
+              Alert.alert("Error", "Failed to update status");
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleSubmitOTP = async () => {
+    if (!selectedOrder) return;
+    if (otpInput.length !== 4) {
+      Alert.alert("Error", "Please enter a valid 4-digit OTP");
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      if (actionType === 'pickup') {
+        await updateOrderStatus(
+          selectedOrder.userId,
+          selectedOrder.id,
+          'pickup_completed', // Next status
+          {
+            verifyPickup: true,
+            pickupOTP: otpInput,
+            tokenNumber: tokenInput || undefined
+          }
+        );
+      } else {
+        await updateOrderStatus(
+          selectedOrder.userId,
+          selectedOrder.id,
+          'delivered', // Next status
+          {
+            verifyDelivery: true,
+            deliveryOTP: otpInput
+          }
+        );
+      }
+      setOtpModalVisible(false);
+      setProcessing(false);
+    } catch (error: any) {
+      setProcessing(false);
+      Alert.alert("Verification Failed", error.message || "Invalid OTP");
+    }
+  };
+
+  // Render Item
+  const renderOrderItem = ({ item }: { item: any }) => {
+    let formattedDate = 'Date N/A';
+    try {
+      if (item.createdAt) {
+        let date: Date | undefined;
+        const createdAt = item.createdAt as any;
+
+        if (createdAt.toDate && typeof createdAt.toDate === 'function') {
+          date = createdAt.toDate();
+        } else if (createdAt.seconds) {
+          // Handle stripped timestamp
+          date = new Date(createdAt.seconds * 1000);
+        } else if (createdAt instanceof Date) {
+          date = createdAt;
+        } else if (typeof createdAt === 'string') {
+          date = new Date(createdAt);
+        } else if (typeof createdAt === 'number') {
+          date = new Date(createdAt);
+        }
+
+        if (date && !isNaN(date.getTime())) {
+          formattedDate = format(date, 'MMM dd, yyyy • hh:mm a');
+        }
+      }
+    } catch (e) {
+      console.warn('Date formatting error:', e);
+    }
+
+    return (
+      <View style={styles.orderCard}>
+        {/* Header with Cancel Option */}
+        <View style={styles.cardHeader}>
+          <View>
+            <Text style={styles.orderId}>{item.id ? item.id.toUpperCase() : 'NO ID'}</Text>
+            <Text style={styles.orderDate}>{formattedDate}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
+              <Text style={styles.statusText}>{item.status.replace('_', ' ').toUpperCase()}</Text>
+            </View>
+            {/* Cancel Button only for active orders */}
+            {['placed', 'confirmed', 'pickup_completed'].includes(item.status) && (
+              <TouchableOpacity onPress={() => handleCancelOrder(item)} style={styles.cancelButtonSmall}>
+                <Ionicons name="close-circle-outline" size={20} color={COLORS.error} />
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Customer Info */}
+        <View style={styles.customerInfo}>
+          <View style={styles.row}>
+            <Ionicons name="person-outline" size={14} color={COLORS.textSecondary} />
+            <Text style={styles.customerName}>{item.customerName || item.userName || 'Unknown User'}</Text>
+          </View>
+          <View style={styles.row}>
+            <Ionicons name="call-outline" size={14} color={COLORS.textSecondary} />
+            <Text style={styles.customerPhone}>{item.customerPhone || item.userPhone || 'No Phone'}</Text>
+          </View>
+          <View style={[styles.row, { alignItems: 'flex-start' }]}>
+            <Ionicons name="location-outline" size={14} color={COLORS.textSecondary} style={{ marginTop: 2 }} />
+            <Text style={styles.addressText} numberOfLines={2}>
+              {typeof item.address === 'string' ? item.address : (item.address?.formattedAddress || 'No Address')}
+            </Text>
+          </View>
+        </View>
+
+        {/* Detailed Items (Sipzo Style) */}
+        <View style={styles.itemsContainer}>
+          {item.items && item.items.length > 0 ? (
+            item.items.map((srv: any, idx: number) => (
+              <View key={idx} style={styles.itemRow}>
+                <Text style={styles.itemTag}>
+                  {srv.serviceName} {'\u2022'} {srv.quantity || srv.weight || '1'} {srv.quantityUnit || 'units'}
+                </Text>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.itemTag}>No items</Text>
+          )}
+
+          {/* Pickup Slot display */}
+          {item.pickupDetails && (
+            <View style={styles.slotRow}>
+              <Ionicons name="calendar-outline" size={14} color={COLORS.textSecondary} />
+              <Text style={styles.slotText}>
+                Pickup: {item.pickupDetails.scheduledDate || 'Today'} • {item.pickupDetails.scheduledTime || 'Anytime'}
+              </Text>
+            </View>
+          )}
+          <View style={{ marginTop: 8 }}>
+            <Text style={styles.totalPrice}>₹{item.billDetails?.total || item.totalAmount || 0}</Text>
+          </View>
+        </View>
+
+        {/* Full Width Action Button */}
+        < View style={styles.actionRowFull} >
+          {(item.status === 'confirmed' || item.status === 'placed') && (
+            <TouchableOpacity
+              style={[styles.actionButtonFull, { backgroundColor: '#8B5CF6' }]} // Sipzo Purple
+              onPress={() => handleVerifyPickup(item)}
+            >
+              <Text style={styles.actionButtonTextFull}>Mark Pickup Completed</Text>
+            </TouchableOpacity>
+          )}
+          {/* ... other status buttons can follow same pattern ... */}
+
+
+          {item.status === 'pickup_completed' && (
+            <TouchableOpacity
+              style={[styles.actionButtonFull, { backgroundColor: '#6366F1' }]} // Indigo
+              onPress={() => handleMarkProcessed(item)}
+            >
+              <Text style={styles.actionButtonTextFull}>Start Processing</Text>
+            </TouchableOpacity>
+          )}
+
+          {item.status === 'processing' && (
+            <TouchableOpacity
+              style={[styles.actionButtonFull, { backgroundColor: COLORS.success }]}
+              onPress={() => handleMarkReady(item)}
+            >
+              <Text style={styles.actionButtonTextFull}>Mark Ready</Text>
+            </TouchableOpacity>
+          )}
+
+          {item.status === 'ready' && (
+            <TouchableOpacity
+              style={[styles.actionButtonFull, { backgroundColor: COLORS.warning }]}
+              onPress={() => handleMarkOutForDelivery(item)}
+            >
+              <Text style={styles.actionButtonTextFull}>Out for Delivery</Text>
+            </TouchableOpacity>
+          )}
+
+          {item.status === 'out_for_delivery' && (
+            <TouchableOpacity
+              style={[styles.actionButtonFull, { backgroundColor: COLORS.primary }]}
+              onPress={() => handleVerifyDelivery(item)}
+            >
+              <Text style={styles.actionButtonTextFull}>Verify Delivery</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  // Calculate Status Counts
+  const tabsWithCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      confirmed: 0,
+      pickup_completed: 0,
+      processing: 0,
+      ready: 0,
+      out_for_delivery: 0,
+      delivered: 0,
+      cancelled: 0,
+    };
+
+    orders.forEach(order => {
+      const status = order.status || 'placed';
+      if (status === 'placed') {
+        counts.confirmed++; // Map placed to confirmed/New
+      } else if (counts[status] !== undefined) {
+        counts[status]++;
+      }
+    });
+
+    return STATUS_TABS.map(tab => ({
+      ...tab,
+      label: tab.id === 'confirmed' ? 'New' : tab.label, // Rename Confirmed -> New
+      count: counts[tab.id] || 0
+    }));
+  }, [orders]);
+
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? SPACING.lg : insets.top + SPACING.md }]}>
+        <Text style={styles.headerTitle}>Orders Management</Text>
+        <Text style={styles.headerSubtitle}>{orders.length} total orders</Text>
+        <TouchableOpacity onPress={onRefresh} style={styles.refreshButton}>
+          <Ionicons name="refresh" size={20} color={COLORS.text} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={20} color={COLORS.textLight} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by Order ID, Name, or Phone..."
+          placeholderTextColor={COLORS.textLight}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+      </View>
+
+      {/* Status Tabs */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabsContainer}
+        contentContainerStyle={styles.tabsContent}
+      >
+        {tabsWithCounts.map((tab) => (
+          <TouchableOpacity
+            key={tab.id}
+            style={[
+              styles.tab,
+              activeTab === tab.id && styles.activeTab
+            ]}
+            onPress={() => setActiveTab(tab.id)}
+          >
+            <Text style={[
+              styles.tabText,
+              activeTab === tab.id && styles.activeTabText
+            ]}>
+              {tab.label} ({tab.count})
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      {/* Orders List */}
+      <FlatList
+        data={filteredOrders}
+        renderItem={renderOrderItem}
+        keyExtractor={(item, index) => item.id ? `${item.id}-${index}` : `order-${index}`}
+        contentContainerStyle={styles.listContent}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No orders found</Text>
+          </View>
+        }
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+      />
+
+      {/* OTP/Verification Modal */}
+      <Modal
+        visible={otpModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setOtpModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              {actionType === 'pickup' ? 'Verify Pickup' : 'Verify Delivery'}
+            </Text>
+            <Text style={styles.modalSubtitle}>
+              Enter the OTP provided by the customer
+            </Text>
+
+            <TextInput
+              style={styles.otpInput}
+              placeholder="Enter 4-digit OTP"
+              keyboardType="number-pad"
+              maxLength={4}
+              value={otpInput}
+              onChangeText={setOtpInput}
+              placeholderTextColor={COLORS.textSecondary}
+              autoFocus
+            />
+
+            {actionType === 'pickup' && (
+              <View style={styles.tokenContainer}>
+                <Text style={styles.inputLabel}>Assign Token Number (Optional)</Text>
+                <TextInput
+                  style={styles.tokenInput}
+                  placeholder="e.g. T-101"
+                  value={tokenInput}
+                  onChangeText={setTokenInput}
+                  placeholderTextColor={COLORS.textSecondary}
+                />
+              </View>
+            )}
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setOtpModalVisible(false)}
+                disabled={processing}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.verifyButton, processing && { opacity: 0.7 }]}
+                onPress={handleSubmitOTP}
+                disabled={processing}
+              >
+                {processing ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.verifyButtonText}>Verify & Proceed</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Cancel Order Modal */}
+      <Modal
+        visible={cancelModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCancelModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Cancel Order</Text>
+            <Text style={styles.modalSubtitle}>Please select a reason for cancellation</Text>
+
+            <View style={{ marginBottom: 16 }}>
+              {CANCELLATION_REASONS.map((reason) => (
+                <TouchableOpacity
+                  key={reason}
+                  style={[
+                    styles.reasonRow,
+                    cancelReason === reason && styles.selectedReasonRow
+                  ]}
+                  onPress={() => setCancelReason(reason)}
+                >
+                  <Ionicons
+                    name={cancelReason === reason ? "radio-button-on" : "radio-button-off"}
+                    size={20}
+                    color={cancelReason === reason ? COLORS.primary : COLORS.textSecondary}
+                  />
+                  <Text style={[
+                    styles.reasonText,
+                    cancelReason === reason && styles.selectedReasonText
+                  ]}>{reason}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={{ marginBottom: 20 }}>
+              <Text style={styles.inputLabel}>Additional Notes (Optional)</Text>
+              <TextInput
+                style={[styles.tokenInput, { height: 80, textAlignVertical: 'top' }]}
+                placeholder="Enter any additional details..."
+                value={cancelNote}
+                onChangeText={setCancelNote}
+                multiline
+                numberOfLines={3}
+                placeholderTextColor={COLORS.textSecondary}
+              />
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setCancelModalVisible(false)}
+                disabled={processing}
+              >
+                <Text style={styles.cancelButtonText}>Back</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.verifyButton, { backgroundColor: COLORS.error }, processing && { opacity: 0.7 }]}
+                onPress={processCancellation}
+                disabled={processing}
+              >
+                {processing ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.verifyButtonText}>Confirm Cancel</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
+// Helpers
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'placed': return COLORS.info;
+    case 'confirmed': return COLORS.info;
+    case 'pickup_completed': return COLORS.secondary;
+    case 'processing': return COLORS.warning;
+    case 'ready': return COLORS.success;
+    case 'out_for_delivery': return '#FF8C00'; // Dark Orange
+    case 'delivered': return COLORS.success;
+    case 'cancelled': return COLORS.error;
+    default: return COLORS.textSecondary;
+  }
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+  },
+  headerTitle: {
+    ...TYPOGRAPHY.subheading,
+    color: COLORS.text,
+    fontWeight: '700',
+  },
+  refreshButton: {
+    padding: SPACING.xs,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    margin: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    height: 44,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    ...SHADOWS.small,
+  },
+  searchIcon: {
+    marginRight: SPACING.sm,
+  },
+  searchInput: {
+    flex: 1,
+    ...TYPOGRAPHY.body,
+    height: '100%',
+    color: COLORS.text,
+  },
+  tabsContainer: {
+    backgroundColor: '#fff',
+    minHeight: 60,        // Relaxed constraint
+    flexGrow: 0,          // Prevent expansion
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+    marginBottom: 8,
+  },
+  tabsContent: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 12,  // Moved padding here
+    gap: SPACING.sm,
+  },
+  tab: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: 20,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  activeTab: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  tabText: {
+    ...TYPOGRAPHY.caption,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  activeTabText: {
+    color: '#fff',
+  },
+  listContent: {
+    padding: SPACING.md,
+    gap: SPACING.md,
+  },
+  orderCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: SPACING.md,
+    ...SHADOWS.medium,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: SPACING.sm,
+  },
+  orderId: {
+    ...TYPOGRAPHY.body,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  orderDate: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+  },
+  statusBadge: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  statusText: {
+    ...TYPOGRAPHY.caption,
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 10,
+  },
+  customerInfo: {
+    marginBottom: SPACING.md,
+    paddingBottom: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+  },
+  customerName: {
+    ...TYPOGRAPHY.body,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  customerPhone: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  addressText: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    fontStyle: 'italic',
+  },
+  orderStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.md,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statLabel: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    fontSize: 10,
+  },
+  statValue: {
+    ...TYPOGRAPHY.body,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  actionButton: {
+    flex: 1,
+    height: 40,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+  },
+  actionButtonText: {
+    ...TYPOGRAPHY.button,
+    color: '#fff',
+    fontSize: 14,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 40,
+  },
+  emptyText: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.textSecondary,
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: SPACING.lg,
+    ...SHADOWS.large,
+  },
+  modalTitle: {
+    ...TYPOGRAPHY.subheading,
+    fontWeight: '700',
+    color: COLORS.text,
+    textAlign: 'center',
+    marginBottom: SPACING.xs,
+  },
+  modalSubtitle: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: SPACING.lg,
+  },
+  otpInput: {
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: 8,
+    padding: SPACING.md,
+    textAlign: 'center',
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: 4,
+    marginBottom: SPACING.md,
+  },
+  tokenContainer: {
+    marginBottom: SPACING.lg,
+  },
+  inputLabel: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  tokenInput: {
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: 8,
+    padding: SPACING.sm,
+    ...TYPOGRAPHY.body,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+  },
+  cancelButton: {
+    flex: 1,
+    padding: SPACING.md,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    ...TYPOGRAPHY.button,
+    color: COLORS.textSecondary,
+  },
+  verifyButton: {
+    flex: 1,
+    padding: SPACING.md,
+    borderRadius: 8,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+  },
+  verifyButtonText: {
+    ...TYPOGRAPHY.button,
+    color: '#fff',
+  },
+  // New Styles for Detailed Look
+  itemsContainer: {
+    backgroundColor: '#F3F4F6',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+    marginBottom: 12,
+  },
+  itemRow: {
+    marginBottom: 4,
+  },
+  itemTag: {
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '500',
+    backgroundColor: '#fff',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  slotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 6
+  },
+  slotText: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  totalPrice: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  cancelButtonSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: COLORS.error + '40',
+    backgroundColor: COLORS.error + '10',
+    gap: 4
+  },
+  actionRowFull: {
+    marginTop: 8,
+  },
+  actionButtonFull: {
+    width: '100%',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  actionButtonTextFull: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: COLORS.textLight,
+  },
+  reasonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    marginBottom: 8,
+    gap: 10,
+  },
+  selectedReasonRow: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary + '10', // 10% opacity
+  },
+  reasonText: {
+    fontSize: 14,
+    color: '#374151',
+  },
+  selectedReasonText: {
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+});

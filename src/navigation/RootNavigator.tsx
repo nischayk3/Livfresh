@@ -399,7 +399,7 @@ export const RootNavigator: React.FC = () => {
             screens: {
               AdminTabs: {
                 screens: {
-                  Dashboard: 'dashboard',
+                  Dashboard: '',
                   Orders: 'orders',
                   Subscriptions: 'subscriptions',
                   Settings: 'settings',

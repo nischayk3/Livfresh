@@ -2,8 +2,10 @@ import React, { lazy, Suspense } from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Platform } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../utils/constants';
+import { useAdminAuthStore } from '../store';
 
 // Admin screens (will be created)
 const AdminDashboardScreen = Platform.OS === 'web'
@@ -90,6 +92,19 @@ const AdminTabs = () => {
 
 // Admin Stack Navigator
 export const AdminNavigator = () => {
+  const { adminPhone } = useAdminAuthStore();
+  const navigation = useNavigation<any>();
+
+  React.useEffect(() => {
+    if (!adminPhone) {
+      navigation.navigate('AdminLogin');
+    }
+  }, [adminPhone, navigation]);
+
+  if (!adminPhone) {
+    return null; // Or a loading spinner
+  }
+
   return (
     <Suspense fallback={<></>}>
       <Stack.Navigator

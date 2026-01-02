@@ -125,20 +125,27 @@ export const OTPScreen: React.FC = () => {
     setError('');
 
     try {
-      const user = await verifyOTP(otpCode);
+      const firebaseUser = await verifyOTP(otpCode);
 
-      // Get user name from Firestore (it was saved during verification)
-      const { checkUserExists } = await import('../../services/firestore');
-      const userData: any = await checkUserExists(phone);
+      // Diagnostic: Check if user exists in Firestore AFTER successful verification
+      // This is now allowed because the user is AUTHENTICATED.
+      const { getUser } = await import('../../services/firestore');
+      const userData = await getUser(firebaseUser.uid);
 
-      setUser({
-        uid: user.uid,
-        phone: user.phoneNumber || phone,
-        name: userData?.name || ''
-      });
-
-      // Navigation is handled by RootNavigator/Auth state change
-      // navigation.navigate('LocationPermission' as never); 
+      if (userData) {
+        // EXISTING USER: Set store and navigation is handled by RootNavigator
+        setUser({
+          uid: firebaseUser.uid,
+          phone: firebaseUser.phoneNumber || phone,
+          name: userData.name || '',
+          ...userData // Spread other fields like credits, etc.
+        });
+        console.log('✅ Existing user detected, navigating to Main');
+      } else {
+        // NEW USER: Go to UserDetails to collect name/email
+        console.log('🆕 New user detected, navigating to UserDetails');
+        (navigation as any).navigate('UserDetails', { phone: firebaseUser.phoneNumber || phone });
+      }
     } catch (error: any) {
       console.error('OTP verification error:', error);
       setError(error.message || 'Invalid OTP. Please try again.');

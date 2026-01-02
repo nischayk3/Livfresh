@@ -281,7 +281,7 @@ export const AdminDashboardScreen: React.FC = () => {
               </View>
               <View style={styles.userStatCard}>
                 <View style={[styles.statIconContainer, { backgroundColor: COLORS.success + '20' }]}>
-                  <Ionicons name="person-check" size={24} color={COLORS.success} />
+                  <Ionicons name="checkmark-circle-outline" size={24} color={COLORS.success} />
                 </View>
                 <Text style={styles.statValue}>{userStats.activeUsers}</Text>
                 <Text style={styles.statLabel}>Active Users</Text>

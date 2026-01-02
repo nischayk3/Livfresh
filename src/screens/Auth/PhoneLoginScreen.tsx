@@ -72,24 +72,15 @@ export const PhoneLoginScreen: React.FC = () => {
     try {
       const formattedPhone = `+91${phone}`;
 
-      // Check if user exists
-      const existingUser = await checkUserExists(formattedPhone);
-
       // Request OTP - verifier handled internally by platform specific service
       await requestOTP(formattedPhone);
 
       // Store phone in store
       const { setOTPData } = useAuthStore.getState();
-      setOTPData(formattedPhone, existingUser?.name || '');
+      setOTPData(formattedPhone, '');
 
-      // Navigate based on user existence
-      if (existingUser) {
-        // Existing user - go directly to OTP
-        navigation.navigate('OTP' as never);
-      } else {
-        // New user - collect details first
-        (navigation as any).navigate('UserDetails', { phone: formattedPhone });
-      }
+      // Navigate directly to OTP. We check if user exists AFTER verification.
+      navigation.navigate('OTP' as never);
     } catch (error: any) {
       console.error('Phone auth error:', error);
       showAlert({

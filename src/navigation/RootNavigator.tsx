@@ -421,14 +421,18 @@ export const RootNavigator: React.FC = () => {
             <>
               <Stack.Screen name="Onboarding" component={OnboardingCarousel} />
               <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
-              <Stack.Screen name="UserDetails" component={UserDetailsScreen} />
               <Stack.Screen name="OTP" component={OTPScreen} />
               <Stack.Screen name="LocationPermission" component={LocationPermissionScreen} />
             </>
           )}
 
-          {/* Main app routes - accessible when logged in */}
-          {isLoggedIn && (
+          {/* New User Registration - accessible when logged in but profile incomplete */}
+          {isLoggedIn && !user?.name && (
+            <Stack.Screen name="UserDetails" component={UserDetailsScreen} />
+          )}
+
+          {/* Main app routes - accessible when logged in and profile complete */}
+          {isLoggedIn && user?.name && (
             <Stack.Screen name="Main" component={MainStack} />
           )}
 

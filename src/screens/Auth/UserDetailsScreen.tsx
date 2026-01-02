@@ -48,7 +48,7 @@ export const UserDetailsScreen: React.FC = () => {
 
   const isValid = name.length >= 2 && (email === '' || validateEmail(email));
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!isValid) {
       showAlert({
         title: 'Validation Error',
@@ -58,14 +58,40 @@ export const UserDetailsScreen: React.FC = () => {
       return;
     }
 
-    // Store user data
-    setUserData({ name, email: email || undefined, gender: gender || undefined });
+    setLoading(true);
+    try {
+      const { user: authUser } = useAuthStore.getState();
+      const currentUid = authUser?.uid || (route.params as any)?.uid;
+      const currentPhone = authUser?.phone || phone;
 
-    // Store in auth store
-    setOTPData(phone, name);
+      if (!currentUid) {
+        throw new Error('User session not found. Please try logging in again.');
+      }
 
-    // Navigate to OTP
-    navigation.navigate('OTP' as never);
+      // 1. Create user in Firestore
+      const { createUser } = await import('../../services/firestore');
+      await createUser(currentUid, currentPhone, name, email || undefined, gender || undefined);
+
+      // 2. Update local store - this will trigger RootNavigator to show Main
+      useAuthStore.getState().setUser({
+        uid: currentUid,
+        phone: currentPhone,
+        name,
+        email: email || '',
+        subscriptionStatus: 'inactive',
+      } as any);
+
+      console.log('✅ User registration complete');
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      showAlert({
+        title: 'Registration Failed',
+        message: error.message || 'Failed to save your details. Please try again.',
+        type: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

@@ -139,7 +139,13 @@ export const CartScreen: React.FC = () => {
             clearCart();
             await clearCartInFirestore(user.uid);
 
-            (navigation as any).navigate('Main', { screen: 'OrderSuccess' });
+            // Navigate to Success screen and reset stack to prevent going back to Cart
+            navigation.reset({
+                index: 0,
+                routes: [
+                    { name: 'OrderSuccess' }
+                ],
+            });
 
         } catch (error) {
             console.error("Order placement failed", error);

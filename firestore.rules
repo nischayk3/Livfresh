@@ -12,74 +12,78 @@ service cloud.firestore {
     }
     
     // Helper function to check if user is admin
-    // For MVP: Check if phone ends with known admin phone numbers
-    // TODO: Improve to read from /config/adminPhones dynamically
     function isAdmin() {
-      return isAuthenticated() && 
-             request.auth.token.phone_number != null &&
-             (request.auth.token.phone_number.hasSuffix('9108558715') || 
-              request.auth.token.phone_number.hasSuffix('+919108558715'));
+      let phone = request.auth.token.phone_number;
+      let phoneNumber = request.auth.token.phoneNumber;
+      
+      // List of authorized admin numbers (last 10 digits)
+      let authorized = phone.matches('.*(9661802634|9852030638|9108558715)$') ||
+                       phoneNumber.matches('.*(9661802634|9852030638|9108558715)$');
+      
+      return isAuthenticated() && authorized;
+    }
+
+    // --- Collection Group Rules ---
+    // Required for collectionGroup queries used in admin dashboard
+    
+    match /{path=**}/orders/{orderId} {
+      allow read: if isAdmin() || (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid));
+      allow write: if isAdmin() || (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid));
     }
     
-    // Config collection - allow read for authenticated users (for admin phone check)
-    // Write only for admins
+    match /{path=**}/subscriptions/{subscriptionId} {
+      allow read: if isAdmin() || (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid));
+      allow write: if isAdmin();
+    }
+
+    // --- Regular Collection Rules ---
+    
+    // Config collection
     match /config/{configId} {
-      allow read: if isAuthenticated();
+      // Allow guest read for adminPhones to check access before login
+      allow read: if configId == 'adminPhones' || isAuthenticated();
       allow write: if isAdmin();
     }
     
     // Users collection
     match /users/{userId} {
-      // User can read/update their own profile, create if authenticated
-      // Admin can read all users
-      // For admin panel: Allow authenticated users to read users collection
-      // (Admin check happens in application code via isAdminPhone)
       allow create: if isAuthenticated() && request.auth.uid == userId;
-      allow read: if isOwner(userId) || isAdmin() || isAuthenticated();
-      allow update: if isOwner(userId) || isAdmin();
+      allow read: if isAdmin() || isOwner(userId);
+      allow update: if isAdmin() || isOwner(userId);
       
       match /addresses/{addressId} {
-        allow read, write: if isOwner(userId) || isAdmin();
+        allow read, write: if isAdmin() || isOwner(userId);
       }
       
       match /orders/{orderId} {
-        // User can access their own orders, admin can access all orders
-        // For admin panel: Allow authenticated users to read all orders
-        // (Admin check happens in application code)
-        allow read: if isOwner(userId) || isAdmin() || isAuthenticated();
-        allow write: if isOwner(userId) || isAdmin();
+        allow read: if isAdmin() || isOwner(userId);
+        allow write: if isAdmin() || isOwner(userId);
       }
 
-      // Subscriptions - user can only access their own subscriptions
       match /subscriptions/{subscriptionId} {
-        // Allow read/write if user owns the subscription or is admin
-        // For admin panel: Allow authenticated users to read all subscriptions
-        allow read: if isOwner(userId) || isAdmin() || isAuthenticated();
-        allow create: if isOwner(userId) || isAdmin();
-        allow update, delete: if isOwner(userId) || isAdmin();
+        allow read: if isAdmin() || isOwner(userId);
+        allow write: if isAdmin();
         
-        // Credit usage subcollection
         match /creditUsage/{usageId} {
-          allow read, write: if isOwner(userId) || isAdmin();
+          allow read: if isAdmin() || isOwner(userId);
+          allow write: if isAdmin();
         }
       }
     }
     
     // Vendors collection
     match /vendors/{vendorId} {
-      // Allow read for all authenticated users, write only for vendors/admins
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated(); // ⚠️ In production, add vendor/admin check
+      allow write: if isAdmin();
       
       match /services/{serviceId} {
         allow read: if isAuthenticated();
-        allow write: if isAuthenticated(); // ⚠️ In production, add vendor/admin check
+        allow write: if isAdmin();
       }
       
       match /orders/{orderId} {
-        // Admin can read/write all vendor orders
-        allow read: if isAuthenticated();
-        allow write: if isAuthenticated() || isAdmin(); // ⚠️ In production, add vendor/admin check
+        allow read: if isAdmin() || isAuthenticated();
+        allow write: if isAdmin();
       }
     }
   }

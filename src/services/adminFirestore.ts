@@ -12,7 +12,7 @@ import {
   writeBatch,
   collectionGroup,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { adminDb as db } from './firebase';
 import { generateOTP } from '../utils/otpHelpers';
 
 /**
@@ -53,38 +53,41 @@ export const getAdminPhones = async (): Promise<string[]> => {
  * Check if a phone number is an admin phone
  */
 export const isAdminPhone = async (phone: string): Promise<boolean> => {
+  const AUTHORIZED_ADMINS = ['9661802634', '9852030638', '9108558715'];
+
   try {
     const configRef = doc(db, 'config', 'adminPhones');
     const configSnap = await getDoc(configRef);
 
+    // Clean input phone: remove +91 prefix and get last 10 digits
+    const cleanPhone = phone.replace(/^\+91/, '').replace(/\D/g, '').slice(-10);
+
     if (!configSnap.exists()) {
       // Fallback to hardcoded check if config doesn't exist
-      const cleanPhone = phone.replace(/^\+91/, '').replace(/\D/g, '').slice(-10);
-      return cleanPhone === '9108558715'; // Hardcoded admin phone
+      return AUTHORIZED_ADMINS.includes(cleanPhone);
     }
 
     const data = configSnap.data();
     const adminPhones = data.adminPhones || {};
 
-    // Clean phone: remove +91 prefix and get last 10 digits
-    const cleanPhone = phone.replace(/^\+91/, '').replace(/\D/g, '').slice(-10);
-
-    // Check if phone exists in map
+    // Check if phone exists in map (preferred)
     if (typeof adminPhones === 'object' && !Array.isArray(adminPhones)) {
-      return adminPhones[cleanPhone] === true;
+      if (adminPhones[cleanPhone] === true) return true;
     }
 
-    // Fallback to array check (legacy)
+    // Fallback to array check or hardcoded list
     const adminPhonesArray = Array.isArray(adminPhones) ? adminPhones : Object.keys(adminPhones);
-    return adminPhonesArray.some((adminPhone: string) => {
+    const isAuthorized = adminPhonesArray.some((adminPhone: string) => {
       const cleanAdminPhone = adminPhone.replace(/^\+91/, '').replace(/\D/g, '').slice(-10);
       return cleanAdminPhone === cleanPhone;
     });
+
+    return isAuthorized || AUTHORIZED_ADMINS.indexOf(cleanPhone) !== -1;
   } catch (error) {
     console.error('Error checking admin phone:', error);
-    // Fallback to hardcoded check if Firestore fails
+    // Safe fallback to hardcoded list
     const cleanPhone = phone.replace(/^\+91/, '').replace(/\D/g, '').slice(-10);
-    return cleanPhone === '9108558715'; // Hardcoded admin phone
+    return AUTHORIZED_ADMINS.indexOf(cleanPhone) !== -1;
   }
 };
 
@@ -172,7 +175,12 @@ export const getOrderStats = async (): Promise<{
     const todayStartTime = todayStart.toMillis ? todayStart.toMillis() : (todayStart instanceof Date ? todayStart.getTime() : 0);
     const todayEndTime = todayEnd.toMillis ? todayEnd.toMillis() : (todayEnd instanceof Date ? todayEnd.getTime() : 0);
 
+    const seenOrderIds = new Set<string>();
+
     ordersSnap.docs.forEach((orderDoc) => {
+      const orderId = orderDoc.id;
+      if (seenOrderIds.has(orderId)) return; // Deduplicate
+
       const order = orderDoc.data();
 
       // Check if order was created today
@@ -191,6 +199,7 @@ export const getOrderStats = async (): Promise<{
 
       // Check if order is from today
       if (orderTime >= todayStartTime && orderTime < todayEndTime) {
+        seenOrderIds.add(orderId);
         total++;
 
         const status = order.status || 'pending';
@@ -253,13 +262,18 @@ export const getAllOrders = async (): Promise<any[]> => {
     const ordersSnap = await getDocs(ordersQuery);
     console.log(`[Admin] Fetched ${ordersSnap.size} orders from Firestore.`);
 
-    const allOrders: any[] = [];
+    // Deduplicate docs immediately to avoid redundant processing
+    const uniqueDocsMap = new Map();
+    ordersSnap.docs.forEach(doc => {
+      if (!uniqueDocsMap.has(doc.id)) {
+        uniqueDocsMap.set(doc.id, doc);
+      }
+    });
 
-    // We need to fetch user details for each order if not present
-    // To optimize, we can cache users
+    const allOrders: any[] = [];
     const userCache: Record<string, any> = {};
 
-    for (const orderDoc of ordersSnap.docs) {
+    for (const orderDoc of Array.from(uniqueDocsMap.values())) {
       const order = orderDoc.data();
       // Robust userId extraction:
       // 1. Direct field in order
@@ -304,7 +318,7 @@ export const getAllOrders = async (): Promise<any[]> => {
       });
     }
 
-    const uniqueOrders = Array.from(new Map(allOrders.map(item => [item.id, item])).values());
+    const uniqueOrders = allOrders; // Already filtered above
 
     // Client-side sorting: Newest first (descending)
     uniqueOrders.sort((a, b) => {
@@ -365,8 +379,12 @@ export const getRevenue = async (startDate: Date, endDate: Date): Promise<{
     // 1. Calculate Order Revenue (Collection Group)
     const ordersQuery = query(collectionGroup(db, 'orders'));
     const ordersSnap = await getDocs(ordersQuery);
+    const seenOrderIds = new Set<string>();
 
     ordersSnap.docs.forEach((orderDoc) => {
+      const orderId = orderDoc.id;
+      if (seenOrderIds.has(orderId)) return;
+
       const order = orderDoc.data();
       const orderCreatedAt = order.createdAt || order.created_at;
       if (!orderCreatedAt) return;
@@ -374,7 +392,9 @@ export const getRevenue = async (startDate: Date, endDate: Date): Promise<{
       const orderTime = getTime(orderCreatedAt);
 
       if (orderTime >= startTime && orderTime <= endTime) {
-        const amount = order.totalAmount || order.total || 0;
+        seenOrderIds.add(orderId);
+        // Robust amount check: order.billDetails.total is preferred for new orders
+        const amount = order.billDetails?.total || order.totalAmount || order.total || 0;
         orderRevenue += amount;
         orderCount++;
 
@@ -383,6 +403,7 @@ export const getRevenue = async (startDate: Date, endDate: Date): Promise<{
           userId: order.userId || orderDoc.ref.parent.parent?.id,
           customerName: order.customerName || 'Unknown',
           ...order,
+          calculatedAmount: amount
         });
       }
     });

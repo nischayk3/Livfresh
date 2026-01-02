@@ -78,7 +78,7 @@ export const MyOrdersScreen: React.FC = () => {
         return (
             <TouchableOpacity
                 style={styles.orderCard}
-                onPress={() => (navigation as any).navigate('Main', { screen: 'OrderDetail', params: { orderId: item.id } })}
+                onPress={() => (navigation as any).navigate('OrderDetail', { orderId: item.id })}
             >
                 <View style={styles.cardHeader}>
                     <Text style={styles.orderDate}>{dateString}</Text>

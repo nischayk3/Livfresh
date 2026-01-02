@@ -8,22 +8,21 @@ import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import firebase from 'firebase/compat/app';
 
 export const firebaseConfig = {
-  apiKey: "AIzaSyCd3rL-yXGffHSAcbeMEZbCDdBXgRlN8zU",
-  authDomain: "livfresh.firebaseapp.com",
-  projectId: "livfresh",
-  storageBucket: "livfresh.firebasestorage.app",
-  messagingSenderId: "6391153790",
-  appId: "1:6391153790:web:8fad0ebc9c4079978bc42f",
-  measurementId: "G-8WJLSGV5RL"
+  apiKey: "AIzaSyBnwzJVax1qx2oN3nf7INqpXLF8rVrUWqw",
+  authDomain: "spin-it-a135a.firebaseapp.com",
+  projectId: "spin-it-a135a",
+  storageBucket: "spin-it-a135a.firebasestorage.app",
+  messagingSenderId: "597897149776",
+  appId: "1:597897149776:web:c9a7d4b5c2291f8b35c055",
+  measurementId: "G-YXS771G4ZJ"
 };
 
 // Initialize modular Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize compat Firebase for expo-firebase-recaptcha (Web)
-if (Platform.OS === 'web' && !firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
-}
+// --- ADMIN SESSION ISOLATION ---
+// We initialize a separate named app for Admin to prevent session clobbering on web
+const adminApp = initializeApp(firebaseConfig, 'Admin');
 
 // Initialize Firebase Auth with Persistence
 // Use browserLocalPersistence for Web, and ReactNativeAsyncStorage for Mobile
@@ -35,9 +34,23 @@ export const auth = initializeAuth(app, {
   persistence
 });
 
+// Admin specific auth instance
+export const adminAuth = initializeAuth(adminApp, {
+  persistence
+});
+
 // Initialize Firestore
 export const db = getFirestore(app);
+export const adminDb = getFirestore(adminApp);
+
 console.log('DEBUG: firebase.ts - db initialized:', db ? 'yes' : 'no');
+console.log('DEBUG: firebase.ts - adminDb initialized:', adminDb ? 'yes' : 'no');
+
+// Initialize compat Firebase for expo-firebase-recaptcha (Web)
+// Note: Compat also supports multiple apps if needed, but for now default is fine for recaptcha
+if (Platform.OS === 'web' && !firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
 
 export default app;
 

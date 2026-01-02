@@ -356,7 +356,8 @@ export const RootNavigator: React.FC = () => {
         'spinit://',
         'http://localhost:8081',
         'exp://',
-        'https://spinit.app'
+        'https://spinit.app',
+        'https://spin-it.in'
       ],
       config: {
         screens: {

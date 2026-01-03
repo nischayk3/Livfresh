@@ -1,11 +1,12 @@
 import React, { lazy, Suspense } from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Platform } from 'react-native';
+import { View, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../utils/constants';
 import { useAdminAuthStore } from '../store';
+import { BrandLoader } from '../components/BrandLoader';
 
 // Admin screens (will be created)
 const AdminDashboardScreen = Platform.OS === 'web'
@@ -102,11 +103,15 @@ export const AdminNavigator = () => {
   }, [adminPhone, navigation]);
 
   if (!adminPhone) {
-    return null; // Or a loading spinner
+    return (
+      <View style={{ flex: 1, backgroundColor: COLORS.background, alignItems: 'center', justifyContent: 'center' }}>
+        <BrandLoader message="Redirecting to Admin Login..." />
+      </View>
+    );
   }
 
   return (
-    <Suspense fallback={<></>}>
+    <Suspense fallback={<View style={{ flex: 1, backgroundColor: COLORS.background, alignItems: 'center', justifyContent: 'center' }}><BrandLoader /></View>}>
       <Stack.Navigator
         screenOptions={{
           headerShown: false,

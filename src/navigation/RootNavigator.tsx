@@ -5,9 +5,9 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore, useSubscriptionStore } from '../store';
+import { useAuthStore, useSubscriptionStore, useAdminAuthStore } from '../store';
 import { getCart, saveCart, getUserAddresses, getUser } from '../services/firestore';
-import { auth } from '../services/firebase';
+import { auth, adminAuth } from '../services/firebase';
 import { useCartStore, useAddressStore } from '../store';
 import { COLORS, TYPOGRAPHY } from '../utils/constants';
 import { BrandLoader } from '../components/BrandLoader';
@@ -58,6 +58,10 @@ const VendorDetailScreen = Platform.OS === 'web'
 const AddressListScreen = Platform.OS === 'web'
   ? lazy(() => import('../screens/Main/AddressListScreen').then(m => ({ default: m.AddressListScreen })))
   : require('../screens/Main/AddressListScreen').AddressListScreen;
+
+const NotFoundScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Main/NotFoundScreen').then(m => ({ default: m.NotFoundScreen })))
+  : require('../screens/Main/NotFoundScreen').NotFoundScreen;
 
 const CartScreen = Platform.OS === 'web'
   ? lazy(() => import('../screens/Main/CartScreen').then(m => ({ default: m.CartScreen })))
@@ -204,18 +208,17 @@ export const RootNavigator: React.FC = () => {
 
   // 1. Listen to Auth State & Hydrate User Profile
   React.useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+    // Listen to USER App Auth
+    const unsubscribeUser = auth.onAuthStateChanged(async (firebaseUser) => {
       if (firebaseUser) {
-        // Check session expiry first
         const authStore = useAuthStore.getState();
         if (authStore.isSessionExpired()) {
-          console.log('⏰ Session expired (12 hours). Logging out...');
+          console.log('⏰ User session expired (12 hours). Logging out...');
           await authStore.logout();
           return;
         }
 
         try {
-          // Fetch user profile from Firestore using shared service
           const userData = await getUser(firebaseUser.uid);
           if (userData) {
             useAuthStore.getState().setUser({
@@ -229,13 +232,10 @@ export const RootNavigator: React.FC = () => {
               subscriptionSchedule: userData.subscriptionSchedule,
             } as any);
 
-            // Set login timestamp if not already set (session start)
             if (!useAuthStore.getState().loginTimestamp) {
               useAuthStore.getState().setLoginTimestamp(Date.now());
-              console.log('🕐 Login timestamp set:', new Date().toISOString());
             }
           } else {
-            // Fallback if doc doesn't exist yet (rare)
             useAuthStore.getState().setUser({
               uid: firebaseUser.uid,
               phone: firebaseUser.phoneNumber || '',
@@ -252,7 +252,26 @@ export const RootNavigator: React.FC = () => {
       setIsAuthLoading(false);
     });
 
-    return () => unsubscribe();
+    // Listen to ADMIN App Auth
+    const unsubscribeAdmin = adminAuth.onAuthStateChanged((adminUser) => {
+      if (adminUser) {
+        console.log('✅ Admin session detected on load:', adminUser.phoneNumber);
+        useAdminAuthStore.setState({
+          isAdmin: true,
+          adminPhone: adminUser.phoneNumber,
+        });
+      } else {
+        useAdminAuthStore.setState({
+          isAdmin: false,
+          adminPhone: null,
+        });
+      }
+    });
+
+    return () => {
+      unsubscribeUser();
+      unsubscribeAdmin();
+    };
   }, []);
 
   // 2. Hydrate cart on login (Initial Load)
@@ -407,9 +426,11 @@ export const RootNavigator: React.FC = () => {
               },
             },
           },
+          // Catch-all route for unknown paths
+          NotFound: '*',
         },
       },
-    }}>
+    } as any}>
       <Suspense fallback={<View style={styles.loadingWrapper}><BrandLoader message="Loading..." /></View>}>
         <Stack.Navigator
           screenOptions={{
@@ -418,31 +439,34 @@ export const RootNavigator: React.FC = () => {
           }}
         >
           {/* Public routes - accessible when not logged in */}
-          {!isLoggedIn && (
+          {!isLoggedIn ? (
             <>
               <Stack.Screen name="Onboarding" component={OnboardingCarousel} />
               <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
               <Stack.Screen name="OTP" component={OTPScreen} />
               <Stack.Screen name="LocationPermission" component={LocationPermissionScreen} />
             </>
+          ) : (
+            <>
+              {/* New User Registration - accessible when logged in but profile incomplete */}
+              {!user?.name ? (
+                <Stack.Screen name="UserDetails" component={UserDetailsScreen} />
+              ) : (
+                /* Main app routes - accessible when logged in and profile complete */
+                <Stack.Screen name="Main" component={MainStack} />
+              )}
+            </>
           )}
 
-          {/* New User Registration - accessible when logged in but profile incomplete */}
-          {isLoggedIn && !user?.name && (
-            <Stack.Screen name="UserDetails" component={UserDetailsScreen} />
-          )}
-
-          {/* Main app routes - accessible when logged in and profile complete */}
-          {isLoggedIn && user?.name && (
-            <Stack.Screen name="Main" component={MainStack} />
-          )}
-
-          {/* Admin routes - accessible from anywhere */}
+          {/* Admin routes - always defined but protected by guards inside components */}
           <Stack.Screen name="AdminLogin" component={AdminLoginScreen} />
           <Stack.Screen name="Admin" component={AdminNavigator} />
+
+          {/* Fallback for unknown routes inside the app */}
+          <Stack.Screen name="NotFound" component={NotFoundScreen} />
         </Stack.Navigator>
       </Suspense>
-    </NavigationContainer>
+    </NavigationContainer >
   );
 };
 

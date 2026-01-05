@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
     width: 400,
     height: 400,
     borderRadius: 200,
-    backgroundColor: '#F9A8D4' + '33', // Hex opacity
+    backgroundColor: '#994BFF' + '33', // Hex opacity
     zIndex: -1,
   },
   slide: {
@@ -278,7 +278,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     ...Platform.select({
-      web: { boxShadow: '0px 4px 10px rgba(236, 72, 153, 0.3)' }, // Manual shadow if SHADOWS.primary isn't working as expected
+      web: { boxShadow: '0px 4px 10px rgba(153, 75, 255, 0.3)' }, // Manual shadow
       default: SHADOWS.primary,
     }),
   },

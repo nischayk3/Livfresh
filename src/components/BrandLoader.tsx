@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Animated, StyleSheet, Image, Text, Easing, Dimensions } from 'react-native';
 import { COLORS, TYPOGRAPHY } from '../utils/constants';
 
-const spinitLogo = require('../../assets/spinit_logo.png');
+const spinzoLogo = require('../../assets/SpinZo.png');
 const { width, height } = Dimensions.get('window');
 
 interface BrandLoaderProps {
@@ -53,7 +53,7 @@ export const BrandLoader: React.FC<BrandLoaderProps> = ({
             <View style={styles.contentContainer}>
                 <Animated.View style={{ transform: [{ rotate: spin }] }}>
                     <Image
-                        source={spinitLogo}
+                        source={spinzoLogo}
                         style={{ width: size, height: size }}
                         resizeMode="contain"
                     />

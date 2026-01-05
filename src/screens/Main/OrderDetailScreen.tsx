@@ -146,7 +146,7 @@ export const OrderDetailScreen: React.FC = () => {
                 nestedScrollEnabled={true}
             >
 
-                {/* Order Information Card (Sipzo Style) */}
+                {/* Order Information Card (SpinZo Style) */}
                 <View style={styles.infoCard}>
                     <View style={styles.infoCol}>
                         <Text style={styles.infoLabel}>Order ID</Text>

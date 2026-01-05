@@ -20,7 +20,7 @@ export const paymentService = {
             currency: 'INR',
             key: RAZORPAY_KEY_ID,
             amount: amount * 100, // Amount in paise
-            name: 'Spinit Laundry',
+            name: 'SpinZo Laundry',
             prefill: {
                 email: user.email || 'customer@example.com',
                 contact: user.phone,
@@ -46,7 +46,7 @@ export const paymentService = {
         const options = {
             key: RAZORPAY_KEY_ID,
             subscription_id: subscriptionId,
-            name: 'Spinit Premium',
+            name: 'SpinZo Premium',
             description: 'Monthly Laundry Subscription',
             prefill: {
                 email: user.email || 'customer@example.com',

@@ -22,7 +22,7 @@ import { useUIStore } from '../../store/uiStore';
 import { format } from 'date-fns';
 import { BrandLoader } from '../../components/BrandLoader';
 
-// Status tabs configuration - mirroring Sipzo flow
+// Status tabs configuration - mirroring SpinZo flow
 const STATUS_TABS = [
   { id: 'confirmed', label: 'Confirmed' },
   { id: 'pickup_completed', label: 'Pickup' }, // "Pickup" means completed, waiting processing
@@ -248,7 +248,7 @@ export const AdminOrdersScreen: React.FC = () => {
   };
 
   const handleMarkOutForDelivery = (order: any) => {
-    // Delivery Scheduling Guard - Aligned with Sipzo business logic
+    // Delivery Scheduling Guard - Aligned with SpinZo business logic
     if (!order.deliveryDate || !order.deliveryTime) {
       showAlert({
         title: "Action Blocked",
@@ -471,7 +471,7 @@ export const AdminOrdersScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Detailed Items (Sipzo Style) */}
+        {/* Detailed Items (SpinZo Style) */}
         <View style={styles.itemsContainer}>
           {item.items && item.items.length > 0 ? (
             item.items.map((srv: any, idx: number) => (
@@ -518,7 +518,7 @@ export const AdminOrdersScreen: React.FC = () => {
         < View style={styles.actionRowFull} >
           {(item.status === 'confirmed' || item.status === 'placed') && (
             <TouchableOpacity
-              style={[styles.actionButtonFull, { backgroundColor: '#8B5CF6' }]} // Sipzo Purple
+              style={[styles.actionButtonFull, { backgroundColor: COLORS.primary }]} // SpinZo Purple
               onPress={() => handleVerifyPickup(item)}
             >
               <Text style={styles.actionButtonTextFull}>Mark Pickup Completed</Text>

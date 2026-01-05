@@ -9,7 +9,7 @@ import { useAuthStore, useSubscriptionStore, useAdminAuthStore } from '../store'
 import { getCart, saveCart, getUserAddresses, getUser } from '../services/firestore';
 import { auth, adminAuth } from '../services/firebase';
 import { useCartStore, useAddressStore } from '../store';
-import { COLORS, TYPOGRAPHY } from '../utils/constants';
+import { COLORS, TYPOGRAPHY, SHADOWS } from '../utils/constants';
 import { BrandLoader } from '../components/BrandLoader';
 
 // Helper for lazy loading components with Web compatibility
@@ -124,13 +124,20 @@ const MainTabs = () => {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textSecondary,
+        tabBarInactiveTintColor: '#94A3B8', // Slightly more vibrant inactive color
+        tabBarShowLabel: true,
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+          marginBottom: 4,
+        },
         tabBarStyle: {
-          borderTopWidth: 1,
-          borderTopColor: COLORS.border,
-          paddingTop: 8,
+          backgroundColor: '#FFFFFF',
+          borderTopWidth: 0, // Clean look
+          paddingTop: 10,
           paddingBottom: insets.bottom > 0 ? insets.bottom : 12,
-          height: 60 + (insets.bottom > 0 ? insets.bottom : 12),
+          height: 64 + (insets.bottom > 0 ? insets.bottom : 12),
+          ...SHADOWS.lg, // Premium elevation
         },
       }}
     >
@@ -372,11 +379,11 @@ export const RootNavigator: React.FC = () => {
   return (
     <NavigationContainer linking={{
       prefixes: [
-        'spinit://',
+        'spinzo://',
         'http://localhost:8081',
         'exp://',
-        'https://spinit.app',
-        'https://spin-it.in'
+        'https://spinzo.app',
+        'https://spinzo.in'
       ],
       config: {
         screens: {

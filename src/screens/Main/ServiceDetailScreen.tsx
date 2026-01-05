@@ -156,7 +156,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       const serviceData = defaultServices[serviceId] || { id: serviceId, name: 'Service', description: '' };
       const defaultVendor = {
         id: 'default',
-        name: 'Spinit Laundry',
+        name: 'SpinZo Laundry',
         imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400'
       };
 
@@ -408,7 +408,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
             </TouchableOpacity>
           )}
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll} contentContainerStyle={{ paddingRight: 20 }}>
           {selectedImages.map((uri, index) => (
             <View key={index} style={styles.photoCard}>
               <Image source={{ uri }} style={styles.photoThumbnail} contentFit="cover" />
@@ -531,7 +531,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     const cartItem: CartItem = {
       id: '',
       vendorId: vendorId || 'default',
-      vendorName: vendor?.name || 'Spinit Laundry',
+      vendorName: vendor?.name || 'SpinZo Laundry',
       serviceId: serviceId,
       serviceName: service?.name || 'Service',
       serviceType: serviceId as any,
@@ -899,7 +899,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
                   [shoe.id]: shoeSelections[shoe.id] + 1,
                 })}
               >
-                <Text style={[styles.quantityButtonText, styles.quantityButtonTextActive]}>+</Text>
+                <Text style={[styles.quantityButtonText, styles.quantityButtonActiveText]}>+</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -964,7 +964,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
                     [item.id]: dryCleanItems[item.id] + 1,
                   })}
                 >
-                  <Text style={[styles.quantityButtonText, styles.quantityButtonTextActive]}>+</Text>
+                  <Text style={[styles.quantityButtonText, styles.quantityButtonActiveText]}>+</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1038,7 +1038,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
                 style={[styles.quantityButton, styles.quantityButtonActive]}
                 onPress={() => setPremiumIroningCount(premiumIroningCount + 1)}
               >
-                <Text style={[styles.quantityButtonText, styles.quantityButtonTextActive]}>+</Text>
+                <Text style={[styles.quantityButtonText, styles.quantityButtonActiveText]}>+</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1090,66 +1090,78 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     >
       <View style={styles.modalOverlay}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.modalContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.container}
         >
-          <View style={styles.modalContent}>
-            {/* Header */}
-            <View style={styles.modalHeader}>
-              <View style={styles.dragHandle} />
-              <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                <Ionicons name="close" size={24} color={COLORS.text} />
+          <View style={styles.content}>
+            {/* Header with Image */}
+            <View style={styles.imageHeader}>
+              <Image
+                source={getServiceImage()}
+                style={styles.headerImage}
+                contentFit="cover"
+              />
+              <LinearGradient
+                colors={['rgba(0,0,0,0.4)', 'transparent']}
+                style={styles.imageOverlay}
+              />
+              <TouchableOpacity style={[styles.closeButton, { top: insets.top + (SPACING.sm || 10) }]} onPress={onClose}>
+                <View style={styles.closeIconBg}>
+                  <Ionicons name="close" size={24} color="#1A1A1A" />
+                </View>
               </TouchableOpacity>
             </View>
 
-            {/* Scrollable Content Area - Image and Title now scrollable */}
             <ScrollView
               style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={true}
-              nestedScrollEnabled={true}
-              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
+              showsVerticalScrollIndicator={false}
             >
-              <View style={styles.serviceImageContainer}>
-                <Image
-                  source={getServiceImage()}
-                  style={styles.serviceImage}
-                  contentFit="cover"
-                  transition={500}
-                />
-              </View>
-
-              <View style={styles.serviceTitleContainer}>
-                <Text style={styles.serviceTitle}>{service?.name || 'Service'}</Text>
-              </View>
-
-              {loading ? (
-                <View style={styles.loadingContainer}>
-                  <Text style={styles.loadingText}>Loading...</Text>
+              <View style={styles.serviceHeader}>
+                <View style={styles.titleRow}>
+                  <Text style={styles.serviceName}>{service?.name}</Text>
+                  <View style={styles.timeBadge}>
+                    <Ionicons name="time-outline" size={14} color={COLORS.primary} />
+                    <Text style={styles.timeBadgeText}>24-48h</Text>
+                  </View>
                 </View>
-              ) : (
-                renderServiceContent()
+                <Text style={styles.serviceDescription}>
+                  {service?.description || 'Quality cleaning for your garments'}
+                </Text>
+              </View>
+
+              {serviceId === 'wash_fold' && renderWashFold()}
+              {serviceId === 'wash_iron' && renderWashIron()}
+              {serviceId === 'blanket_wash' && renderBlanketWash()}
+              {serviceId === 'premium_laundry' && renderWashFold()}
+              {serviceId === 'shoe_clean' && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Shoe Cleaning Options</Text>
+                  {/* ... add shoe cleaning content if needed ... */}
+                  <Text style={{ color: COLORS.textSecondary }}>Coming Soon</Text>
+                </View>
               )}
             </ScrollView>
 
-            {/* Footer with Total and Add to Cart */}
-            <View style={[styles.footer, { paddingBottom: insets.bottom > 0 ? insets.bottom : SPACING.lg }]}>
-              <View style={styles.totalContainer}>
-                <Text style={styles.totalLabel}>Total Amount</Text>
-                <Text style={styles.totalAmount}>₹{totalPrice}</Text>
+            <View style={[styles.footer, { paddingBottom: insets.bottom > 0 ? insets.bottom : SPACING.md }]}>
+              <View style={styles.priceContainer}>
+                <Text style={styles.priceLabel}>Estimated Total</Text>
+                <Text style={styles.totalPrice}>₹{calculateTotal()}</Text>
               </View>
               <TouchableOpacity
-                style={[styles.addToCartButton, totalPrice === 0 && styles.addToCartButtonDisabled]}
+                style={[
+                  styles.addToCartButton,
+                  calculateTotal() === 0 && styles.addToCartButtonDisabled
+                ]}
                 onPress={handleAddToCart}
-                disabled={totalPrice === 0}
+                disabled={calculateTotal() === 0}
               >
                 <LinearGradient
-                  colors={totalPrice === 0 ? [COLORS.disabled, COLORS.disabled] : [COLORS.primary, COLORS.primaryDark]}
+                  colors={calculateTotal() === 0 ? ['#9CA3AF', '#6B7280'] : [COLORS.primary, COLORS.primaryDark]}
                   style={styles.addToCartGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
                 >
                   <Text style={styles.addToCartText}>Add to Cart</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -1161,103 +1173,121 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
-  modalContainer: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'flex-end',
-  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  container: {
+    flex: 1,
     justifyContent: 'flex-end',
   },
-  modalContent: {
-    backgroundColor: COLORS.background,
+  content: {
+    backgroundColor: '#F8F7FF',
+    height: '92%',
     borderTopLeftRadius: RADIUS.xl,
     borderTopRightRadius: RADIUS.xl,
-    height: '90%', // Fixed height 90%
+    overflow: 'hidden',
+  },
+  imageHeader: {
     width: '100%',
-    ...SHADOWS.lg,
+    height: 180,
+    backgroundColor: '#EEE7FF',
   },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: SPACING.sm,
-    paddingBottom: SPACING.md,
-    position: 'relative',
+  headerImage: {
+    width: '100%',
+    height: '100%',
   },
-  dragHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: COLORS.border,
-    borderRadius: 2,
+  imageOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 80,
   },
   closeButton: {
     position: 'absolute',
     right: SPACING.md,
-    top: SPACING.sm,
-    padding: SPACING.xs,
+    zIndex: 10,
   },
-  serviceImageContainer: {
-    height: 200,
-    marginHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
-    borderRadius: RADIUS.lg,
-    overflow: 'hidden',
-  },
-  serviceImage: {
-    width: '100%',
-    height: '100%',
-  },
-  serviceTitleContainer: {
-    paddingHorizontal: SPACING.lg,
-    marginBottom: SPACING.md,
-  },
-  serviceTitle: {
-    ...TYPOGRAPHY.heading,
-    color: COLORS.text,
-    textAlign: 'center',
+  closeIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...SHADOWS.sm,
   },
   scrollView: {
-    flex: 1, // Allow it to flex
+    flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: 200,
-    flexGrow: 1,
+    padding: SPACING.lg,
   },
-  loadingContainer: {
-    padding: SPACING.xl,
+  serviceHeader: {
+    marginBottom: SPACING.xl,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 6,
   },
-  loadingText: {
-    ...TYPOGRAPHY.body,
-    color: COLORS.textSecondary,
+  serviceName: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1A1A1A',
+    fontFamily: 'Outfit_800ExtraBold',
+  },
+  timeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F3FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  timeBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primary,
+    fontFamily: 'Outfit_700Bold',
+  },
+  serviceDescription: {
+    fontSize: 15,
+    color: '#64748B',
+    lineHeight: 22,
+    fontFamily: 'Outfit_400Regular',
   },
   section: {
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.xl,
   },
   sectionTitle: {
-    ...TYPOGRAPHY.subheading,
-    color: COLORS.text,
-    marginBottom: SPACING.md,
+    fontSize: 18,
     fontWeight: '700',
+    color: '#1A1A1A',
+    marginBottom: SPACING.md,
+    fontFamily: 'Outfit_700Bold',
   },
   sectionSubtitle: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textSecondary,
+    fontSize: 13,
+    color: '#64748B',
+    marginBottom: SPACING.sm,
+    fontFamily: 'Outfit_500Medium',
   },
   weightOption: {
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.md,
+    backgroundColor: '#FFFFFF',
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    ...SHADOWS.sm,
   },
   weightOptionSelected: {
     borderColor: COLORS.primary,
-    backgroundColor: COLORS.primaryLight + '10',
+    backgroundColor: '#F5F3FF',
   },
   weightOptionContent: {
     flexDirection: 'row',
@@ -1268,10 +1298,10 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: COLORS.border,
-    marginRight: SPACING.md,
+    borderColor: '#CBD5E1',
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: SPACING.sm,
   },
   radioButtonInner: {
     width: 10,
@@ -1280,144 +1310,154 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
   },
   weightOptionText: {
-    ...TYPOGRAPHY.body,
-    color: COLORS.text,
     flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1E293B',
+    fontFamily: 'Outfit_600SemiBold',
   },
   weightPrice: {
-    ...TYPOGRAPHY.bodyBold,
+    fontSize: 16,
+    fontWeight: '800',
     color: COLORS.primary,
-    fontWeight: '700',
-  },
-  addonHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-  },
-  addonPrice: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textSecondary,
+    fontFamily: 'Outfit_800ExtraBold',
   },
   toggleContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.md,
+    backgroundColor: '#FFFFFF',
+    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    ...SHADOWS.sm,
   },
   toggleLabel: {
-    ...TYPOGRAPHY.body,
-    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1E293B',
+    fontFamily: 'Outfit_600SemiBold',
   },
   toggle: {
-    width: 50,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: COLORS.border,
+    width: 48,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#E2E8F0',
     padding: 2,
-    justifyContent: 'center',
   },
   toggleActive: {
     backgroundColor: COLORS.primary,
   },
   toggleThumb: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: COLORS.background,
-    alignSelf: 'flex-start',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#FFFFFF',
+    ...SHADOWS.sm,
   },
   toggleThumbActive: {
-    alignSelf: 'flex-end',
+    transform: [{ translateX: 22 }],
   },
   quantitySelector: {
+    marginTop: SPACING.md,
+    backgroundColor: '#FFFFFF',
+    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: SPACING.md,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    ...SHADOWS.sm,
   },
   quantityLabel: {
-    ...TYPOGRAPHY.body,
-    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748B',
+    fontFamily: 'Outfit_600SemiBold',
   },
   quantityControls: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 4,
   },
   quantityButton: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: COLORS.border,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    ...SHADOWS.sm,
   },
   quantityButtonActive: {
     backgroundColor: COLORS.primary,
   },
-  quantityButtonText: {
-    ...TYPOGRAPHY.bodyBold,
-    color: COLORS.text,
-    fontSize: 16,
+  quantityButtonDisabled: {
+    opacity: 0.5,
   },
-  quantityButtonTextActive: {
-    color: COLORS.background,
+  quantityButtonText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  quantityButtonActiveText: {
+    color: '#FFFFFF',
+  },
+  quantityButtonTextDisabled: {
+    color: '#9CA3AF',
   },
   quantityValue: {
-    ...TYPOGRAPHY.bodyBold,
-    color: COLORS.text,
-    marginHorizontal: SPACING.md,
-    minWidth: 30,
-    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1A1A1A',
+    marginHorizontal: 16,
+    fontFamily: 'Outfit_800ExtraBold',
   },
   instructionsInput: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.md,
+    backgroundColor: '#FFFFFF',
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
-    height: 100,
+    fontSize: 15,
+    color: '#1A1A1A',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    minHeight: 100,
     textAlignVertical: 'top',
-    marginBottom: SPACING.md,
-    backgroundColor: COLORS.backgroundLight,
-    ...TYPOGRAPHY.body,
+    fontFamily: 'Outfit_400Regular',
+    ...SHADOWS.sm,
   },
   mediaButtonsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around', // Center and space evenly
-    marginTop: SPACING.sm,
+    marginTop: SPACING.md,
+    gap: 12,
   },
   mediaButton: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    padding: 10,
+    borderRadius: 12,
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: SPACING.sm,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    ...SHADOWS.sm,
   },
   mediaIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
   },
   mediaButtonText: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-  },
-  imagePreviewContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: SPACING.md,
-    backgroundColor: COLORS.backgroundLight,
-    borderRadius: RADIUS.md,
-    padding: SPACING.xs,
-  },
-  imagePreview: {
-    width: 60,
-    height: 60,
-    borderRadius: RADIUS.sm,
-  },
-  removeImageButton: {
-    marginLeft: SPACING.sm,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    fontFamily: 'Outfit_700Bold',
   },
   photoGalleryContainer: {
     marginTop: SPACING.md,
@@ -1426,81 +1466,141 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.sm,
+    marginBottom: 8,
   },
   photoCount: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
+    fontSize: 12,
+    color: '#64748B',
     fontWeight: '600',
+    fontFamily: 'Outfit_600SemiBold',
   },
   clearAllText: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.error,
-    fontWeight: '600',
+    fontSize: 12,
+    color: '#EF4444',
+    fontWeight: '700',
+    fontFamily: 'Outfit_700Bold',
   },
   photoScroll: {
-    marginHorizontal: -SPACING.sm,
-    paddingVertical: SPACING.sm, // Add vertical padding to prevent clipping
+    flexDirection: 'row',
   },
   photoCard: {
-    position: 'relative',
-    marginHorizontal: SPACING.sm / 2,
     width: 80,
     height: 80,
+    borderRadius: 12,
+    marginRight: 10,
+    overflow: 'hidden',
+    ...SHADOWS.sm,
   },
   photoThumbnail: {
     width: '100%',
     height: '100%',
-    borderRadius: RADIUS.sm,
-    backgroundColor: COLORS.backgroundLight,
   },
   removePhotoButton: {
     position: 'absolute',
-    top: -6,
-    right: -6,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#DC2626',
+    top: 4,
+    right: 4,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#fff',
-    ...SHADOWS.md,
   },
-  blanketOption: {
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-  },
-  blanketOptionSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primaryLight + '10',
-  },
-  blanketOptionContent: {
+  footer: {
+    backgroundColor: '#FFFFFF',
+    padding: SPACING.lg,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: SPACING.md,
+    justifyContent: 'space-between',
+    ...SHADOWS.xl,
   },
-  blanketOptionText: {
-    ...TYPOGRAPHY.body,
-    color: COLORS.text,
+  priceContainer: {
     flex: 1,
   },
-  blanketPrice: {
-    ...TYPOGRAPHY.bodyBold,
+  priceLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+    fontFamily: 'Outfit_600SemiBold',
+  },
+  totalPrice: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1A1A1A',
+    fontFamily: 'Outfit_800ExtraBold',
+  },
+  addToCartButton: {
+    flex: 1.2,
+    height: 52,
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...SHADOWS.primary,
+  },
+  addToCartGradient: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  addToCartText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: 'Outfit_700Bold',
+  },
+  addToCartButtonDisabled: {
+    opacity: 0.7,
+  },
+  addonHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.xs,
+  },
+  addonPrice: {
+    fontSize: 14,
     color: COLORS.primary,
     fontWeight: '700',
+    fontFamily: 'Outfit_700Bold',
+  },
+  blanketRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
+    marginBottom: SPACING.sm,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    ...SHADOWS.sm,
+  },
+  blanketInfo: {
+    flex: 1,
+  },
+  blanketOptionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1E293B',
+    fontFamily: 'Outfit_600SemiBold',
+  },
+  blanketPrice: {
+    fontSize: 14,
+    color: COLORS.primary,
+    fontWeight: '700',
+    fontFamily: 'Outfit_700Bold',
   },
   shoeCard: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.md,
+    backgroundColor: '#FFFFFF',
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
     marginBottom: SPACING.md,
-    backgroundColor: COLORS.backgroundLight,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    ...SHADOWS.sm,
   },
   shoeCardContent: {
     flexDirection: 'row',
@@ -1512,39 +1612,46 @@ const styles = StyleSheet.create({
     marginLeft: SPACING.md,
   },
   shoeName: {
-    ...TYPOGRAPHY.bodyBold,
-    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    fontFamily: 'Outfit_700Bold',
   },
   shoePrice: {
-    ...TYPOGRAPHY.bodySmall,
+    fontSize: 14,
     color: COLORS.primary,
+    fontWeight: '700',
+    fontFamily: 'Outfit_700Bold',
   },
   dryCleanHeader: {
     marginBottom: SPACING.md,
   },
   weightCategoryContainer: {
     flexDirection: 'row',
-    backgroundColor: COLORS.backgroundLight,
+    backgroundColor: '#F1F5F9',
     borderRadius: RADIUS.md,
-    padding: 2,
+    padding: 4,
   },
   weightCategoryButton: {
     flex: 1,
-    paddingVertical: SPACING.sm,
+    paddingVertical: 8,
     alignItems: 'center',
-    borderRadius: RADIUS.sm,
+    borderRadius: 8,
   },
   weightCategoryButtonActive: {
-    backgroundColor: COLORS.background,
+    backgroundColor: '#FFFFFF',
     ...SHADOWS.sm,
   },
   weightCategoryText: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textSecondary,
+    fontSize: 13,
     fontWeight: '600',
+    color: '#64748B',
+    fontFamily: 'Outfit_600SemiBold',
   },
   weightCategoryTextActive: {
     color: COLORS.primary,
+    fontWeight: '700',
+    fontFamily: 'Outfit_700Bold',
   },
   dryCleanGrid: {
     gap: SPACING.md,
@@ -1553,84 +1660,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: SPACING.md,
-    backgroundColor: COLORS.background,
-    borderRadius: RADIUS.md,
+    backgroundColor: '#FFFFFF',
+    borderRadius: RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
+    borderColor: '#F1F5F9',
+    ...SHADOWS.sm,
   },
   dryCleanItemName: {
-    ...TYPOGRAPHY.body,
     flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1E293B',
     marginLeft: SPACING.md,
-    color: COLORS.text,
+    fontFamily: 'Outfit_600SemiBold',
   },
   dryCleanItemSubtext: {
-    ...TYPOGRAPHY.tiny,
-    color: COLORS.textSecondary,
-    position: 'absolute',
-    left: 60,
-    top: 36,
+    fontSize: 11,
+    color: '#94A3B8',
+    marginLeft: 4,
+    fontFamily: 'Outfit_400Regular',
   },
   dryCleanItemPrice: {
-    ...TYPOGRAPHY.bodyBold,
-    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1A1A1A',
     marginRight: SPACING.md,
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: SPACING.lg,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
-    backgroundColor: COLORS.background,
-  },
-  totalContainer: {
-    flex: 1,
-  },
-  totalLabel: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-  },
-  totalAmount: {
-    ...TYPOGRAPHY.heading,
-    color: COLORS.text,
-  },
-  addToCartButton: {
-    flex: 1.5,
-    borderRadius: RADIUS.xl,
-    overflow: 'hidden',
-    ...SHADOWS.md,
-  },
-  addToCartButtonDisabled: {
-    opacity: 0.6,
-  },
-  addToCartGradient: {
-    paddingVertical: SPACING.md,
-    alignItems: 'center',
-  },
-  addToCartText: {
-    ...TYPOGRAPHY.button,
-    color: COLORS.white,
-  },
-  quantityButtonDisabled: {
-    backgroundColor: '#F3F4F6',
-    borderColor: '#E5E7EB',
-  },
-  quantityButtonTextDisabled: {
-    color: '#9CA3AF',
-  },
-  blanketRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: SPACING.md,
-  },
-  blanketInfo: {
-    flex: 1,
+    fontFamily: 'Outfit_700Bold',
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.borderLight,
-    marginVertical: SPACING.xs,
+    backgroundColor: '#F1F5F9',
+    marginVertical: SPACING.md,
   },
 });

@@ -79,7 +79,7 @@ export const AddressMapScreen: React.FC = () => {
                 `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
                 {
                     headers: {
-                        'User-Agent': 'SpinitApp/1.0 (android-app)',
+                        'User-Agent': 'SpinZoApp/1.0 (android-app)',
                         'Accept-Language': 'en-US,en;q=0.9'
                     }
                 }

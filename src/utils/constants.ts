@@ -1,14 +1,14 @@
-// Colors - Pink Primary Theme with Gradients
+// Colors - Purple Primary Theme (#994bff) for SpinZo
 export const COLORS = {
-  // Primary - Pink
-  primary: '#EC4899',
-  primaryLight: '#F9A8D4',
-  primaryDark: '#DB2777',
+  // Primary - Purple
+  primary: '#994BFF',
+  primaryLight: '#B794F4',
+  primaryDark: '#7C3AED',
 
   // Gradient Colors
-  gradientStart: '#EC4899',
-  gradientEnd: '#DB2777',
-  gradientLight: ['#F9A8D4', '#FCE7F3'],
+  gradientStart: '#994BFF',
+  gradientEnd: '#7C3AED',
+  gradientLight: ['#C2B0FF', '#E9D5FF'],
 
   // Text (Black as per user preference)
   text: '#1F1F1F',
@@ -19,9 +19,17 @@ export const COLORS = {
 
   // Backgrounds
   background: '#FFFFFF',
-  backgroundLight: '#F9FAFB',
-  backgroundGradient: '#FFF5F9',
+  backgroundLight: '#FFFFFF', // Tinted from F3F4F6 to brand white
+  backgroundGradient: '#F5F3FF',
+  pageBg: '#EAE8FC', // Deeper tint for maximum white card popping
   cardBg: '#FFFFFF',
+  glassBg: 'rgba(255, 255, 255, 0.8)',
+  glassBorder: 'rgba(255, 255, 255, 0.5)',
+
+  // Brand Accents
+  accentPurple: '#E9D5FF',
+  accentBlue: '#DBEAFE',
+  accentIndigo: '#E0E7FF',
 
   // Status
   success: '#10B981',
@@ -30,97 +38,97 @@ export const COLORS = {
   info: '#3B82F6',
 
   // UI
-  border: '#E5E7EB',
-  borderLight: '#F3F4F6',
+  border: '#EEE7FF', // Tinted border
+  borderLight: '#F3F0FF',
   disabled: '#D1D5DB',
 
   // Shadows
   shadowColor: '#000000',
-  shadowLight: '#EC489920',
+  shadowLight: '#994BFF20',
 
-  // Service tiles (pastel colors with gradients)
-  service1: '#FCE7F3',
-  service1Dark: '#F9A8D4',
-  service2: '#F3E8FF',
-  service2Dark: '#E9D5FF',
-  service3: '#E0E7FF',
-  service3Dark: '#C7D2FE',
-  service4: '#D1FAE5',
-  service4Dark: '#A7F3D0',
+  // Service tiles (modern aesthetic variants)
+  service1: '#F5F3FF',
+  service1Dark: '#C2B0FF',
+  service2: '#F0F9FF',
+  service2Dark: '#BAE6FD',
+  service3: '#ECFDF5',
+  service3Dark: '#A7F3D0',
+  service4: '#FFF7ED',
+  service4Dark: '#FFEDD5',
 };
 
-// Typography - Standardized for professional, aesthetic look
+// Typography - Standardized for professional, aesthetic look using Outfit
 export const TYPOGRAPHY = {
   // Extra large titles (main greetings, hero text)
   display: {
+    fontFamily: 'Outfit_800ExtraBold',
     fontSize: 28,
-    fontWeight: '700' as const,
     lineHeight: 36,
     letterSpacing: -0.5,
   },
   // Large titles (screen headers, main headings)
   heading: {
+    fontFamily: 'Outfit_700Bold',
     fontSize: 24,
-    fontWeight: '700' as const,
     lineHeight: 30,
     letterSpacing: -0.3,
   },
   // Section titles, card titles
   subheading: {
+    fontFamily: 'Outfit_600SemiBold',
     fontSize: 18,
-    fontWeight: '600' as const,
     lineHeight: 24,
     letterSpacing: -0.2,
   },
   // Regular body text (primary content)
   body: {
+    fontFamily: 'Outfit_400Regular',
     fontSize: 15,
-    fontWeight: '400' as const,
     lineHeight: 22,
   },
   // Bold body text
   bodyBold: {
+    fontFamily: 'Outfit_600SemiBold',
     fontSize: 15,
-    fontWeight: '600' as const,
     lineHeight: 22,
   },
   // Smaller body text (secondary content)
   bodySmall: {
+    fontFamily: 'Outfit_500Medium',
     fontSize: 13,
-    fontWeight: '400' as const,
     lineHeight: 18,
   },
   // Labels, badges, small text
   caption: {
+    fontFamily: 'Outfit_500Medium',
     fontSize: 12,
-    fontWeight: '500' as const,
     lineHeight: 16,
   },
   // Button text
   button: {
+    fontFamily: 'Outfit_600SemiBold',
     fontSize: 15,
-    fontWeight: '600' as const,
     lineHeight: 22,
     letterSpacing: 0.3,
   },
   // Very small labels and badges
   tiny: {
+    fontFamily: 'Outfit_700Bold',
     fontSize: 10,
-    fontWeight: '600' as const,
     lineHeight: 14,
   },
   // Address label (DELIVER TO style)
   addressLabel: {
+    fontFamily: 'Outfit_700Bold',
     fontSize: 11,
-    fontWeight: '700' as const,
     lineHeight: 14,
     letterSpacing: 0.5,
     textTransform: 'uppercase' as const,
   },
   // Address text
   addressText: {
+    fontFamily: 'Outfit_600SemiBold',
     fontSize: 14,
-    fontWeight: '600' as const,
     lineHeight: 20,
   },
 };
@@ -135,8 +143,8 @@ export const SPACING = {
   xxl: 48,
   xxxl: 64,
   // Header specific spacing
-  headerTop: 12, // Top padding for header sections
-  headerGap: 16, // Gap between address and greeting sections
+  headerTop: 16, // More breathing room
+  headerGap: 24, // More space between top pill and greeting
 };
 
 // Border Radius
@@ -170,49 +178,49 @@ const shadowGenerator = (color: string, offset: { width: number, height: number 
 
 export const SHADOWS = {
   sm: Platform.OS === 'web'
-    ? { boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.05)' }
+    ? { boxShadow: '0px 2px 10px rgba(153, 75, 255, 0.12)' }
     : {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.05,
-      shadowRadius: 2,
-      elevation: 2,
+      shadowColor: '#7C3AED',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.12,
+      shadowRadius: 5,
+      elevation: 3,
     },
   md: Platform.OS === 'web'
-    ? { boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)' }
+    ? { boxShadow: '0px 6px 20px rgba(153, 75, 255, 0.18)' }
     : {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-      elevation: 4,
+      shadowColor: '#7C3AED', // Deeper purple for shadow
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.18,
+      shadowRadius: 10,
+      elevation: 6,
     },
   lg: Platform.OS === 'web'
-    ? { boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.15)' }
+    ? { boxShadow: '0px 12px 30px rgba(153, 75, 255, 0.22)' }
     : {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 8,
-      elevation: 8,
-    },
-  xl: Platform.OS === 'web'
-    ? { boxShadow: '0px 8px 16px rgba(0, 0, 0, 0.2)' }
-    : {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.2,
-      shadowRadius: 16,
+      shadowColor: '#7C3AED',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.22,
+      shadowRadius: 20,
       elevation: 12,
     },
-  primary: Platform.OS === 'web'
-    ? { boxShadow: '0px 4px 12px rgba(236, 72, 153, 0.3)' } // Pink shadow
+  xl: Platform.OS === 'web'
+    ? { boxShadow: '0px 20px 40px rgba(153, 75, 255, 0.2)' }
     : {
-      shadowColor: '#EC4899',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 12,
-      elevation: 8,
+      shadowColor: '#994BFF',
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.2,
+      shadowRadius: 24,
+      elevation: 15,
+    },
+  primary: Platform.OS === 'web'
+    ? { boxShadow: '0px 8px 24px rgba(153, 75, 255, 0.35)' }
+    : {
+      shadowColor: '#994BFF',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.35,
+      shadowRadius: 16,
+      elevation: 10,
     },
 };
 

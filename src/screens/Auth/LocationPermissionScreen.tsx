@@ -32,7 +32,7 @@ export const LocationPermissionScreen: React.FC = () => {
         `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
         {
           headers: {
-            'User-Agent': 'SpinitApp/1.0', // Replace with your app name
+            'User-Agent': 'SpinZoApp/1.0', // Replace with your app name
           },
         }
       );

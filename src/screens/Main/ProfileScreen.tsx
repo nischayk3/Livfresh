@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, Modal, TouchableWithoutFeedback } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -50,9 +51,15 @@ export const ProfileScreen: React.FC = () => {
 
     return (
         <View style={styles.container}>
+            <LinearGradient
+                colors={[COLORS.pageBg, '#FFFFFF']}
+                style={StyleSheet.absoluteFill}
+            />
             <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? SPACING.lg : insets.top + SPACING.headerTop }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+                    <View style={styles.backButtonBg}>
+                        <Ionicons name="arrow-back" size={20} color={COLORS.primary} />
+                    </View>
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Profile</Text>
                 <View style={{ width: 40 }} />
@@ -62,20 +69,28 @@ export const ProfileScreen: React.FC = () => {
 
                 {/* Profile Header Card */}
                 <View style={styles.profileCard}>
-                    <View style={styles.avatarContainer}>
+                    <LinearGradient
+                        colors={[COLORS.primary, COLORS.primaryDark]}
+                        style={styles.avatarContainer}
+                    >
                         <Text style={styles.avatarText}>{getInitials(user?.name || '')}</Text>
-                    </View>
+                    </LinearGradient>
                     <View style={styles.userInfo}>
                         <Text style={styles.userName}>{user?.name || 'User'}</Text>
                         <Text style={styles.userPhone}>{user?.phone || ''}</Text>
                     </View>
                     <TouchableOpacity
-                        style={styles.editButton}
+                        style={styles.editButtonBg}
                         onPress={() => (navigation as any).navigate('Main', { screen: 'EditProfile' })}
                     >
-                        <Ionicons name="pencil" size={20} color={COLORS.primary} />
+                        <View style={styles.editButtonBg}>
+                            <Ionicons name="pencil" size={18} color={COLORS.primary} />
+                        </View>
                     </TouchableOpacity>
                 </View>
+
+                {/* Sections Header */}
+                <Text style={styles.sectionTitle}>Account Settings</Text>
 
                 {/* Menu Options */}
                 <View style={styles.menuContainer}>
@@ -83,33 +98,33 @@ export const ProfileScreen: React.FC = () => {
                         style={styles.menuItem}
                         onPress={() => (navigation as any).navigate('Main', { screen: 'AddressList' })}
                     >
-                        <View style={[styles.menuIcon, { backgroundColor: COLORS.primaryLight }]}>
-                            <Ionicons name="location-outline" size={22} color={COLORS.primary} />
+                        <View style={[styles.menuIcon, { backgroundColor: '#F0E7FF' }]}>
+                            <Ionicons name="location-sharp" size={20} color={COLORS.primary} />
                         </View>
                         <Text style={styles.menuText}>Your Addresses</Text>
-                        <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+                        <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         style={styles.menuItem}
                         onPress={() => (navigation as any).navigate('MyOrders')}
                     >
-                        <View style={[styles.menuIcon, { backgroundColor: COLORS.info + '20' }]}>
-                            <Ionicons name="receipt-outline" size={22} color={COLORS.info} />
+                        <View style={[styles.menuIcon, { backgroundColor: '#E0F2FE' }]}>
+                            <Ionicons name="receipt-sharp" size={20} color="#0EA5E9" />
                         </View>
                         <Text style={styles.menuText}>My Orders</Text>
-                        <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+                        <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         style={styles.menuItem}
                         onPress={() => (navigation as any).navigate('Main', { screen: 'HelpSupport' })}
                     >
-                        <View style={[styles.menuIcon, { backgroundColor: COLORS.warning + '20' }]}>
-                            <Ionicons name="headset-outline" size={22} color={COLORS.warning} />
+                        <View style={[styles.menuIcon, { backgroundColor: '#FEF3C7' }]}>
+                            <Ionicons name="headset-sharp" size={20} color="#F59E0B" />
                         </View>
                         <Text style={styles.menuText}>Help & Support</Text>
-                        <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+                        <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
                     </TouchableOpacity>
 
                     {/* Admin Dashboard - Seamless entry for authorized numbers only */}
@@ -118,19 +133,21 @@ export const ProfileScreen: React.FC = () => {
                             style={styles.menuItem}
                             onPress={() => (navigation as any).navigate('AdminLogin')}
                         >
-                            <View style={[styles.menuIcon, { backgroundColor: COLORS.primary + '20' }]}>
-                                <Ionicons name="shield-checkmark-outline" size={22} color={COLORS.primary} />
+                            <View style={[styles.menuIcon, { backgroundColor: '#F5F3FF' }]}>
+                                <Ionicons name="shield-checkmark-sharp" size={20} color={COLORS.primary} />
                             </View>
                             <Text style={styles.menuText}>Admin Dashboard</Text>
-                            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+                            <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
                         </TouchableOpacity>
                     )}
                 </View >
 
                 {/* Logout Button */}
                 <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-                    <Ionicons name="log-out-outline" size={20} color={COLORS.error} />
-                    <Text style={styles.logoutText}>Logout</Text>
+                    <View style={styles.logoutIconBg}>
+                        <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+                    </View>
+                    <Text style={styles.logoutText}>Logout from SpinZo</Text>
                 </TouchableOpacity>
 
             </ScrollView>
@@ -141,7 +158,7 @@ export const ProfileScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.background,
+        backgroundColor: '#F8F7FF',
     },
     header: {
         flexDirection: 'row',
@@ -149,15 +166,24 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: SPACING.md,
         paddingBottom: SPACING.md,
-        backgroundColor: COLORS.background,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.borderLight,
     },
     backButton: {
         padding: SPACING.xs,
     },
+    backButtonBg: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...SHADOWS.sm,
+    },
     headerTitle: {
-        ...TYPOGRAPHY.subheading,
+        fontSize: 18,
+        fontWeight: '700',
+        fontFamily: 'Outfit_700Bold',
+        color: '#1A1A1A',
     },
     scrollContent: {
         padding: SPACING.lg,
@@ -166,86 +192,117 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         padding: SPACING.lg,
-        backgroundColor: COLORS.cardBg,
-        borderRadius: RADIUS.lg,
-        ...SHADOWS.md,
+        backgroundColor: '#FFFFFF',
+        borderRadius: RADIUS.xl,
+        ...SHADOWS.lg,
         marginBottom: SPACING.xl,
         borderWidth: 1,
-        borderColor: COLORS.borderLight,
+        borderColor: '#F1F5F9',
     },
     avatarContainer: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        backgroundColor: COLORS.primaryLight,
+        width: 70,
+        height: 70,
+        borderRadius: 35,
         alignItems: 'center',
         justifyContent: 'center',
-        borderWidth: 2,
-        borderColor: COLORS.primary,
         marginRight: SPACING.md,
+        ...SHADOWS.md,
     },
     avatarText: {
-        ...TYPOGRAPHY.heading,
-        color: COLORS.primary,
-        fontSize: 24,
+        fontSize: 28,
+        fontWeight: '800',
+        color: '#FFFFFF',
+        fontFamily: 'Outfit_800ExtraBold',
     },
     userInfo: {
         flex: 1,
     },
     userName: {
-        ...TYPOGRAPHY.subheading,
-        marginBottom: 4,
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#1A1A1A',
+        fontFamily: 'Outfit_700Bold',
+        marginBottom: 2,
     },
     userPhone: {
-        ...TYPOGRAPHY.body,
-        color: COLORS.textSecondary,
+        fontSize: 14,
+        color: '#64748B',
+        fontWeight: '500',
+        fontFamily: 'Outfit_500Medium',
     },
-    editButton: {
+    editButtonBg: {
         padding: 8,
+        backgroundColor: '#F5F3FF',
+        borderRadius: 10,
+    },
+    sectionTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#64748B',
+        fontFamily: 'Outfit_700Bold',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+        marginBottom: SPACING.md,
+        marginTop: SPACING.sm,
     },
     menuContainer: {
-        backgroundColor: COLORS.cardBg,
-        borderRadius: RADIUS.lg,
+        backgroundColor: '#FFFFFF',
+        borderRadius: RADIUS.xl,
         paddingVertical: SPACING.xs,
         borderWidth: 1,
-        borderColor: COLORS.borderLight,
-        ...SHADOWS.sm,
+        borderColor: '#F1F5F9',
+        ...SHADOWS.md,
         marginBottom: SPACING.xl,
+        overflow: 'hidden',
     },
     menuItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: SPACING.md,
+        padding: SPACING.md + 2,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.borderLight,
+        borderBottomColor: '#F8FAFC',
     },
     menuIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
+        width: 42,
+        height: 42,
+        borderRadius: 12,
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: SPACING.md,
     },
     menuText: {
         flex: 1,
-        ...TYPOGRAPHY.body,
-        fontWeight: '500',
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#1E293B',
+        fontFamily: 'Outfit_600SemiBold',
     },
     logoutButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: SPACING.md,
-        backgroundColor: COLORS.error + '10',
-        borderRadius: RADIUS.lg,
+        padding: SPACING.md + 4,
+        backgroundColor: '#FFF1F2',
+        borderRadius: RADIUS.xl,
         borderWidth: 1,
-        borderColor: COLORS.error + '30',
-        gap: 8,
+        borderColor: '#FFE4E6',
+        gap: 12,
+        marginBottom: 40,
+        ...SHADOWS.sm,
+    },
+    logoutIconBg: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     logoutText: {
-        ...TYPOGRAPHY.bodyBold,
-        color: COLORS.error,
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#E11D48',
+        fontFamily: 'Outfit_700Bold',
     },
     // Modal styles
     modalOverlay: {
@@ -255,7 +312,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     modalContent: {
-        backgroundColor: COLORS.white,
+        backgroundColor: '#FFFFFF',
         borderRadius: RADIUS.xl,
         padding: SPACING.xl,
         width: '85%',
@@ -289,7 +346,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     cancelButton: {
-        backgroundColor: COLORS.backgroundLight,
+        backgroundColor: '#F1F5F9',
         borderWidth: 1,
         borderColor: COLORS.border,
     },
@@ -302,6 +359,6 @@ const styles = StyleSheet.create({
     },
     confirmButtonText: {
         ...TYPOGRAPHY.bodyBold,
-        color: COLORS.white,
+        color: '#FFFFFF',
     },
 });

@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Spinit",
-    "slug": "Spinit",
-    "scheme": "spinit",
+    "name": "SpinZo",
+    "slug": "SpinZo",
+    "scheme": "spinzo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nischayk3.Spinit-ios",
+      "bundleIdentifier": "com.nischayk3.Spinzo-ios",
       "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
@@ -25,7 +25,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.nischayk3.Spinit",
+      "package": "com.nischayk3.Spinzo",
       "googleServicesFile": "./google-services.json"
     },
     "web": {
@@ -54,7 +54,8 @@
       ],
       "./plugins/withFirebaseModularHeaders",
       "@react-native-firebase/app",
-      "@react-native-firebase/auth"
+      "@react-native-firebase/auth",
+      "expo-font"
     ]
   }
 }

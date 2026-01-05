@@ -118,11 +118,11 @@ export const PhoneLoginScreen: React.FC = () => {
           {/* Logo & Branding */}
           <View style={styles.brandingContainer}>
             <Image
-              source={require('../../../assets/spinit_logo.png')}
+              source={require('../../../assets/SpinZo.png')}
               style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={styles.appName}>Spinit</Text>
+            <Text style={styles.appName}>SpinZo</Text>
             <Text style={styles.tagline}>Premium Laundry Services</Text>
           </View>
 

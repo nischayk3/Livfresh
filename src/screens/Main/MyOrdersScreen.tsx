@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { BrandLoader } from '../../components/BrandLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -79,50 +80,53 @@ export const MyOrdersScreen: React.FC = () => {
     };
 
     const renderOrderItem = ({ item }: { item: any }) => {
-        // Safe access for timestamps
         const date = item.createdAt?.toDate ? item.createdAt.toDate() : new Date();
-        const dateString = date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+        const dateString = date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+        const year = date.getFullYear();
 
-        // Item summary
         const itemCount = item.items?.length || 0;
         const totalAmount = item.billDetails?.total || 0;
+        const status = item.status || 'placed';
 
         return (
             <TouchableOpacity
-                style={styles.orderCard}
+                style={styles.compactCard}
                 onPress={() => (navigation as any).navigate('OrderDetail', { orderId: item.id })}
+                activeOpacity={0.8}
             >
-                <View style={styles.cardHeader}>
-                    <Text style={styles.orderDate}>{dateString}</Text>
-                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
-                        <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-                            {formatStatus(item.status)}
-                        </Text>
+                <View style={styles.cardAccent} />
+                <View style={styles.cardMain}>
+                    <View style={styles.cardHeaderArea}>
+                        <View>
+                            <Text style={styles.cardDateText}>{dateString}, {year}</Text>
+                            <Text style={styles.cardIdText}>Order #{item.id.slice(-6).toUpperCase()}</Text>
+                        </View>
+                        <View style={[styles.statusPill, { backgroundColor: getStatusColor(status) + '15' }]}>
+                            <View style={[styles.statusDot, { backgroundColor: getStatusColor(status) }]} />
+                            <Text style={[styles.statusPillText, { color: getStatusColor(status) }]}>
+                                {formatStatus(status)}
+                            </Text>
+                        </View>
                     </View>
-                </View>
 
-                <View style={styles.divider} />
-
-                <View style={styles.cardBody}>
-                    <View style={styles.infoRow}>
-                        <Ionicons name="basket-outline" size={16} color={COLORS.textSecondary} />
-                        <Text style={styles.infoText}>
-                            {itemCount} Items
-                            {/* Show Blanket details if available */}
-                            {item.items?.some((i: any) => i.serviceType === 'blanket_wash') && ' (Inc. Blankets)'}
-                        </Text>
+                    <View style={styles.cardContentArea}>
+                        <View style={styles.itemSummary}>
+                            <View style={styles.summaryIcon}>
+                                <Ionicons name="shirt-outline" size={14} color="#64748B" />
+                            </View>
+                            <Text style={styles.summaryText}>{itemCount} Items</Text>
+                        </View>
+                        <View style={styles.priceSummary}>
+                            <Text style={styles.currency}>₹</Text>
+                            <Text style={styles.amount}>{totalAmount}</Text>
+                        </View>
                     </View>
-                    <View style={styles.infoRow}>
-                        <Ionicons name="wallet-outline" size={16} color={COLORS.textSecondary} />
-                        <Text style={styles.amountText}>₹{totalAmount}</Text>
-                    </View>
-                </View>
 
-                <View style={styles.cardFooter}>
-                    <Text style={styles.orderId}>Order #{item.id.slice(-6).toUpperCase()}</Text>
-                    <View style={styles.viewDetailsBtn}>
-                        <Text style={styles.viewDetailsText}>View Details</Text>
-                        <Ionicons name="chevron-forward" size={12} color={COLORS.primary} />
+                    <View style={styles.cardFooterArea}>
+                        <View style={styles.detailsLink}>
+                            <Text style={styles.detailsLinkText}>Track Order</Text>
+                            <Ionicons name="arrow-forward" size={12} color={COLORS.primary} />
+                        </View>
                     </View>
                 </View>
             </TouchableOpacity>
@@ -135,32 +139,40 @@ export const MyOrdersScreen: React.FC = () => {
 
     return (
         <View style={styles.container}>
+            <LinearGradient
+                colors={[COLORS.pageBg, '#FFFFFF']}
+                style={StyleSheet.absoluteFill}
+            />
             <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? SPACING.lg : insets.top + SPACING.headerTop }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+                    <View style={styles.backButtonBg}>
+                        <Ionicons name="arrow-back" size={20} color={COLORS.primary} />
+                    </View>
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>My Orders</Text>
                 <View style={{ width: 40 }} />
             </View>
 
             {/* Tabs */}
-            <View style={styles.tabContainer}>
-                <TouchableOpacity
-                    style={[styles.tab, activeTab === 'current' && styles.activeTab]}
-                    onPress={() => setActiveTab('current')}
-                >
-                    <Text style={[styles.tabText, activeTab === 'current' && styles.activeTabText]}>
-                        Current {currentOrders.length > 0 && `(${currentOrders.length})`}
-                    </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.tab, activeTab === 'past' && styles.activeTab]}
-                    onPress={() => setActiveTab('past')}
-                >
-                    <Text style={[styles.tabText, activeTab === 'past' && styles.activeTabText]}>
-                        Past {pastOrders.length > 0 && `(${pastOrders.length})`}
-                    </Text>
-                </TouchableOpacity>
+            <View style={styles.tabOuterContainer}>
+                <View style={styles.tabContainer}>
+                    <TouchableOpacity
+                        style={[styles.tab, activeTab === 'current' && styles.activeTab]}
+                        onPress={() => setActiveTab('current')}
+                    >
+                        <Text style={[styles.tabText, activeTab === 'current' && styles.activeTabText]}>
+                            Running {currentOrders.length > 0 && `(${currentOrders.length})`}
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.tab, activeTab === 'past' && styles.activeTab]}
+                        onPress={() => setActiveTab('past')}
+                    >
+                        <Text style={[styles.tabText, activeTab === 'past' && styles.activeTabText]}>
+                            History {pastOrders.length > 0 && `(${pastOrders.length})`}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <FlatList
@@ -207,159 +219,231 @@ export const MyOrdersScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.background,
+        backgroundColor: COLORS.pageBg,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: SPACING.md,
-        paddingBottom: SPACING.md,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.borderLight,
-        backgroundColor: COLORS.background,
-    },
-    backButton: {
-        padding: SPACING.xs,
-    },
-    headerTitle: {
-        ...TYPOGRAPHY.subheading,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    listContent: {
-        padding: SPACING.md,
-    },
-    orderCard: {
-        backgroundColor: COLORS.cardBg,
-        borderRadius: RADIUS.md,
-        marginBottom: SPACING.md,
-        padding: SPACING.md,
-        borderWidth: 1,
-        borderColor: COLORS.borderLight,
+        paddingBottom: SPACING.lg,
+        backgroundColor: '#FFFFFF',
+        borderBottomLeftRadius: 36,
+        borderBottomRightRadius: 36,
         ...SHADOWS.sm,
     },
-    cardHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+    backButton: {
+        padding: 4,
+    },
+    backButtonBg: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#F8FAFC',
         alignItems: 'center',
-        marginBottom: SPACING.sm,
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
     },
-    orderDate: {
-        ...TYPOGRAPHY.bodyBold,
-        color: COLORS.text,
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: '800',
+        fontFamily: 'Outfit_800ExtraBold',
+        color: '#1A1A1A',
     },
-    statusBadge: {
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: RADIUS.sm,
+    tabOuterContainer: {
+        paddingHorizontal: SPACING.md,
+        marginTop: 20,
+        marginBottom: 10,
     },
-    statusText: {
-        fontSize: 10,
-        fontWeight: '700',
-    },
-    divider: {
-        height: 1,
-        backgroundColor: COLORS.borderLight,
-        marginVertical: SPACING.sm,
-    },
-    cardBody: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: SPACING.sm,
-    },
-    infoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    infoText: {
-        fontSize: 14,
-        color: COLORS.textSecondary,
-    },
-    amountText: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: COLORS.text,
-    },
-    cardFooter: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginTop: SPACING.xs,
-    },
-    orderId: {
-        fontSize: 10,
-        color: COLORS.textLight,
-        fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    },
-    viewDetailsBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 2,
-    },
-    viewDetailsText: {
-        fontSize: 12,
-        color: COLORS.primary,
-        fontWeight: '600',
-    },
-    // Tab Styles
     tabContainer: {
         flexDirection: 'row',
-        backgroundColor: COLORS.background,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.borderLight,
+        backgroundColor: '#F1F5F9',
+        borderRadius: 16,
+        padding: 4,
     },
     tab: {
         flex: 1,
-        paddingVertical: SPACING.md,
+        paddingVertical: 10,
         alignItems: 'center',
-        borderBottomWidth: 2,
-        borderBottomColor: 'transparent',
+        borderRadius: 12,
     },
     activeTab: {
-        borderBottomColor: COLORS.primary,
+        backgroundColor: '#FFFFFF',
+        ...SHADOWS.sm,
     },
     tabText: {
         fontSize: 14,
         fontWeight: '600',
-        color: COLORS.textSecondary,
+        color: '#64748B',
+        fontFamily: 'Outfit_600SemiBold',
     },
     activeTabText: {
         color: COLORS.primary,
+        fontWeight: '800',
+        fontFamily: 'Outfit_800ExtraBold',
+    },
+    listContent: {
+        paddingHorizontal: SPACING.md,
+        paddingTop: 8,
+    },
+    compactCard: {
+        flexDirection: 'row',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        marginBottom: 16,
+        overflow: 'hidden',
+        ...SHADOWS.md,
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+    },
+    cardAccent: {
+        width: 6,
+        backgroundColor: COLORS.primary,
+        opacity: 0.8,
+    },
+    cardMain: {
+        flex: 1,
+        padding: 16,
+    },
+    cardHeaderArea: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 12,
+    },
+    cardDateText: {
+        fontSize: 15,
+        fontWeight: '800',
+        color: '#1A1A1A',
+        fontFamily: 'Outfit_800ExtraBold',
+    },
+    cardIdText: {
+        fontSize: 11,
+        color: '#94A3B8',
+        fontFamily: 'Outfit_500Medium',
+        marginTop: 2,
+    },
+    statusPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 12,
+        gap: 6,
+    },
+    statusDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+    },
+    statusPillText: {
+        fontSize: 10,
+        fontWeight: '800',
+        fontFamily: 'Outfit_800ExtraBold',
+    },
+    cardContentArea: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: '#F8FAFC',
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 12,
+    },
+    itemSummary: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    summaryIcon: {
+        width: 24,
+        height: 24,
+        borderRadius: 8,
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...SHADOWS.sm,
+    },
+    summaryText: {
+        fontSize: 13,
+        color: '#475569',
+        fontWeight: '600',
+        fontFamily: 'Outfit_600SemiBold',
+    },
+    priceSummary: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        gap: 2,
+    },
+    currency: {
+        fontSize: 12,
         fontWeight: '700',
+        color: '#1A1A1A',
+    },
+    amount: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#1A1A1A',
+        fontFamily: 'Outfit_800ExtraBold',
+    },
+    cardFooterArea: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+    },
+    detailsLink: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    detailsLinkText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: COLORS.primary,
+        fontFamily: 'Outfit_700Bold',
     },
     emptyContainer: {
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: SPACING.xl * 2,
+        paddingVertical: 60,
     },
     emptyIconContainer: {
-        marginBottom: SPACING.md,
-        opacity: 0.5,
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 20,
+        ...SHADOWS.md,
     },
     emptyText: {
-        ...TYPOGRAPHY.subheading,
-        color: COLORS.text,
-        marginBottom: SPACING.xs,
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#1A1A1A',
+        fontFamily: 'Outfit_800ExtraBold',
+        marginBottom: 8,
     },
     emptySubtext: {
-        ...TYPOGRAPHY.body,
-        color: COLORS.textSecondary,
+        fontSize: 14,
+        color: '#64748B',
         textAlign: 'center',
-        marginBottom: SPACING.lg,
+        fontFamily: 'Outfit_400Regular',
+        marginBottom: 24,
+        paddingHorizontal: 40,
     },
     browseButton: {
-        paddingVertical: SPACING.sm,
-        paddingHorizontal: SPACING.lg,
+        paddingVertical: 14,
+        paddingHorizontal: 32,
         backgroundColor: COLORS.primary,
-        borderRadius: RADIUS.md,
+        borderRadius: 20,
+        ...SHADOWS.primary,
     },
     browseButtonText: {
-        ...TYPOGRAPHY.button,
-        color: COLORS.background,
+        fontSize: 15,
+        fontWeight: '800',
+        color: '#FFFFFF',
+        fontFamily: 'Outfit_800ExtraBold',
     },
 });

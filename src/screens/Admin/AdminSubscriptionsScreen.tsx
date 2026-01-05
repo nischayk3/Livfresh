@@ -307,7 +307,7 @@ export const AdminSubscriptionsScreen: React.FC = () => {
                   </View>
                   <TouchableOpacity
                     style={styles.uploadBox}
-                    onPress={() => showAlert({ title: 'Web Only', message: 'CSV Upload is currently only supported on Web version as per Sipzo logic.', type: 'info' })}
+                    onPress={() => showAlert({ title: 'Web Only', message: 'CSV Upload is currently only supported on Web version as per SpinZo logic.', type: 'info' })}
                   >
                     <Ionicons name="cloud-upload" size={40} color={COLORS.primary} />
                     <Text style={styles.uploadText}>Select CSV File</Text>

@@ -194,7 +194,7 @@ export const UseCreditModal: React.FC<UseCreditModalProps> = ({ visible, onClose
         // Add Wash & Fold item (Credit based)
         addItem({
             vendorId: 'vendor_1',
-            vendorName: 'Spinit Cloud Laundry',
+            vendorName: 'SpinZo Cloud Laundry',
             serviceId: 'wash_fold',
             serviceName: 'Wash & Fold (Subscription)',
             serviceType: 'wash_fold',
@@ -213,7 +213,7 @@ export const UseCreditModal: React.FC<UseCreditModalProps> = ({ visible, onClose
         if (ironingEnabled) {
             addItem({
                 vendorId: 'vendor_1',
-                vendorName: 'Spinit Cloud Laundry',
+                vendorName: 'SpinZo Cloud Laundry',
                 serviceId: 'ironing_addon',
                 serviceName: 'Ironing Add-on',
                 serviceType: 'wash_iron',

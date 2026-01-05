@@ -24,12 +24,12 @@ import { BrandLoader } from '../../components/BrandLoader';
 import { FaqAccordion } from '../../components/FaqAccordion';
 
 const HOME_FAQS = [
-  { question: "How does Spinit's service work?", answer: "We pick up your clothes within 30 minutes, wash and fold them, and deliver them back within 6 hours. Simple, fast, and hassle-free." },
+  { question: "How does SpinZo's service work?", answer: "We pick up your clothes within 30 minutes, wash and fold them, and deliver them back within 6 hours. Simple, fast, and hassle-free." },
   { question: "Do you offer pickup and delivery?", answer: "Yes, doorstep pickup and delivery are completely free in all supported areas." },
   { question: "How will my clothes be weighed?", answer: "Our delivery partner weighs your clothes on the spot using a digital weighing scale for accurate billing." },
   { question: "How long does the laundry process take?", answer: "Most orders are completed and delivered within 6 hours." },
   { question: "What payment methods do you accept?", answer: "We accept UPI, GPay, Paytm, and cash on delivery." },
-  { question: "Where is Spinit's store located?", answer: "Spinit operates through trusted partner laundry units instead of walk-in stores to ensure faster doorstep service." },
+  { question: "Where is SpinZo's store located?", answer: "SpinZo operates through trusted partner laundry units instead of walk-in stores to ensure faster doorstep service." },
 ];
 
 // Import assets
@@ -43,21 +43,21 @@ const PROMOS = [
     title: 'Quick Pickup',
     subtitle: 'We come to your doorstep',
     image: promoPickup,
-    gradient: ['#FFF0F7', '#FCE7F3'],
+    gradient: ['#FDFCFE', '#F5F3FF'],
   },
   {
     id: '2',
     title: 'Same Day Delivery',
     subtitle: 'Fresh clothes, fast',
     image: promoDelivery,
-    gradient: ['#FCE7F3', '#FDF2F8'],
+    gradient: ['#F5F3FF', '#EDE9FE'],
   },
   {
     id: '3',
     title: 'Relax & Unwind',
     subtitle: 'We handle the rest',
     image: promoRelax,
-    gradient: ['#FDF2F8', '#FFF0F7'],
+    gradient: ['#EDE9FE', '#F5F3FF'],
   },
 ];
 
@@ -65,30 +65,34 @@ const SERVICES = [
   {
     id: 'wash_fold',
     name: 'Wash & Fold',
-    icon: 'layers-outline',
-    color: COLORS.primary,
+    icon: 'layers-sharp',
+    color: '#8B5CF6',
     description: 'Regular laundry',
+    gradient: ['#F5F3FF', '#EDE9FE'],
   },
   {
     id: 'wash_iron',
     name: 'Wash & Iron',
-    icon: 'shirt-outline',
-    color: COLORS.primary,
+    icon: 'shirt-sharp',
+    color: '#7C3AED',
     description: 'Pressed & crisp',
+    gradient: ['#EDE9FE', '#DDD6FE'],
   },
   {
     id: 'blanket_wash',
     name: 'Blanket Wash',
-    icon: 'bed-outline',
-    color: COLORS.primary,
+    icon: 'bed-sharp',
+    color: '#6366F1',
     description: 'Comforters & quilts',
+    gradient: ['#EEF2FF', '#E0E7FF'],
   },
   {
     id: 'subscription',
     name: 'Subscribe',
-    icon: 'sparkles-outline',
+    icon: 'sparkles-sharp',
     color: COLORS.primary,
     description: 'Save more',
+    gradient: ['#F5F3FF', '#EDE9FE'],
     disabled: false,
   },
 ];
@@ -156,10 +160,9 @@ export const HomeScreen: React.FC = () => {
 
   const getGreeting = (): string => {
     const hour = new Date().getHours();
-    if (hour >= 6 && hour < 12) return 'Good Morning';
-    if (hour >= 12 && hour < 18) return 'Good Afternoon';
-    if (hour >= 18 && hour < 22) return 'Good Evening';
-    return 'Good Night';
+    if (hour >= 5 && hour < 12) return 'Good Morning';
+    if (hour >= 12 && hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
   };
 
   const handleServicePress = (serviceId: string) => {
@@ -194,7 +197,7 @@ export const HomeScreen: React.FC = () => {
       >
         <View style={styles.promoContent}>
           <View style={styles.promoBadge}>
-            <Text style={styles.promoBadgeText}>Why Spinit?</Text>
+            <Text style={styles.promoBadgeText}>Why SpinZo?</Text>
           </View>
           <Text style={styles.promoTitle}>{item.title}</Text>
           <Text style={styles.promoSubtitle}>{item.subtitle}</Text>
@@ -223,43 +226,49 @@ export const HomeScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + SPACING.headerTop }]}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity style={styles.locationContainer} onPress={handleAddressPress}>
-            <Ionicons name="location-sharp" size={16} color={COLORS.primary} />
-            <View style={styles.addressButton}>
-              <Text style={styles.locationLabel}>Deliver to</Text>
-              <Text style={styles.locationText} numberOfLines={1}>
-                {currentAddress || 'Select Location'}
+      <LinearGradient
+        colors={[COLORS.pageBg, '#FFFFFF']}
+        style={StyleSheet.absoluteFill}
+      />
+      {/* Header Area */}
+      <View style={[styles.premiumHeader, { paddingTop: insets.top + SPACING.headerTop }]}>
+        <View style={styles.headerTopArea}>
+          <TouchableOpacity style={styles.addressPill} onPress={handleAddressPress}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="location" size={16} color={COLORS.primary} />
+            </View>
+            <View style={styles.addressInfo}>
+              <Text style={styles.addressLabel}>DELIVER TO</Text>
+              <Text style={styles.addressText} numberOfLines={1}>
+                {currentAddress || 'Set address'}
               </Text>
             </View>
-            <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
+            <Ionicons name="chevron-down" size={14} color={COLORS.textSecondary} />
           </TouchableOpacity>
+
           <TouchableOpacity
-            style={[
-              styles.creditsButton,
-              getTotalCredits() > 0 && styles.creditsButtonActive
-            ]}
+            style={styles.walletBadge}
             onPress={() => (navigation as any).navigate('Main', { screen: 'Credits' })}
           >
-            <Ionicons
-              name="card"
-              size={14}
-              color={getTotalCredits() > 0 ? COLORS.primary : COLORS.textSecondary}
-            />
-            <Text style={[
-              styles.creditsText,
-              { color: getTotalCredits() > 0 ? COLORS.primary : COLORS.textSecondary }
-            ]}>
-              {getTotalCredits() > 0 ? `${getTotalCredits()} Credits` : '0 Credits'}
-            </Text>
+            <LinearGradient
+              colors={[COLORS.primary, COLORS.primaryDark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.walletGradient}
+            >
+              <Ionicons name="wallet-outline" size={14} color="#FFF" />
+              <Text style={styles.walletAmount}>{getTotalCredits()}</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.greetingContainer}>
-          <Text style={styles.greetingText}>{getGreeting()}, {user?.name?.split(' ')[0] || 'there'}!</Text>
-          <Text style={styles.subGreeting}>Fresh laundry, delivered to you</Text>
+        <View style={styles.greetingSection}>
+          <View>
+            <Text style={styles.welcomeText}>
+              {getGreeting()}, <Text style={styles.userName}>{user?.name?.split(' ')[0] || 'Guest'}</Text> 👋
+            </Text>
+            <Text style={styles.brandTagline}>Ready for fresh clothes?</Text>
+          </View>
         </View>
       </View>
 
@@ -326,13 +335,17 @@ export const HomeScreen: React.FC = () => {
                 activeOpacity={(service as any).disabled ? 1 : 0.7}
                 disabled={(service as any).disabled}
               >
+                <LinearGradient
+                  colors={service.gradient as [string, string]}
+                  style={styles.serviceOverlay}
+                />
                 <View style={[
                   styles.serviceIconContainer,
-                  { backgroundColor: (service as any).disabled ? '#F3F4F6' : service.color + '15' }
+                  { backgroundColor: (service as any).disabled ? '#F3F4F6' : '#FFFFFF' }
                 ]}>
                   <Ionicons
                     name={service.icon as any}
-                    size={28}
+                    size={26}
                     color={(service as any).disabled ? '#9CA3AF' : service.color}
                   />
                 </View>
@@ -393,238 +406,296 @@ export const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.pageBg,
   },
-  header: {
+  premiumHeader: {
     paddingHorizontal: SPACING.md,
-    paddingBottom: SPACING.md,
-    backgroundColor: COLORS.background,
+    paddingTop: SPACING.headerTop + 4,
+    paddingBottom: SPACING.lg, // Reduced from XL for compactness
+    backgroundColor: '#FFFFFF',
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+    ...SHADOWS.md,
+    marginBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderLight,
+    borderBottomColor: '#F1F5F9',
   },
-  headerTop: {
+  headerTopArea: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.headerGap,
+    marginBottom: 20, // Reduced from 24
   },
-  locationContainer: {
+  addressPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.backgroundLight,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm + 2,
-    borderRadius: RADIUS.lg,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 24,
     flex: 1,
-    marginRight: SPACING.sm,
+    marginRight: 12,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
+    borderColor: '#F1F5F9',
   },
-  addressButton: {
+  iconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...SHADOWS.sm,
+  },
+  addressInfo: {
+    marginLeft: 12,
     flex: 1,
-    marginHorizontal: SPACING.sm,
   },
-  locationLabel: {
-    ...TYPOGRAPHY.addressLabel,
+  addressLabel: {
+    fontSize: 9,
+    fontWeight: '900',
     color: COLORS.primary,
-    marginBottom: 2,
+    letterSpacing: 1.2,
   },
-  locationText: {
-    ...TYPOGRAPHY.addressText,
-    color: COLORS.text,
+  addressText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1A1A1A',
+    marginTop: -1,
+    fontFamily: 'Outfit_800ExtraBold',
   },
-  creditsButton: {
+  walletBadge: {
+    borderRadius: 22,
+    overflow: 'hidden',
+    ...SHADOWS.primary,
+  },
+  walletGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.background,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 8,
   },
-  creditsButtonActive: {
-    backgroundColor: COLORS.primaryLight,
-    borderColor: COLORS.primary,
+  walletAmount: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+    fontFamily: 'Outfit_900Black',
   },
-  creditsText: {
-    fontSize: 11,
+  greetingSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+  },
+  welcomeText: {
+    fontSize: 22,
     fontWeight: '600',
+    color: '#64748B',
+    fontFamily: 'Outfit_600SemiBold',
+    letterSpacing: -0.5,
   },
-  greetingContainer: {
-    marginTop: SPACING.xs,
+  userName: {
+    color: COLORS.primary,
+    fontWeight: '800',
+    fontFamily: 'Outfit_800ExtraBold',
   },
-  greetingText: {
-    ...TYPOGRAPHY.display,
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  subGreeting: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textSecondary,
+  brandTagline: {
+    fontSize: 14,
+    color: '#94A3B8',
+    fontWeight: '500',
+    fontFamily: 'Outfit_500Medium',
+    marginTop: 4,
   },
   scrollContent: {
-    paddingBottom: SPACING.xl * 4,
+    paddingBottom: 140,
   },
   promoSection: {
-    marginTop: SPACING.md,
-    marginBottom: SPACING.md,
+    marginTop: -20,
+    zIndex: 10,
   },
   promoList: {
     paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
   },
   promoCard: {
-    width: Dimensions.get('window').width - 64,
-    height: 120,
-    borderRadius: RADIUS.lg,
-    marginRight: SPACING.md,
+    width: Dimensions.get('window').width - 48,
+    height: 140,
+    borderRadius: 24,
+    marginRight: 12,
     overflow: 'hidden',
+    ...SHADOWS.lg,
+    backgroundColor: '#FFFFFF',
   },
   promoGradient: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: SPACING.md,
+    padding: 24,
   },
   promoContent: {
-    flex: 1,
-    paddingRight: SPACING.xs,
+    flex: 1.2,
   },
   promoBadge: {
-    backgroundColor: 'rgba(219, 39, 119, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: RADIUS.sm,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
     alignSelf: 'flex-start',
-    marginBottom: 6,
+    marginBottom: 12,
+    ...SHADOWS.sm,
   },
   promoBadgeText: {
-    fontSize: 9,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '800',
     color: COLORS.primary,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   },
   promoTitle: {
-    ...TYPOGRAPHY.subheading,
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1A1A1A',
+    fontFamily: 'Outfit_800ExtraBold',
+    lineHeight: 28,
   },
   promoSubtitle: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textSecondary,
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
+    marginTop: 4,
   },
   promoImage: {
-    width: 90,
-    height: 90,
+    width: 80,
+    height: 80,
+    flex: 0.8,
   },
   paginationDots: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: SPACING.sm,
+    marginTop: 8,
   },
   dot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: COLORS.borderLight,
+    backgroundColor: '#E2E8F0',
     marginHorizontal: 3,
   },
   dotActive: {
     backgroundColor: COLORS.primary,
-    width: 16,
+    width: 18,
   },
   servicesSection: {
     paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.md,
-    paddingBottom: SPACING.lg,
+    marginTop: 16, // Reduced from 24
   },
   sectionTitle: {
-    ...TYPOGRAPHY.subheading,
-    color: COLORS.text,
-    marginBottom: SPACING.md,
+    fontSize: 20, // Reduced from 22
+    fontWeight: '800',
+    color: '#1A1A1A',
+    fontFamily: 'Outfit_800ExtraBold',
+    marginBottom: 16, // Reduced from 20
+    letterSpacing: -0.5,
   },
   servicesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: SPACING.sm,
+    paddingBottom: SPACING.xs,
   },
   serviceCard: {
     width: '48%',
-    backgroundColor: COLORS.background,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    alignItems: 'center',
+    height: 145, // Further reduced for ultimate compactness
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 12,
+    ...SHADOWS.md,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    ...SHADOWS.sm,
-    marginBottom: SPACING.sm,
+    borderColor: '#F1F5F9',
+    overflow: 'hidden',
+    justifyContent: 'center',
+  },
+  serviceOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.08, // Slightly more visible for character
   },
   serviceCardDisabled: {
-    backgroundColor: '#F9FAFB',
-    borderColor: '#E5E7EB',
-    opacity: 0.8,
+    opacity: 0.5,
   },
   serviceIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#F8FAFC',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: SPACING.sm,
+    marginBottom: 10,
+    ...SHADOWS.sm,
   },
   serviceName: {
-    ...TYPOGRAPHY.bodyBold,
-    color: COLORS.text,
-    textAlign: 'center',
-    marginBottom: SPACING.xs,
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#1A1A1A',
+    fontFamily: 'Outfit_800ExtraBold',
+    marginBottom: 2,
   },
   serviceDescription: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+    lineHeight: 16,
+  },
+  section: {
+    marginTop: 32,
   },
   cartButtonContainer: {
     position: 'absolute',
-    left: SPACING.md,
-    right: SPACING.md,
+    left: 20,
+    right: 20,
+    ...SHADOWS.xl,
   },
   cartButton: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#111827', // Even darker for more "premium" feel
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    borderRadius: RADIUS.lg,
-    ...SHADOWS.lg,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   cartInfo: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   cartCountBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    marginRight: SPACING.sm,
+    backgroundColor: COLORS.primary,
+    width: 28,
+    height: 28,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
   cartCountText: {
     color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 12,
+    fontWeight: '900',
+    fontSize: 13,
   },
   cartButtonText: {
     color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 14,
+    fontWeight: '800',
+    fontSize: 16,
+    fontFamily: 'Outfit_800ExtraBold',
   },
   cartButtonSubtext: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 11,
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 12,
+    fontWeight: '500',
   },
 });

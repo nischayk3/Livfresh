@@ -24,6 +24,29 @@ import { COLORS, SPACING, SHADOWS, RADIUS, TYPOGRAPHY } from '../../utils/consta
 import { useCartStore, useUIStore } from '../../store';
 import { uploadServicePhotos } from '../../services/firestore';
 import { CartItem } from '../../store/cartStore';
+import { FaqAccordion } from '../../components/FaqAccordion';
+
+// -------------- FAQ DATA --------------
+const WASH_FOLD_FAQS = [
+  { question: "How is the weight calculated?", answer: "We weigh your clothes on the spot using a digital weighing scale for 100% accuracy." },
+  { question: "What's included in Wash & Fold?", answer: "Daily wear clothes including shirts, pants, t-shirts, and tops. Blankets are not included." },
+  { question: "How long does it take?", answer: "Most Wash & Fold orders are delivered within 48 hours." }, // Adapted from Wash&Iron
+  { question: "Do I need to separate colour-leaking clothes?", answer: "Yes, our team is not responsible for any damage, though we take all necessary precautions." },
+];
+
+const WASH_IRON_FAQS = [
+  { question: "How is the weight calculated?", answer: "We weigh your clothes on the spot using a digital weighing scale for 100% accuracy." },
+  { question: "What's included in Wash & Iron?", answer: "Daily wear clothes including shirts, pants, t-shirts, and tops. Blankets are not included." },
+  { question: "How long does it take?", answer: "Most Wash & Iron orders are delivered within 48 hours." },
+  { question: "Do I need to separate colour-leaking clothes?", answer: "Yes, our team is not responsible for any damage, though we take all necessary precautions." },
+];
+
+const BLANKET_WASH_FAQS = [
+  { question: "How is blanket cleaning done?", answer: "Blankets are washed in specialized heavy-duty machines for deep cleaning." },
+  { question: "What types of blankets do you accept?", answer: "We accept single and double blankets of all materials." },
+  { question: "How long does Blanket Wash take?", answer: "Most blanket wash orders are delivered within 12 hours." },
+  { question: "Do you clean heavy duvets / quilts?", answer: "Yes, but pricing may vary depending on thickness." },
+];
 
 // Helper for Cross-Platform Image Compression & Resizing
 const processImage = async (uri: string): Promise<string> => {
@@ -73,10 +96,14 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   const [isListening, setIsListening] = useState(false);
 
   // Wash & Fold / Wash & Iron state
-  const [selectedWeight, setSelectedWeight] = useState<'small' | 'large' | null>(null);
-  const [ironingEnabled, setIroningEnabled] = useState(false);
-  const [ironingCount, setIroningCount] = useState(0);
-  const [clothesCount, setClothesCount] = useState(0); // New state for Wash & Fold clothes count
+  // Wash & Fold
+  const [washFoldWeight, setWashFoldWeight] = useState<'small' | 'large' | null>(null);
+  const [washFoldIroningEnabled, setWashFoldIroningEnabled] = useState(false);
+  const [washFoldIroningCount, setWashFoldIroningCount] = useState(4); // Default to 4
+
+  // Wash & Iron
+  const [washIronWeight, setWashIronWeight] = useState<'small' | 'medium' | 'large' | null>(null);
+
   const [specialInstructions, setSpecialInstructions] = useState('');
 
   // Blanket Wash state - Separated
@@ -401,16 +428,20 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   const calculateTotal = (): number => {
     if (!service) return 0;
 
-    let basePrice = 0;
+    if (serviceId === 'wash_fold') {
+      let basePrice = 0;
+      if (washFoldWeight === 'small') basePrice = 479; // ~7kg
+      if (washFoldWeight === 'large') basePrice = 958; // ~14kg
 
-    if (serviceId === 'wash_fold' || serviceId === 'wash_iron') {
-      if (selectedWeight === 'small') {
-        basePrice = 299; // ~7kg
-      } else if (selectedWeight === 'large') {
-        basePrice = 549; // ~14kg
-      }
-      const ironingPrice = ironingEnabled ? ironingCount * 15 : 0;
+      const ironingPrice = washFoldIroningEnabled ? washFoldIroningCount * 15 : 0;
       return basePrice + ironingPrice;
+    }
+
+    if (serviceId === 'wash_iron') {
+      if (washIronWeight === 'small') return 360; // 3kg
+      if (washIronWeight === 'medium') return 600; // 5kg
+      if (washIronWeight === 'large') return 840; // 7kg
+      return 0;
     }
 
     if (serviceId === 'blanket_wash') {
@@ -421,7 +452,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
     // ... (Shoe/Dry Clean Logic remains same)
 
-    return basePrice;
+    return 0;
   };
 
   const handleAddToCart = async () => {
@@ -429,9 +460,40 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
     const totalPrice = calculateTotal();
 
-    // Validation
-    if (serviceId === 'wash_fold' || serviceId === 'wash_iron' || serviceId === 'premium_laundry') {
-      const weight = (serviceId === 'premium_laundry') ? premiumWeight : selectedWeight;
+    // -- VALIDATION --
+
+    // Wash & Fold
+    if (serviceId === 'wash_fold') {
+      if (!washFoldWeight) {
+        showAlert({ title: 'Required', message: 'Please select weight first', type: 'warning' });
+        return;
+      }
+
+      const maxPieces = washFoldWeight === 'small' ? 25 : 50;
+
+      if (washFoldIroningEnabled) {
+        if (washFoldIroningCount < 4) {
+          showAlert({ title: 'Minimum Required', message: 'Minimum 4 clothes required for ironing', type: 'warning' });
+          return;
+        }
+        if (washFoldIroningCount > maxPieces) {
+          showAlert({ title: 'Limit Exceeded', message: `Maximum ${maxPieces} ironing pieces allowed for this weight.`, type: 'warning' });
+          return;
+        }
+      }
+    }
+
+    // Wash & Iron
+    if (serviceId === 'wash_iron') {
+      if (!washIronWeight) {
+        showAlert({ title: 'Required', message: 'Please select weight first', type: 'warning' });
+        return;
+      }
+    }
+
+    // Premium
+    if (serviceId === 'premium_laundry') {
+      const weight = premiumWeight;
 
       if (!weight) {
         showAlert({
@@ -444,12 +506,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
       // Check limits
       const maxPieces = weight === 'small' ? 25 : 50;
-      // Use correct state based on service type
-      // For premium, we use separate states
-      const currentIroningCount = (serviceId === 'premium_laundry') ? premiumIroningCount : ironingCount;
-      const isIroningEnabled = (serviceId === 'premium_laundry') ? premiumIroningEnabled : ironingEnabled;
-
-      if (isIroningEnabled && currentIroningCount > maxPieces) {
+      if (premiumIroningEnabled && premiumIroningCount > maxPieces) {
         showAlert({
           title: 'Limit Exceeded',
           message: `Maximum ${maxPieces} ironing pieces allowed for this weight.`,
@@ -460,6 +517,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     }
 
     if (serviceId === 'blanket_wash') {
+      // ... existing blanket validation
       if (singleBlanketCount === 0 && doubleBlanketCount === 0) {
         showAlert({
           title: 'Selection Empty',
@@ -469,9 +527,6 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
         return;
       }
     }
-
-    // Base64 Strategy: Photos are already converted to Base64/URIs
-    // Use them directly.
 
     const cartItem: CartItem = {
       id: '',
@@ -486,22 +541,30 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       photoUrls: selectedImages.length > 0 ? selectedImages : undefined,
     };
 
-    if (serviceId === 'wash_fold' || serviceId === 'wash_iron') {
-      cartItem.weight = selectedWeight === 'small' ? 7 : 14;
-      cartItem.clothesCount = 0; // Default to 0 since we don't ask
-      cartItem.ironingEnabled = ironingEnabled;
-      cartItem.ironingCount = ironingCount;
-      cartItem.ironingPrice = ironingEnabled ? ironingCount * 15 : 0;
+    if (serviceId === 'wash_fold') {
+      cartItem.weight = washFoldWeight === 'small' ? 7 : 14;
+      cartItem.clothesCount = 0;
+      cartItem.ironingEnabled = washFoldIroningEnabled;
+      cartItem.ironingCount = washFoldIroningEnabled ? washFoldIroningCount : 0;
+      cartItem.ironingPrice = washFoldIroningEnabled ? washFoldIroningCount * 15 : 0;
+    }
+
+    if (serviceId === 'wash_iron') {
+      // Map small/medium/large to weight
+      cartItem.weight = washIronWeight === 'small' ? 3 : (washIronWeight === 'medium' ? 5 : 7);
+      // Wash & Iron strictly implies ironing included, but Cart structure typically expects standard flags
+      cartItem.ironingEnabled = true;
+      // Approximation of clothes count based on weight for reference
+      cartItem.clothesCount = washIronWeight === 'small' ? 10 : (washIronWeight === 'medium' ? 18 : 25);
     }
 
     if (serviceId === 'blanket_wash') {
-      // Store description of mix
       const parts = [];
       if (singleBlanketCount > 0) parts.push(`${singleBlanketCount} Single`);
       if (doubleBlanketCount > 0) parts.push(`${doubleBlanketCount} Double`);
 
       cartItem.blanketQuantity = singleBlanketCount + doubleBlanketCount;
-      cartItem.description = parts.join(', '); // Helper for display
+      cartItem.description = parts.join(', ');
       cartItem.singleBlanketCount = singleBlanketCount;
       cartItem.doubleBlanketCount = doubleBlanketCount;
     }
@@ -524,8 +587,10 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
   // ... (Media Logic)
 
-  const renderWashService = () => {
-    const maxPieces = selectedWeight === 'small' ? 25 : (selectedWeight === 'large' ? 50 : 0);
+  /* ----------- SEPARATE RENDER FUNCTIONS ----------- */
+
+  const renderWashFold = () => {
+    const maxPieces = washFoldWeight === 'small' ? 25 : (washFoldWeight === 'large' ? 50 : 0);
 
     return (
       <View>
@@ -533,88 +598,88 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Select Estimated Weight</Text>
           <TouchableOpacity
-            style={[styles.weightOption, selectedWeight === 'small' && styles.weightOptionSelected]}
+            style={[styles.weightOption, washFoldWeight === 'small' && styles.weightOptionSelected]}
             onPress={() => {
-              setSelectedWeight('small');
-              setClothesCount(0);
-              setIroningCount(0); // Reset ironing count too
+              setWashFoldWeight('small');
+              // Don't reset ironing to 0 if enabled, just clamp it maybe?
+              // logic: if changing weight, max limit changes.
+              if (washFoldIroningEnabled && washFoldIroningCount > 25) {
+                setWashFoldIroningCount(25);
+              }
             }}
           >
             <View style={styles.weightOptionContent}>
               <View style={styles.radioButton}>
-                {selectedWeight === 'small' && <View style={styles.radioButtonInner} />}
+                {washFoldWeight === 'small' && <View style={styles.radioButtonInner} />}
               </View>
               <Text style={styles.weightOptionText}>~7kg • Max 25 clothes</Text>
-              <Text style={styles.weightPrice}>₹299</Text>
+              <Text style={styles.weightPrice}>₹479</Text>
             </View>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.weightOption, selectedWeight === 'large' && styles.weightOptionSelected]}
-            onPress={() => {
-              setSelectedWeight('large');
-              setClothesCount(0);
-              setIroningCount(0); // Reset ironing count
-            }}
+            style={[styles.weightOption, washFoldWeight === 'large' && styles.weightOptionSelected]}
+            onPress={() => setWashFoldWeight('large')}
           >
             <View style={styles.weightOptionContent}>
               <View style={styles.radioButton}>
-                {selectedWeight === 'large' && <View style={styles.radioButtonInner} />}
+                {washFoldWeight === 'large' && <View style={styles.radioButtonInner} />}
               </View>
               <Text style={styles.weightOptionText}>~14kg • Max 50 clothes</Text>
-              <Text style={styles.weightPrice}>₹549</Text>
+              <Text style={styles.weightPrice}>₹958</Text>
             </View>
           </TouchableOpacity>
         </View>
 
-        {/* Number of Clothes Section REMOVED */}
-
-        {/* Ironing Add-on - Only for Wash & Fold */}
-        {serviceId === 'wash_fold' && (
-          <View style={[styles.section, !selectedWeight && { opacity: 0.5 }]}>
-            <View style={styles.addonHeader}>
-              <Text style={styles.sectionTitle}>Need Ironing?</Text>
-              <Text style={styles.addonPrice}>₹15 per piece</Text>
-            </View>
-            <View style={styles.toggleContainer}>
-              <Text style={styles.toggleLabel}>Ironing</Text>
-              <TouchableOpacity
-                style={[styles.toggle, ironingEnabled && styles.toggleActive]}
-                onPress={() => {
-                  if (selectedWeight) setIroningEnabled(!ironingEnabled);
-                  else showAlert({
-                    title: 'Weight Required',
-                    message: 'Select weight first',
-                    type: 'info'
-                  });
-                }}
-                disabled={!selectedWeight}
-              >
-                <View style={[styles.toggleThumb, ironingEnabled && styles.toggleThumbActive]} />
-              </TouchableOpacity>
-            </View>
-            {ironingEnabled && (
-              <View style={styles.quantitySelector}>
-                <Text style={styles.quantityLabel}>Number of pieces</Text>
-                <View style={styles.quantityControls}>
-                  <TouchableOpacity
-                    style={styles.quantityButton}
-                    onPress={() => setIroningCount(Math.max(0, ironingCount - 1))}
-                  >
-                    <Text style={styles.quantityButtonText}>-</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.quantityValue}>{ironingCount}</Text>
-                  <TouchableOpacity
-                    style={[styles.quantityButton, ironingCount >= maxPieces && styles.quantityButtonDisabled]}
-                    onPress={() => setIroningCount(Math.min(maxPieces, ironingCount + 1))}
-                    disabled={ironingCount >= maxPieces}
-                  >
-                    <Text style={[styles.quantityButtonText, ironingCount >= maxPieces && styles.quantityButtonTextDisabled]}>+</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
+        {/* Ironing Add-on */}
+        <View style={[styles.section, !washFoldWeight && { opacity: 0.5 }]}>
+          <View style={styles.addonHeader}>
+            <Text style={styles.sectionTitle}>Need Ironing?</Text>
+            <Text style={styles.addonPrice}>₹15 per piece</Text>
           </View>
-        )}
+          <View style={styles.toggleContainer}>
+            <Text style={styles.toggleLabel}>Ironing</Text>
+            <TouchableOpacity
+              style={[styles.toggle, washFoldIroningEnabled && styles.toggleActive]}
+              onPress={() => {
+                if (washFoldWeight) {
+                  const newState = !washFoldIroningEnabled;
+                  setWashFoldIroningEnabled(newState);
+                  // If enabling, set default to 4
+                  if (newState && washFoldIroningCount < 4) {
+                    setWashFoldIroningCount(4);
+                  }
+                } else {
+                  showAlert({ title: 'Weight Required', message: 'Select weight first', type: 'info' });
+                }
+              }}
+              disabled={!washFoldWeight}
+            >
+              <View style={[styles.toggleThumb, washFoldIroningEnabled && styles.toggleThumbActive]} />
+            </TouchableOpacity>
+          </View>
+          {washFoldIroningEnabled && (
+            <View style={styles.quantitySelector}>
+              <Text style={styles.quantityLabel}>Number of pieces (Min 4)</Text>
+              <View style={styles.quantityControls}>
+                <TouchableOpacity
+                  style={[styles.quantityButton, washFoldIroningCount <= 4 && styles.quantityButtonDisabled]}
+                  onPress={() => setWashFoldIroningCount(Math.max(4, washFoldIroningCount - 1))}
+                  disabled={washFoldIroningCount <= 4}
+                >
+                  <Text style={[styles.quantityButtonText, washFoldIroningCount <= 4 && styles.quantityButtonTextDisabled]}>-</Text>
+                </TouchableOpacity>
+                <Text style={styles.quantityValue}>{washFoldIroningCount}</Text>
+                <TouchableOpacity
+                  style={[styles.quantityButton, washFoldIroningCount >= maxPieces && styles.quantityButtonDisabled]}
+                  onPress={() => setWashFoldIroningCount(Math.min(maxPieces, washFoldIroningCount + 1))}
+                  disabled={washFoldIroningCount >= maxPieces}
+                >
+                  <Text style={[styles.quantityButtonText, washFoldIroningCount >= maxPieces && styles.quantityButtonTextDisabled]}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
 
         {/* Special Instructions */}
         <View style={styles.section}>
@@ -631,9 +696,90 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
           {renderMediaButtons()}
           {renderPhotoGallery()}
         </View>
+
+        {/* FAQs */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>FAQs</Text>
+          <FaqAccordion items={WASH_FOLD_FAQS} />
+        </View>
       </View>
     );
-  }
+  };
+
+  const renderWashIron = () => {
+    return (
+      <View>
+        {/* Weight Selection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Select Estimated Weight</Text>
+
+          {/* 3kg Slot */}
+          <TouchableOpacity
+            style={[styles.weightOption, washIronWeight === 'small' && styles.weightOptionSelected]}
+            onPress={() => setWashIronWeight('small')}
+          >
+            <View style={styles.weightOptionContent}>
+              <View style={styles.radioButton}>
+                {washIronWeight === 'small' && <View style={styles.radioButtonInner} />}
+              </View>
+              <Text style={styles.weightOptionText}>~3kg • ~10 clothes</Text>
+              <Text style={styles.weightPrice}>₹360</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* 5kg Slot */}
+          <TouchableOpacity
+            style={[styles.weightOption, washIronWeight === 'medium' && styles.weightOptionSelected]}
+            onPress={() => setWashIronWeight('medium')}
+          >
+            <View style={styles.weightOptionContent}>
+              <View style={styles.radioButton}>
+                {washIronWeight === 'medium' && <View style={styles.radioButtonInner} />}
+              </View>
+              <Text style={styles.weightOptionText}>~5kg • ~18 clothes</Text>
+              <Text style={styles.weightPrice}>₹600</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* 7kg Slot */}
+          <TouchableOpacity
+            style={[styles.weightOption, washIronWeight === 'large' && styles.weightOptionSelected]}
+            onPress={() => setWashIronWeight('large')}
+          >
+            <View style={styles.weightOptionContent}>
+              <View style={styles.radioButton}>
+                {washIronWeight === 'large' && <View style={styles.radioButtonInner} />}
+              </View>
+              <Text style={styles.weightOptionText}>~7kg • ~25 clothes</Text>
+              <Text style={styles.weightPrice}>₹840</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Special Instructions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Special Instructions (optional)</Text>
+          <TextInput
+            style={styles.instructionsInput}
+            placeholder="Add any notes..."
+            placeholderTextColor={COLORS.textLight}
+            multiline
+            numberOfLines={4}
+            value={specialInstructions}
+            onChangeText={setSpecialInstructions}
+          />
+          {renderMediaButtons()}
+          {renderPhotoGallery()}
+        </View>
+
+        {/* FAQs */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>FAQs</Text>
+          <FaqAccordion items={WASH_IRON_FAQS} />
+        </View>
+      </View>
+    );
+  };
 
   const renderBlanketWash = () => (
     <View>
@@ -689,9 +835,9 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
             </TouchableOpacity>
           </View>
         </View>
-
       </View>
 
+      {/* Special Instructions (Common) */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Special Instructions (optional)</Text>
         <TextInput
@@ -699,15 +845,23 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
           placeholder="Add any notes..."
           placeholderTextColor={COLORS.textLight}
           multiline
-          numberOfLines={3}
+          numberOfLines={4}
           value={specialInstructions}
           onChangeText={setSpecialInstructions}
         />
         {renderMediaButtons()}
         {renderPhotoGallery()}
       </View>
+
+      {/* FAQs */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>FAQs</Text>
+        <FaqAccordion items={BLANKET_WASH_FAQS} />
+      </View>
     </View>
   );
+
+
 
   const renderShoeCleaning = () => (
     <View>
@@ -913,22 +1067,16 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   );
 
   const renderServiceContent = () => {
-    if (serviceId === 'wash_fold' || serviceId === 'wash_iron') {
-      return renderWashService();
-    }
-    if (serviceId === 'blanket_wash') {
-      return renderBlanketWash();
-    }
-    if (serviceId === 'shoe_clean') {
-      return renderShoeCleaning();
-    }
-    if (serviceId === 'dry_clean') {
-      return renderDryCleaning();
-    }
-    if (serviceId === 'premium_laundry') {
-      return renderPremiumLaundry();
-    }
-    return null;
+    return (
+      <>
+        {serviceId === 'wash_fold' && renderWashFold()}
+        {serviceId === 'wash_iron' && renderWashIron()}
+        {serviceId === 'blanket_wash' && renderBlanketWash()}
+        {serviceId === 'shoe_clean' && renderShoeCleaning()}
+        {serviceId === 'dry_clean' && renderDryCleaning()}
+        {serviceId === 'premium_laundry' && renderPremiumLaundry()}
+      </>
+    );
   };
 
   const totalPrice = calculateTotal();

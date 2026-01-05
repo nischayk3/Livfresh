@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { Timestamp } from 'firebase/firestore';
 
-import { useCartStore, useAuthStore, useAddressStore, useUIStore } from '../../store';
+import { useCartStore, useAuthStore, useAddressStore, useUIStore, useSubscriptionStore } from '../../store';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
 import { createOrder, saveCart, clearCartInFirestore, uploadServicePhotos } from '../../services/firestore';
 import { BrandLoader } from '../../components/BrandLoader';
@@ -140,9 +140,22 @@ export const CartScreen: React.FC = () => {
             const orderId = await createOrder(user.uid, orderData);
 
             // Clear cart
-            // Clear cart
             clearCart();
             await clearCartInFirestore(user.uid);
+
+            // Consume subscription credit if applicable
+            const creditItem = items.find(item => item.isCreditItem);
+            if (creditItem && creditItem.creditSubscriptionId) {
+                try {
+                    const { useCredit } = useSubscriptionStore.getState();
+                    await useCredit(user.uid, creditItem.creditSubscriptionId, orderId);
+                    console.log("[Credit] Subscription credit consumed for order:", orderId);
+                } catch (creditError) {
+                    console.error("[Credit] Failed to consume credit:", creditError);
+                    // We don't block the success flow if credit consumption fail locally, 
+                    // as the order is already placed.
+                }
+            }
 
             // Navigate to Success screen and reset stack to prevent going back to Cart
             navigation.reset({
@@ -180,10 +193,19 @@ export const CartScreen: React.FC = () => {
             {/* Dynamic details based on service type */}
             <View style={styles.itemDetails}>
                 {/* Wash & Fold / Premium Laundry Details */}
-                {(item.serviceType === 'wash_fold' || item.serviceType === 'wash_iron' || item.serviceType === 'premium_laundry') && (
+                {(item.serviceType === 'wash_fold' || item.serviceType === 'premium_laundry') && (
                     <Text style={styles.detailText}>
-                        {item.weight}kg
+                        {item.weight ? `${item.weight}kg` : ''}
                         {item.ironingEnabled && item.ironingCount > 0 ? ` + ${item.ironingCount} Ironing` : ''}
+                    </Text>
+                )}
+
+                {/* Wash & Iron / Ironing Add-on Details */}
+                {item.serviceType === 'wash_iron' && (
+                    <Text style={styles.detailText}>
+                        {item.serviceId === 'ironing_addon'
+                            ? `${item.ironingCount || item.clothesCount || 0} Clothes`
+                            : (item.weight ? `${item.weight}kg` : '')}
                     </Text>
                 )}
 
@@ -282,6 +304,12 @@ export const CartScreen: React.FC = () => {
                             <Text style={styles.totalLabel}>Grand Total</Text>
                             <Text style={styles.totalValue}>₹{totalAmount}</Text>
                         </View>
+                        {items.some(item => item.isCreditItem) && (
+                            <View style={styles.creditBadge}>
+                                <Ionicons name="sparkles" size={14} color={COLORS.primary} />
+                                <Text style={styles.creditBadgeText}>Subscription Credit Applied</Text>
+                            </View>
+                        )}
                     </View>
 
                     {/* Pickup Details */}
@@ -743,5 +771,22 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontWeight: '700',
         fontSize: 16,
+    },
+    creditBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: COLORS.primary + '10',
+        paddingVertical: 8,
+        borderRadius: RADIUS.md,
+        marginTop: SPACING.md,
+        gap: 6,
+        borderWidth: 1,
+        borderColor: COLORS.primary + '20',
+    },
+    creditBadgeText: {
+        ...TYPOGRAPHY.caption,
+        color: COLORS.primary,
+        fontWeight: '700',
     },
 });

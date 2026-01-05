@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { format, isSameDay, isAfter, addMinutes, parse } from 'date-fns';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
 import { useAuthStore } from '../../store';
-import { getOrder } from '../../services/firestore';
+import { getOrder, getBusySlots, scheduleOrderDelivery } from '../../services/firestore';
 import { BrandLoader } from '../../components/BrandLoader';
 
 // Order Status Steps
@@ -28,24 +29,82 @@ export const OrderDetailScreen: React.FC = () => {
     const { orderId } = route.params as { orderId: string };
 
     const [order, setOrder] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(true);
+    const [showScheduler, setShowScheduler] = useState(false);
+    const [selectedDateIndex, setSelectedDateIndex] = useState(0);
+    const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+    const [busySlots, setBusySlots] = useState<string[]>([]);
+    const [isLoadingBusySlots, setIsLoadingBusySlots] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Dynamic next 5 days
+    const DATES = Array.from({ length: 5 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() + i);
+        return d;
+    });
+
+    const TIME_SLOTS = [
+        '09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
+        '12:00 PM', '12:30 PM', '01:00 PM', '01:30 PM', '02:00 PM', '02:30 PM',
+        '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM', '05:00 PM', '05:30 PM',
+        '06:00 PM', '06:30 PM', '07:00 PM', '07:30 PM', '08:00 PM', '08:30 PM',
+        '09:00 PM'
+    ];
+
+    const fetchOrder = async () => {
+        if (!user?.uid || !orderId) return;
+        try {
+            const data = await getOrder(user.uid, orderId);
+            setOrder(data);
+        } catch (error) {
+            console.error('Failed to fetch order details:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchOrderDetails = async () => {
-            if (!user?.uid || !orderId) return;
-            try {
-                const data = await getOrder(user.uid, orderId);
-                setOrder(data);
-            } catch (error) {
-                console.error('Failed to fetch order details:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchOrderDetails();
+        fetchOrder();
     }, [orderId]);
 
-    if (loading) {
+    useEffect(() => {
+        if (showScheduler) {
+            fetchBusySlots();
+        }
+    }, [showScheduler, selectedDateIndex]);
+
+    const fetchBusySlots = async () => {
+        setIsLoadingBusySlots(true);
+        try {
+            const dateStr = format(DATES[selectedDateIndex], 'yyyy-MM-dd');
+            const slots = await getBusySlots(dateStr);
+            setBusySlots(slots);
+        } catch (error) {
+            console.error('Error fetching busy slots:', error);
+        } finally {
+            setIsLoadingBusySlots(false);
+        }
+    };
+
+    const handleConfirmSchedule = async () => {
+        if (!selectedSlot) return;
+        setIsSubmitting(true);
+        try {
+            const dateStr = format(DATES[selectedDateIndex], 'yyyy-MM-dd');
+            await scheduleOrderDelivery(user?.uid || '', orderId, dateStr, selectedSlot);
+            setShowScheduler(false);
+            // Refresh order
+            fetchOrder();
+            Alert.alert("Success", `Delivery scheduled for ${selectedSlot} on ${format(DATES[selectedDateIndex], 'MMM d')}`);
+        } catch (error) {
+            Alert.alert("Error", "Failed to schedule delivery. Please try again.");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    if (isLoading) {
         return <BrandLoader message="Loading order details..." />;
     }
 
@@ -86,6 +145,53 @@ export const OrderDetailScreen: React.FC = () => {
                 showsVerticalScrollIndicator={true}
                 nestedScrollEnabled={true}
             >
+
+                {/* Order Information Card (Sipzo Style) */}
+                <View style={styles.infoCard}>
+                    <View style={styles.infoCol}>
+                        <Text style={styles.infoLabel}>Order ID</Text>
+                        <Text style={styles.infoValue}>{order.id.toUpperCase()}</Text>
+                        {order.tokenNumber && (
+                            <View style={styles.tokenRow}>
+                                <Ionicons name="pricetag" size={14} color={COLORS.primary} />
+                                <Text style={styles.tokenLabel}>Token: {order.tokenNumber}</Text>
+                            </View>
+                        )}
+                    </View>
+                    <View style={styles.infoColRight}>
+                        <Text style={styles.infoLabel}>Total Amount</Text>
+                        <Text style={styles.totalValueLarge}>₹{order.billDetails?.total || 0}</Text>
+                    </View>
+                </View>
+
+                {/* Delivery Scheduling CTA */}
+                {order.status === 'ready' && !order.deliveryDate && (
+                    <View style={styles.scheduleCard}>
+                        <View style={styles.scheduleIconContainer}>
+                            <Ionicons name="calendar-outline" size={24} color={COLORS.primary} />
+                        </View>
+                        <View style={styles.scheduleContent}>
+                            <Text style={styles.scheduleTitle}>Schedule Your Delivery</Text>
+                            <Text style={styles.scheduleSub}>Pick a 30-min slot that works for you</Text>
+                            <TouchableOpacity
+                                style={styles.scheduleButton}
+                                onPress={() => setShowScheduler(true)}
+                            >
+                                <Text style={styles.scheduleButtonText}>Schedule Now</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
+
+                {/* Scheduled Information Display */}
+                {order.deliveryDate && (
+                    <View style={styles.scheduledInfoCard}>
+                        <Ionicons name="time-outline" size={18} color={COLORS.success} />
+                        <Text style={styles.scheduledInfoText}>
+                            Scheduled for: <Text style={{ fontWeight: '700' }}>{format(parse(order.deliveryDate, 'yyyy-MM-dd', new Date()), 'MMM d')}, {order.deliveryTime}</Text>
+                        </Text>
+                    </View>
+                )}
 
                 {/* OTP Banner - Critical for End-to-End Flow */}
                 {((['placed', 'confirmed', 'pickup_assigned'].includes(order.status)) && order.pickupOTP) && (
@@ -143,9 +249,12 @@ export const OrderDetailScreen: React.FC = () => {
                         <View key={idx} style={styles.itemRow}>
                             <Text style={styles.itemName}>
                                 {item.serviceName} ({
-                                    item.serviceType === 'wash_fold' ? `${item.weight}kg` :
-                                        item.serviceType === 'blanket_wash' ? (item.description || 'Blankets') :
-                                            `${item.shoeQuantity} pairs`
+                                    item.serviceId === 'ironing_addon' ? `${item.clothesCount || item.ironingCount || 0} Clothes` :
+                                        (item.serviceType === 'wash_fold' || item.serviceType === 'wash_iron' || item.serviceType === 'premium_laundry') ? (item.weight ? `${item.weight}kg` : '') :
+                                            item.serviceType === 'blanket_wash' ? (item.description || 'Blankets') :
+                                                item.serviceType === 'shoe_clean' ? `${item.shoeQuantity} pairs` :
+                                                    item.serviceType === 'dry_clean' ? (item.weight ? `${item.weight}kg` : `${item.items?.length || 0} items`) :
+                                                        'Service'
                                 })
                             </Text>
                             <Text style={styles.itemPrice}>₹{item.totalPrice}</Text>
@@ -183,6 +292,108 @@ export const OrderDetailScreen: React.FC = () => {
                 </View>
 
             </ScrollView>
+
+            <Modal
+                visible={showScheduler}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setShowScheduler(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Select Delivery Slot</Text>
+                            <TouchableOpacity onPress={() => setShowScheduler(false)}>
+                                <Ionicons name="close" size={24} color={COLORS.text} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <Text style={styles.modalSubtitle}>Select Date</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateList}>
+                            {DATES.map((date, index) => {
+                                const isSelected = selectedDateIndex === index;
+                                return (
+                                    <TouchableOpacity
+                                        key={index}
+                                        style={[styles.dateItem, isSelected && styles.dateItemActive]}
+                                        onPress={() => setSelectedDateIndex(index)}
+                                    >
+                                        <Text style={[styles.dateDay, isSelected && styles.dateTextActive]}>
+                                            {format(date, 'eee')}
+                                        </Text>
+                                        <Text style={[styles.dateNum, isSelected && styles.dateTextActive]}>
+                                            {format(date, 'd')}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
+
+                        <Text style={styles.modalSubtitle}>Select 30-min Slot</Text>
+                        {isLoadingBusySlots ? (
+                            <View style={styles.slotLoader}>
+                                <ActivityIndicator color={COLORS.primary} />
+                                <Text style={styles.loaderText}>Checking availability...</Text>
+                            </View>
+                        ) : (
+                            <ScrollView style={styles.slotList} contentContainerStyle={styles.slotListContent}>
+                                <View style={styles.slotGrid}>
+                                    {TIME_SLOTS.map((slot) => {
+                                        const isBusy = busySlots.includes(slot);
+                                        const isSelected = selectedSlot === slot;
+
+                                        // Logic for today: hide past slots
+                                        const isToday = isSameDay(DATES[selectedDateIndex], new Date());
+                                        let isPast = false;
+                                        if (isToday) {
+                                            const slotTime = parse(slot, 'hh:mm a', new Date());
+                                            const now = new Date();
+                                            // Add 30 min buffer for delivery
+                                            isPast = !isAfter(slotTime, addMinutes(now, 30));
+                                        }
+
+                                        const isDisabled = isBusy || isPast;
+
+                                        return (
+                                            <TouchableOpacity
+                                                key={slot}
+                                                style={[
+                                                    styles.slotItem,
+                                                    isSelected && styles.slotItemActive,
+                                                    isDisabled && styles.slotItemDisabled
+                                                ]}
+                                                disabled={isDisabled}
+                                                onPress={() => setSelectedSlot(slot)}
+                                            >
+                                                <Text style={[
+                                                    styles.slotText,
+                                                    isSelected && styles.slotTextActive,
+                                                    isDisabled && styles.slotTextDisabled
+                                                ]}>
+                                                    {slot}
+                                                </Text>
+                                                {isBusy && <Text style={styles.takenText}>Taken</Text>}
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                            </ScrollView>
+                        )}
+
+                        <TouchableOpacity
+                            style={[styles.confirmButton, !selectedSlot && styles.confirmButtonDisabled]}
+                            onPress={handleConfirmSchedule}
+                            disabled={!selectedSlot || isSubmitting}
+                        >
+                            {isSubmitting ? (
+                                <ActivityIndicator color="#fff" />
+                            ) : (
+                                <Text style={styles.confirmButtonText}>Confirm Delivery Slot</Text>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 };
@@ -192,9 +403,9 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: COLORS.background,
         ...(Platform.OS === 'web' ? {
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
+            height: '100%' as any,
+            display: 'flex' as any,
+            flexDirection: 'column' as any,
         } : {}),
     },
     loadingContainer: {
@@ -363,5 +574,234 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: COLORS.textSecondary,
         lineHeight: 20,
+    },
+    infoCard: {
+        backgroundColor: COLORS.primary + '08',
+        padding: SPACING.lg,
+        borderRadius: RADIUS.lg,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: SPACING.lg,
+    },
+    infoCol: {
+        flex: 1,
+    },
+    infoColRight: {
+        alignItems: 'flex-end',
+    },
+    infoLabel: {
+        ...TYPOGRAPHY.caption,
+        color: COLORS.textSecondary,
+        marginBottom: 4,
+    },
+    infoValue: {
+        ...TYPOGRAPHY.bodyBold,
+        fontSize: 18,
+        color: COLORS.text,
+    },
+    tokenRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        marginTop: 6,
+    },
+    tokenLabel: {
+        ...TYPOGRAPHY.bodySmall,
+        color: COLORS.primary,
+        fontWeight: '700',
+    },
+    totalValueLarge: {
+        ...TYPOGRAPHY.heading,
+        color: COLORS.primary,
+        fontSize: 24,
+    },
+    scheduleCard: {
+        backgroundColor: '#FFF',
+        borderRadius: RADIUS.md,
+        padding: SPACING.lg,
+        flexDirection: 'row',
+        marginBottom: SPACING.lg,
+        borderWidth: 1,
+        borderColor: COLORS.primary + '30',
+        ...SHADOWS.sm,
+    },
+    scheduleIconContainer: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: COLORS.primary + '15',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: SPACING.md,
+    },
+    scheduleContent: {
+        flex: 1,
+    },
+    scheduleTitle: {
+        ...TYPOGRAPHY.bodyBold,
+        color: COLORS.text,
+        marginBottom: 4,
+    },
+    scheduleSub: {
+        ...TYPOGRAPHY.caption,
+        color: COLORS.textSecondary,
+        marginBottom: SPACING.md,
+    },
+    scheduleButton: {
+        backgroundColor: COLORS.primary,
+        paddingHorizontal: SPACING.lg,
+        paddingVertical: 10,
+        borderRadius: RADIUS.md,
+        alignSelf: 'flex-start',
+    },
+    scheduleButtonText: {
+        color: '#FFF',
+        fontWeight: '700',
+        fontSize: 14,
+    },
+    scheduledInfoCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.success + '10',
+        padding: SPACING.md,
+        borderRadius: RADIUS.md,
+        marginBottom: SPACING.lg,
+        borderWidth: 1,
+        borderColor: COLORS.success + '20',
+    },
+    scheduledInfoText: {
+        ...TYPOGRAPHY.bodySmall,
+        color: COLORS.success,
+        marginLeft: 8,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: '#FFF',
+        borderTopLeftRadius: RADIUS.xl,
+        borderTopRightRadius: RADIUS.xl,
+        padding: SPACING.lg,
+        maxHeight: '90%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: SPACING.lg,
+    },
+    modalTitle: {
+        ...TYPOGRAPHY.subheading,
+        fontWeight: '700',
+    },
+    modalSubtitle: {
+        ...TYPOGRAPHY.bodyBold,
+        marginBottom: SPACING.md,
+        marginTop: SPACING.sm,
+    },
+    dateList: {
+        marginBottom: SPACING.lg,
+    },
+    dateItem: {
+        width: 60,
+        height: 70,
+        borderRadius: RADIUS.md,
+        backgroundColor: '#F3F4F6',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: SPACING.sm,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+    },
+    dateItemActive: {
+        backgroundColor: COLORS.primary,
+        borderColor: COLORS.primary,
+    },
+    dateDay: {
+        fontSize: 12,
+        color: COLORS.textSecondary,
+        textTransform: 'uppercase',
+    },
+    dateNum: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: COLORS.text,
+    },
+    dateTextActive: {
+        color: '#FFF',
+    },
+    slotList: {
+        maxHeight: 300,
+    },
+    slotListContent: {
+        paddingBottom: SPACING.xl,
+    },
+    slotGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 10,
+    },
+    slotItem: {
+        width: '47.5%', // Adjust for 2 columns
+        padding: 12,
+        borderRadius: RADIUS.md,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+    slotItemActive: {
+        backgroundColor: COLORS.primary + '10',
+        borderColor: COLORS.primary,
+    },
+    slotItemDisabled: {
+        backgroundColor: '#F9FAFB',
+        borderColor: '#F3F4F6',
+        opacity: 0.6,
+    },
+    slotText: {
+        fontSize: 14,
+        color: COLORS.text,
+        fontWeight: '500',
+    },
+    slotTextActive: {
+        color: COLORS.primary,
+        fontWeight: '700',
+    },
+    slotTextDisabled: {
+        color: COLORS.textLight,
+    },
+    takenText: {
+        fontSize: 9,
+        color: COLORS.error,
+        fontWeight: '700',
+        marginTop: 2,
+    },
+    slotLoader: {
+        height: 200,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loaderText: {
+        marginTop: 10,
+        color: COLORS.textSecondary,
+    },
+    confirmButton: {
+        backgroundColor: COLORS.primary,
+        padding: SPACING.md,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        marginTop: SPACING.lg,
+        ...SHADOWS.md,
+    },
+    confirmButtonDisabled: {
+        backgroundColor: COLORS.textLight,
+    },
+    confirmButtonText: {
+        color: '#FFF',
+        fontWeight: '700',
+        fontSize: 16,
     },
 });

@@ -248,9 +248,19 @@ export const AdminOrdersScreen: React.FC = () => {
   };
 
   const handleMarkOutForDelivery = (order: any) => {
+    // Delivery Scheduling Guard - Aligned with Sipzo business logic
+    if (!order.deliveryDate || !order.deliveryTime) {
+      showAlert({
+        title: "Action Blocked",
+        message: "This order hasn't been scheduled for delivery by the customer yet. Please wait for the customer to pick a time slot.",
+        type: 'warning'
+      });
+      return;
+    }
+
     showAlert({
       title: "Start Delivery",
-      message: "Are you sending this order out for delivery now?",
+      message: `Are you sending this order out for delivery now? \n\nScheduled for: ${order.deliveryDate}, ${order.deliveryTime}`,
       type: 'info',
       buttons: [
         { text: "Cancel", style: "cancel" },
@@ -360,6 +370,32 @@ export const AdminOrdersScreen: React.FC = () => {
           <View>
             <Text style={styles.orderId}>{item.id ? item.id.toUpperCase() : 'NO ID'}</Text>
             <Text style={styles.orderDate}>{formattedDate}</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+              {item.tokenNumber && (
+                <View style={styles.tokenBadge}>
+                  <Ionicons name="pricetag-outline" size={12} color={COLORS.primary} />
+                  <Text style={styles.tokenText}>Token: {item.tokenNumber}</Text>
+                </View>
+              )}
+              {item.deliveryDate && item.deliveryTime && (
+                <View style={[styles.tokenBadge, { backgroundColor: COLORS.success + '10' }]}>
+                  <Ionicons name="time-outline" size={12} color={COLORS.success} />
+                  <Text style={[styles.tokenText, { color: COLORS.success }]}>Slot: {item.deliveryDate}, {item.deliveryTime}</Text>
+                </View>
+              )}
+              {!item.deliveryDate && item.status === 'ready' && (
+                <View style={[styles.tokenBadge, { backgroundColor: COLORS.warning + '10' }]}>
+                  <Ionicons name="alert-circle-outline" size={12} color={COLORS.warning} />
+                  <Text style={[styles.tokenText, { color: COLORS.warning }]}>Waiting for Schedule</Text>
+                </View>
+              )}
+              {item.items && item.items.some((orderItem: any) => orderItem.isCreditItem) && (
+                <View style={[styles.tokenBadge, { backgroundColor: COLORS.primary + '11' }]}>
+                  <Ionicons name="card-outline" size={12} color={COLORS.primary} />
+                  <Text style={[styles.tokenText, { color: COLORS.primary }]}>Subscription Credit</Text>
+                </View>
+              )}
+            </View>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
@@ -444,7 +480,13 @@ export const AdminOrdersScreen: React.FC = () => {
                   {srv.serviceName} {'\u2022'} {
                     srv.serviceType === 'blanket_wash'
                       ? (srv.description || (srv.quantity || '0') + ' Blankets')
-                      : (srv.quantity || srv.weight || '1') + ' ' + (srv.quantityUnit || 'units')
+                      : srv.serviceType === 'shoe_clean'
+                        ? `${srv.shoeQuantity || srv.quantity || 0} pairs`
+                        : srv.serviceType === 'dry_clean'
+                          ? (srv.weight ? `${srv.weight}kg` : `${srv.items?.length || srv.quantity || 0} units`)
+                          : srv.weight
+                            ? `${srv.weight}kg`
+                            : `${srv.quantity || 1} units`
                   }
                 </Text>
                 {srv.specialInstructions ? (
@@ -657,11 +699,14 @@ export const AdminOrdersScreen: React.FC = () => {
                 <Text style={styles.inputLabel}>Assign Token Number (Optional)</Text>
                 <TextInput
                   style={styles.tokenInput}
-                  placeholder="e.g. T-101"
+                  placeholder="e.g. 34 or 34,57,58"
                   value={tokenInput}
                   onChangeText={setTokenInput}
                   placeholderTextColor={COLORS.textSecondary}
                 />
+                <Text style={[styles.inputLabel, { marginTop: 4, fontSize: 10, opacity: 0.8 }]}>
+                  Assign a token for vendor batch tracking
+                </Text>
               </View>
             )}
 
@@ -1135,6 +1180,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     marginBottom: 4,
+  },
+  tokenBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.primary + '10',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  tokenText: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.primary,
+    fontWeight: '700',
   },
   cancelButtonSmall: {
     flexDirection: 'row',

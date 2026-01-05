@@ -12,6 +12,15 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore, useSubscriptionStore } from '../../store';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
+import { FaqAccordion } from '../../components/FaqAccordion';
+import { UseCreditModal } from '../../components/UseCreditModal';
+
+const SUBSCRIPTION_FAQS = [
+  { question: "How do credits work?", answer: "Each credit can be used to place one laundry order. Simply select a service and use your credits during checkout." },
+  { question: "When do credits expire?", answer: "Credits are valid for 30 days from the date of purchase. Use them anytime within this period." },
+  { question: "Can I buy more credits later?", answer: "Yes, you can purchase additional credits anytime after your current subscription is used up or expired." },
+  { question: "Is ironing included?", answer: "No, ironing is not included in the credit-based service. Credits cover Wash & Fold only." },
+];
 
 export const SubscriptionsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -28,6 +37,7 @@ export const SubscriptionsScreen: React.FC = () => {
   } = useSubscriptionStore();
 
   const [activeTab, setActiveTab] = useState<'active' | 'past'>('active');
+  const [showCreditModal, setShowCreditModal] = useState(false);
 
   useEffect(() => {
     if (user?.uid) {
@@ -181,10 +191,7 @@ export const SubscriptionsScreen: React.FC = () => {
         {activeSubscription.creditsRemaining > 0 && (
           <TouchableOpacity
             style={styles.useCreditButton}
-            onPress={() => {
-              // Navigate to home to use credit
-              (navigation as any).navigate('Main', { screen: 'Home' });
-            }}
+            onPress={() => setShowCreditModal(true)}
           >
             <Ionicons name="bag-outline" size={20} color="#FFFFFF" />
             <Text style={styles.useCreditButtonText}>Use Credit</Text>
@@ -226,6 +233,12 @@ export const SubscriptionsScreen: React.FC = () => {
               <Text style={styles.includedItem}>• Dry cleaning</Text>
             </View>
           </View>
+        </View>
+
+        {/* FAQs */}
+        <View style={{ marginTop: SPACING.lg }}>
+          <Text style={[styles.headerTitle, { fontSize: 16, marginBottom: SPACING.md }]}>FAQs</Text>
+          <FaqAccordion items={SUBSCRIPTION_FAQS} />
         </View>
       </View>
     );
@@ -326,6 +339,14 @@ export const SubscriptionsScreen: React.FC = () => {
       >
         {activeTab === 'active' ? renderActiveSubscription() : renderPastSubscriptions()}
       </ScrollView>
+
+      {activeSubscription && (
+        <UseCreditModal
+          visible={showCreditModal}
+          onClose={() => setShowCreditModal(false)}
+          subscription={activeSubscription}
+        />
+      )}
     </View>
   );
 };

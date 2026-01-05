@@ -27,6 +27,11 @@ export interface CartItem {
   singleBlanketCount?: number;
   doubleBlanketCount?: number;
 
+  // Credit-based redemption
+  isCreditItem?: boolean;
+  creditSubscriptionId?: string;
+  creditIndex?: number;
+
   // Other
   description?: string; // For custom descriptions (e.g. mixture of blankets)
   specialInstructions?: string;
@@ -37,7 +42,7 @@ export interface CartItem {
 
 interface CartState {
   items: CartItem[];
-  addItem: (item: CartItem) => void;
+  addItem: (item: Omit<CartItem, 'id'>) => void;
   removeItem: (itemId: string) => void;
   updateItem: (itemId: string, updates: Partial<CartItem>) => void;
   clearCart: () => void;

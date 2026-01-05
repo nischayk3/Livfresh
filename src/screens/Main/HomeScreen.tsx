@@ -21,6 +21,16 @@ import { useCartStore } from '../../store';
 import { ServiceDetailScreen } from './ServiceDetailScreen';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandLoader } from '../../components/BrandLoader';
+import { FaqAccordion } from '../../components/FaqAccordion';
+
+const HOME_FAQS = [
+  { question: "How does Spinit's service work?", answer: "We pick up your clothes within 30 minutes, wash and fold them, and deliver them back within 6 hours. Simple, fast, and hassle-free." },
+  { question: "Do you offer pickup and delivery?", answer: "Yes, doorstep pickup and delivery are completely free in all supported areas." },
+  { question: "How will my clothes be weighed?", answer: "Our delivery partner weighs your clothes on the spot using a digital weighing scale for accurate billing." },
+  { question: "How long does the laundry process take?", answer: "Most orders are completed and delivered within 6 hours." },
+  { question: "What payment methods do you accept?", answer: "We accept UPI, GPay, Paytm, and cash on delivery." },
+  { question: "Where is Spinit's store located?", answer: "Spinit operates through trusted partner laundry units instead of walk-in stores to ensure faster doorstep service." },
+];
 
 // Import assets
 const promoPickup = require('../../../assets/promo_pickup.png');
@@ -338,6 +348,15 @@ export const HomeScreen: React.FC = () => {
             ))}
           </View>
         </View>
+
+        {/* Home FAQs */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { marginHorizontal: SPACING.md, marginTop: SPACING.lg }]}>FAQs</Text>
+          <View style={{ paddingHorizontal: SPACING.md }}>
+            <FaqAccordion items={HOME_FAQS} />
+          </View>
+        </View>
+        <View style={{ height: 100 }} />
       </ScrollView>
 
       {/* Floating Cart Button */}

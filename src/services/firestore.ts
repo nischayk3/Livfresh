@@ -447,6 +447,68 @@ export const generateDeliveryOTP = async (userId: string, orderId: string): Prom
   }
 };
 
+/**
+ * Get all busy delivery slots for a specific date
+ */
+export const getBusySlots = async (deliveryDate: string, vendorId: string = 'vendor_1'): Promise<string[]> => {
+  try {
+    const ordersRef = collection(db, 'vendors', vendorId, 'orders');
+    const q = query(
+      ordersRef,
+      where('deliveryDate', '==', deliveryDate),
+      where('isCancelled', '!=', true) // Don't count slots from cancelled orders
+    );
+    const querySnapshot = await getDocs(q);
+    const busySlots: string[] = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.deliveryTime) {
+        busySlots.push(data.deliveryTime);
+      }
+    });
+    return busySlots;
+  } catch (error) {
+    console.error('Error fetching busy slots:', error);
+    return [];
+  }
+};
+
+/**
+ * Schedule delivery for an order
+ */
+export const scheduleOrderDelivery = async (
+  userId: string,
+  orderId: string,
+  deliveryDate: string,
+  deliveryTime: string
+): Promise<boolean> => {
+  try {
+    const userOrderRef = doc(db, 'users', userId, 'orders', orderId);
+    const userOrderSnap = await getDoc(userOrderRef);
+    if (!userOrderSnap.exists()) throw new Error('Order not found');
+
+    const orderData = userOrderSnap.data();
+    const vendorId = orderData.vendorId || 'vendor_1';
+    const timestamp = Timestamp.now();
+
+    const updateData = {
+      deliveryDate,
+      deliveryTime,
+      deliveryScheduledAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    // Update both user and vendor orders
+    await updateDoc(userOrderRef, updateData);
+    await updateDoc(doc(db, 'vendors', vendorId, 'orders', orderId), updateData);
+
+    return true;
+  } catch (error) {
+    console.error('Error scheduling delivery:', error);
+    throw error;
+  }
+};
+
 // --- Cart Management ---
 
 // Helper to remove undefined values

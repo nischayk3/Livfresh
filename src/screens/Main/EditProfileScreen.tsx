@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, TYPOGRAPHY } from '../../utils/constants';
 import { useAuthStore, useUIStore } from '../../store';
@@ -68,12 +69,15 @@ export const EditProfileScreen: React.FC = () => {
         <View style={styles.container}>
             {loading && <BrandLoader fullscreen message="Saving profile..." />}
 
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Edit Profile</Text>
-            </View>
+            <SafeAreaView style={styles.headerContainer} edges={['top']}>
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                        <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Edit Profile</Text>
+                    <View style={{ width: 40 }} />
+                </View>
+            </SafeAreaView>
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -152,21 +156,24 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: COLORS.background,
     },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingTop: 60,
-        paddingHorizontal: SPACING.md,
-        paddingBottom: SPACING.md,
+    headerContainer: {
+        backgroundColor: COLORS.background,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.borderLight,
     },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: SPACING.md,
+        paddingBottom: SPACING.md,
+        paddingTop: Platform.OS === 'web' ? SPACING.md : 0,
+    },
     backButton: {
-        marginRight: SPACING.md,
+        padding: SPACING.xs,
     },
     headerTitle: {
         ...TYPOGRAPHY.subheading,
-        fontWeight: '700',
     },
     content: {
         padding: SPACING.lg,
@@ -197,6 +204,11 @@ const styles = StyleSheet.create({
         flex: 1,
         ...TYPOGRAPHY.body,
         color: COLORS.text,
+        ...Platform.select({
+            web: {
+                outlineStyle: 'none',
+            }
+        }) as any,
     },
     disabledInput: {
         backgroundColor: COLORS.backgroundLight,

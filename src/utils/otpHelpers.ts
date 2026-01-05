@@ -13,3 +13,4 @@ export const formatOTP = (otp: string): string => {
   return otp.split('').join(' ');
 };
 
+

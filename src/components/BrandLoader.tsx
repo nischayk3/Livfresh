@@ -21,18 +21,21 @@ export const BrandLoader: React.FC<BrandLoaderProps> = ({
     useEffect(() => {
         const startAnimation = () => {
             spinValue.setValue(0);
-            Animated.loop(
-                Animated.timing(spinValue, {
-                    toValue: 1,
-                    duration: 2000,
-                    easing: Easing.linear,
-                    useNativeDriver: true,
-                })
-            ).start();
+            Animated.timing(spinValue, {
+                toValue: 1,
+                duration: 2000,
+                easing: Easing.linear,
+                useNativeDriver: true,
+            }).start(() => {
+                // Manually restart to ensure it never stops
+                startAnimation();
+            });
         };
 
         startAnimation();
-    }, [spinValue]);
+
+        // No need for spinValue in dependency array if we want it to run once on mount
+    }, []);
 
     const spin = spinValue.interpolate({
         inputRange: [0, 1],

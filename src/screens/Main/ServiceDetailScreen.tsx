@@ -16,12 +16,34 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { Audio } from 'expo-av';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as Speech from 'expo-speech';
 import { useNavigation } from '@react-navigation/native';
 
 import { COLORS, SPACING, SHADOWS, RADIUS, TYPOGRAPHY } from '../../utils/constants';
 import { useCartStore, useUIStore } from '../../store';
+import { uploadServicePhotos } from '../../services/firestore';
 import { CartItem } from '../../store/cartStore';
+
+// Helper for Cross-Platform Image Compression & Resizing
+const processImage = async (uri: string): Promise<string> => {
+  try {
+    const result = await ImageManipulator.manipulateAsync(
+      uri,
+      [{ resize: { width: 800 } }], // Resize to max 800px width (maintains aspect ratio)
+      {
+        compress: 0.5, // 50% quality
+        format: ImageManipulator.SaveFormat.JPEG,
+        base64: true
+      }
+    );
+    return `data:image/jpeg;base64,${result.base64}`;
+  } catch (error) {
+    console.error("Image processing error:", error);
+    // Fallback? Best to throw so we catch it in the UI
+    throw error;
+  }
+};
 
 interface ServiceDetailScreenProps {
   visible: boolean;
@@ -46,9 +68,9 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   const [loading, setLoading] = useState(true);
 
   // Media Attachment State
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
 
   // Wash & Fold / Wash & Iron state
   const [selectedWeight, setSelectedWeight] = useState<'small' | 'large' | null>(null);
@@ -149,15 +171,36 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       return;
     }
 
+    if (selectedImages.length >= 5) {
+      showAlert({
+        title: 'Limit Reached',
+        message: 'Maximum 5 photos allowed',
+        type: 'warning'
+      });
+      return;
+    }
+
     const pickerResult = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
+      allowsMultipleSelection: true,
+      selectionLimit: 5 - selectedImages.length,
+      quality: 1, // We resize/compress later
+      base64: false, // Don't need it here
     });
 
     if (!pickerResult.canceled) {
-      setSelectedImage(pickerResult.assets[0].uri);
+      setIsLoading(true);
+      try {
+        const newImages = await Promise.all(pickerResult.assets.map(async (asset) => {
+          return await processImage(asset.uri);
+        }));
+        setSelectedImages([...selectedImages, ...newImages].slice(0, 5));
+      } catch (err) {
+        console.error("Image processing error", err);
+        showAlert({ title: "Error", message: "Failed to process images", type: "error" });
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -172,53 +215,120 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       return;
     }
 
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [4, 3],
+    if (selectedImages.length >= 5) {
+      showAlert({
+        title: 'Limit Reached',
+        message: 'Maximum 5 photos allowed',
+        type: 'warning'
+      });
+      return;
+    }
+
+    const pickerResult = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 1,
+      base64: false,
     });
 
-    if (!result.canceled) {
-      setSelectedImage(result.assets[0].uri);
+    if (!pickerResult.canceled && pickerResult.assets[0]) {
+      setIsLoading(true);
+      try {
+        const finalUri = await processImage(pickerResult.assets[0].uri);
+        setSelectedImages([...selectedImages, finalUri]);
+      } catch (err) {
+        console.error("Camera processing error", err);
+        showAlert({ title: "Error", message: "Failed to process photo", type: "error" });
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
-  const startRecording = async () => {
+  const removePhoto = (index: number) => {
+    setSelectedImages(selectedImages.filter((_, i) => i !== index));
+  };
+
+  const startSpeechToText = async () => {
     try {
-      const permission = await Audio.requestPermissionsAsync();
-      if (permission.status === 'granted') {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-        });
-        const { recording } = await Audio.Recording.createAsync(
-          Audio.RecordingOptionsPresets.HIGH_QUALITY
-        );
-        setRecording(recording);
-        setIsRecording(true);
+      setIsListening(true);
+
+      // Use Web Speech API on web, platform-specific on mobile
+      if (Platform.OS === 'web') {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+          showAlert({
+            title: 'Not Supported',
+            message: 'Speech recognition is not supported in this browser. Try Chrome.',
+            type: 'warning'
+          });
+          setIsListening(false);
+          return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'en-US';
+        recognition.continuous = false;
+        recognition.interimResults = false;
+
+        recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          const currentInstructions = serviceId === 'premium_laundry' ? premiumSpecialInstructions : specialInstructions;
+          const updatedText = currentInstructions ? `${currentInstructions} ${transcript}` : transcript;
+
+          if (serviceId === 'premium_laundry') {
+            setPremiumSpecialInstructions(updatedText);
+          } else {
+            setSpecialInstructions(updatedText);
+          }
+          setIsListening(false);
+        };
+
+        recognition.onerror = (event: any) => {
+          setIsListening(false);
+          console.log('Speech recognition status:', event.error);
+
+          // Ignore benign errors
+          if (event.error === 'no-speech' || event.error === 'aborted') {
+            return;
+          }
+
+          let errorMessage = 'Speech recognition failed. Please try again.';
+          if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            errorMessage = 'Microphone permission denied. Please allow microphone access in your browser settings.';
+          } else if (event.error === 'network') {
+            errorMessage = 'Network error. Please check your internet connection.';
+          }
+
+          showAlert({
+            title: 'Speech Recognition Error',
+            message: errorMessage,
+            type: 'error'
+          });
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+
+        recognition.start();
       } else {
+        // For mobile, we'll use a simpler approach with Speech API
         showAlert({
-          title: 'Permission Required',
-          message: 'Permission to record audio is required!',
-          type: 'warning'
+          title: 'Coming Soon',
+          message: 'Speech-to-text is currently optimized for web. Please type your notes.',
+          type: 'info'
         });
+        setIsListening(false);
       }
     } catch (err) {
-      console.error('Failed to start recording', err);
+      console.error('Speech recognition error:', err);
+      setIsListening(false);
+      showAlert({
+        title: 'Error',
+        message: 'Failed to start speech recognition',
+        type: 'error'
+      });
     }
-  };
-
-  const stopRecording = async () => {
-    setRecording(null);
-    setIsRecording(false);
-    await recording?.stopAndUnloadAsync();
-    // const uri = recording?.getURI();
-    // Logic to store/attach voice note would go here
-    showAlert({
-      title: 'Success',
-      message: 'Voice note recorded!',
-      type: 'success'
-    });
   };
 
   const renderMediaButtons = () => (
@@ -239,40 +349,51 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
       <TouchableOpacity
         style={styles.mediaButton}
-        onPress={isRecording ? stopRecording : startRecording}
+        onPress={startSpeechToText}
       >
         <View style={[
           styles.mediaIconCircle,
-          { backgroundColor: isRecording ? '#FEE2E2' : '#F3F4F6' }
+          { backgroundColor: isListening ? '#FEE2E2' : '#F3F4F6' }
         ]}>
           <Ionicons
-            name={isRecording ? "stop" : "mic"}
+            name={isListening ? "mic" : "mic-outline"}
             size={20}
-            color={isRecording ? "#DC2626" : COLORS.textSecondary}
+            color={isListening ? "#DC2626" : COLORS.textSecondary}
           />
         </View>
         <Text style={styles.mediaButtonText}>
-          {isRecording ? 'Stop' : 'Voice Note'}
+          {isListening ? 'Listening...' : 'Voice Input'}
         </Text>
       </TouchableOpacity>
     </View>
   );
 
-  const renderImagePreview = () => {
-    if (!selectedImage) return null;
+  const renderPhotoGallery = () => {
+    if (selectedImages.length === 0) return null;
 
     return (
-      <View style={styles.imagePreviewContainer}>
-        <Image source={{ uri: selectedImage }} style={styles.imagePreview} contentFit="cover" transition={300} />
-        <TouchableOpacity
-          style={styles.removeImageButton}
-          onPress={() => setSelectedImage(null)}
-        >
-          <Ionicons name="trash-outline" size={20} color="#DC2626" />
-        </TouchableOpacity>
-        <Text style={[styles.sectionSubtitle, { marginLeft: SPACING.sm }]}>
-          Image attached
-        </Text>
+      <View style={styles.photoGalleryContainer}>
+        <View style={styles.photoGalleryHeader}>
+          <Text style={styles.photoCount}>{selectedImages.length}/5 photos</Text>
+          {selectedImages.length > 0 && (
+            <TouchableOpacity onPress={() => setSelectedImages([])}>
+              <Text style={styles.clearAllText}>Clear All</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
+          {selectedImages.map((uri, index) => (
+            <View key={index} style={styles.photoCard}>
+              <Image source={{ uri }} style={styles.photoThumbnail} contentFit="cover" />
+              <TouchableOpacity
+                style={styles.removePhotoButton}
+                onPress={() => removePhoto(index)}
+              >
+                <Ionicons name="close" size={14} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </ScrollView>
       </View>
     );
   };
@@ -303,7 +424,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     return basePrice;
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!service) return;
 
     const totalPrice = calculateTotal();
@@ -323,6 +444,8 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
       // Check limits
       const maxPieces = weight === 'small' ? 25 : 50;
+      // Use correct state based on service type
+      // For premium, we use separate states
       const currentIroningCount = (serviceId === 'premium_laundry') ? premiumIroningCount : ironingCount;
       const isIroningEnabled = (serviceId === 'premium_laundry') ? premiumIroningEnabled : ironingEnabled;
 
@@ -347,7 +470,8 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       }
     }
 
-    // ... (Cart Item Creation)
+    // Base64 Strategy: Photos are already converted to Base64/URIs
+    // Use them directly.
 
     const cartItem: CartItem = {
       id: '',
@@ -359,6 +483,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       basePrice: totalPrice,
       totalPrice: totalPrice,
       specialInstructions: specialInstructions || undefined,
+      photoUrls: selectedImages.length > 0 ? selectedImages : undefined,
     };
 
     if (serviceId === 'wash_fold' || serviceId === 'wash_iron') {
@@ -504,7 +629,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
             onChangeText={setSpecialInstructions}
           />
           {renderMediaButtons()}
-          {renderImagePreview()}
+          {renderPhotoGallery()}
         </View>
       </View>
     );
@@ -579,7 +704,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
           onChangeText={setSpecialInstructions}
         />
         {renderMediaButtons()}
-        {renderImagePreview()}
+        {renderPhotoGallery()}
       </View>
     </View>
   );
@@ -782,7 +907,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
           onChangeText={setPremiumSpecialInstructions}
         />
         {renderMediaButtons()}
-        {renderImagePreview()}
+        {renderPhotoGallery()}
       </View>
     </View>
   );
@@ -1145,6 +1270,55 @@ const styles = StyleSheet.create({
   },
   removeImageButton: {
     marginLeft: SPACING.sm,
+  },
+  photoGalleryContainer: {
+    marginTop: SPACING.md,
+  },
+  photoGalleryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  photoCount: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+  },
+  clearAllText: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.error,
+    fontWeight: '600',
+  },
+  photoScroll: {
+    marginHorizontal: -SPACING.sm,
+    paddingVertical: SPACING.sm, // Add vertical padding to prevent clipping
+  },
+  photoCard: {
+    position: 'relative',
+    marginHorizontal: SPACING.sm / 2,
+    width: 80,
+    height: 80,
+  },
+  photoThumbnail: {
+    width: '100%',
+    height: '100%',
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.backgroundLight,
+  },
+  removePhotoButton: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#DC2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+    ...SHADOWS.md,
   },
   blanketOption: {
     borderWidth: 2,

@@ -11,6 +11,7 @@ import {
   Timestamp,
   where,
 } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from './firebase';
 import { generateOTP } from '../utils/otpHelpers';
 
@@ -96,6 +97,33 @@ export const checkUserExists = async (phone: string) => {
   } catch (error) {
     console.log('User lookup failed (likely permissions), proceeding as new user:', error);
     return null;
+  }
+};
+
+// Upload service photos to Firebase Storage
+export const uploadServicePhotos = async (photoUris: string[], orderId: string): Promise<string[]> => {
+  try {
+    const storage = getStorage();
+    const uploadPromises = photoUris.map(async (uri, index) => {
+      // Fetch the image from local URI
+      const response = await fetch(uri);
+      const blob = await response.blob();
+
+      // Create a reference to the storage location
+      const storageRef = ref(storage, `orders/${orderId}/photo_${index}_${Date.now()}.jpg`);
+
+      // Upload the blob
+      await uploadBytes(storageRef, blob);
+
+      // Get download URL
+      const downloadURL = await getDownloadURL(storageRef);
+      return downloadURL;
+    });
+
+    return await Promise.all(uploadPromises);
+  } catch (error) {
+    console.error('Error uploading photos:', error);
+    throw new Error('Failed to upload photos');
   }
 };
 

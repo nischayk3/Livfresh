@@ -193,13 +193,13 @@ export const SubscriptionsScreen: React.FC = () => {
         )}
 
         {/* Buy More Credits Button */}
-        <TouchableOpacity
+        {/* <TouchableOpacity
           style={styles.buyMoreButton}
           onPress={() => (navigation as any).navigate('BuyCredits')}
         >
           <Ionicons name="add-circle-outline" size={20} color={COLORS.primary} />
           <Text style={styles.buyMoreButtonText}>Buy More Credits</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
         {/* Included / Not Included */}
         <View style={styles.includedGrid}>

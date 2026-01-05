@@ -306,6 +306,11 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md + 4,
     ...TYPOGRAPHY.body,
     color: COLORS.text,
+    ...Platform.select({
+      web: {
+        outlineStyle: 'none',
+      }
+    }) as any,
   },
   errorContainer: {
     flexDirection: 'row',

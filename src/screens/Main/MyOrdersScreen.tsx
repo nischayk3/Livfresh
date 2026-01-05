@@ -14,6 +14,7 @@ export const MyOrdersScreen: React.FC = () => {
     const [orders, setOrders] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [activeTab, setActiveTab] = useState<'current' | 'past'>('current');
     const insets = useSafeAreaInsets();
 
     const fetchOrders = async () => {
@@ -41,6 +42,17 @@ export const MyOrdersScreen: React.FC = () => {
             setRefreshing(false);
         }
     };
+
+    // Filter orders
+    const currentOrders = orders.filter(o =>
+        !['delivered', 'cancelled', 'refund_processed'].includes(o.status)
+    );
+
+    const pastOrders = orders.filter(o =>
+        ['delivered', 'cancelled', 'refund_processed'].includes(o.status)
+    );
+
+    const displayOrders = activeTab === 'current' ? currentOrders : pastOrders;
 
     useEffect(() => {
         fetchOrders();
@@ -94,7 +106,11 @@ export const MyOrdersScreen: React.FC = () => {
                 <View style={styles.cardBody}>
                     <View style={styles.infoRow}>
                         <Ionicons name="basket-outline" size={16} color={COLORS.textSecondary} />
-                        <Text style={styles.infoText}>{itemCount} Items</Text>
+                        <Text style={styles.infoText}>
+                            {itemCount} Items
+                            {/* Show Blanket details if available */}
+                            {item.items?.some((i: any) => i.serviceType === 'blanket_wash') && ' (Inc. Blankets)'}
+                        </Text>
                     </View>
                     <View style={styles.infoRow}>
                         <Ionicons name="wallet-outline" size={16} color={COLORS.textSecondary} />
@@ -127,17 +143,60 @@ export const MyOrdersScreen: React.FC = () => {
                 <View style={{ width: 40 }} />
             </View>
 
+            {/* Tabs */}
+            <View style={styles.tabContainer}>
+                <TouchableOpacity
+                    style={[styles.tab, activeTab === 'current' && styles.activeTab]}
+                    onPress={() => setActiveTab('current')}
+                >
+                    <Text style={[styles.tabText, activeTab === 'current' && styles.activeTabText]}>
+                        Current {currentOrders.length > 0 && `(${currentOrders.length})`}
+                    </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tab, activeTab === 'past' && styles.activeTab]}
+                    onPress={() => setActiveTab('past')}
+                >
+                    <Text style={[styles.tabText, activeTab === 'past' && styles.activeTabText]}>
+                        Past {pastOrders.length > 0 && `(${pastOrders.length})`}
+                    </Text>
+                </TouchableOpacity>
+            </View>
+
             <FlatList
-                data={orders}
+                data={displayOrders}
                 renderItem={renderOrderItem}
                 keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.listContent}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+                contentContainerStyle={[styles.listContent, { paddingBottom: 100 }]}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
+                }
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
-                        <Ionicons name="receipt-outline" size={64} color={COLORS.textLight} />
-                        <Text style={styles.emptyText}>No orders yet</Text>
-                        <Text style={styles.emptySubtext}>Your order history will appear here</Text>
+                        <View style={styles.emptyIconContainer}>
+                            <Ionicons
+                                name={activeTab === 'current' ? "cube-outline" : "time-outline"}
+                                size={64}
+                                color={COLORS.textLight}
+                            />
+                        </View>
+                        <Text style={styles.emptyText}>
+                            {activeTab === 'current' ? 'No active orders' : 'No past orders'}
+                        </Text>
+                        <Text style={styles.emptySubtext}>
+                            {activeTab === 'current'
+                                ? 'Your running orders will show up here.'
+                                : 'Your delivered and cancelled orders will show up here.'}
+                        </Text>
+                        {activeTab === 'current' && (
+                            <TouchableOpacity
+                                style={styles.browseButton}
+                                onPress={() => (navigation as any).navigate('Home')}
+                            >
+                                <Text style={styles.browseButtonText}>Book Now</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 }
             />
@@ -247,18 +306,60 @@ const styles = StyleSheet.create({
         color: COLORS.primary,
         fontWeight: '600',
     },
-    emptyContainer: {
-        padding: SPACING.xl,
+    // Tab Styles
+    tabContainer: {
+        flexDirection: 'row',
+        backgroundColor: COLORS.background,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.borderLight,
+    },
+    tab: {
+        flex: 1,
+        paddingVertical: SPACING.md,
         alignItems: 'center',
-        marginTop: 60,
+        borderBottomWidth: 2,
+        borderBottomColor: 'transparent',
+    },
+    activeTab: {
+        borderBottomColor: COLORS.primary,
+    },
+    tabText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: COLORS.textSecondary,
+    },
+    activeTabText: {
+        color: COLORS.primary,
+        fontWeight: '700',
+    },
+    emptyContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: SPACING.xl * 2,
+    },
+    emptyIconContainer: {
+        marginBottom: SPACING.md,
+        opacity: 0.5,
     },
     emptyText: {
         ...TYPOGRAPHY.subheading,
         color: COLORS.text,
-        marginTop: SPACING.md,
+        marginBottom: SPACING.xs,
     },
     emptySubtext: {
-        color: COLORS.textLight,
-        marginTop: SPACING.xs,
+        ...TYPOGRAPHY.body,
+        color: COLORS.textSecondary,
+        textAlign: 'center',
+        marginBottom: SPACING.lg,
+    },
+    browseButton: {
+        paddingVertical: SPACING.sm,
+        paddingHorizontal: SPACING.lg,
+        backgroundColor: COLORS.primary,
+        borderRadius: RADIUS.md,
+    },
+    browseButtonText: {
+        ...TYPOGRAPHY.button,
+        color: COLORS.background,
     },
 });

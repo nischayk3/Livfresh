@@ -16,7 +16,7 @@ import { Timestamp } from 'firebase/firestore';
 
 import { useCartStore, useAuthStore, useAddressStore, useUIStore } from '../../store';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
-import { createOrder, saveCart, clearCartInFirestore } from '../../services/firestore';
+import { createOrder, saveCart, clearCartInFirestore, uploadServicePhotos } from '../../services/firestore';
 import { BrandLoader } from '../../components/BrandLoader';
 
 export const CartScreen: React.FC = () => {
@@ -64,7 +64,8 @@ export const CartScreen: React.FC = () => {
     const generateTimeSlots = () => {
         const slots = [];
         for (let i = 10; i < 22; i++) {
-            slots.push(`${i}:00 - ${i + 1}:00`);
+            slots.push(`${i}:00 - ${i}:30`);
+            slots.push(`${i}:30 - ${i + 1}:00`);
         }
         return slots;
     };
@@ -108,9 +109,15 @@ export const CartScreen: React.FC = () => {
         setLoading(true);
 
         try {
+            const { currentLatitude, currentLongitude } = useAddressStore.getState();
+
+            // Upload photos logic REMOVED. Photos are already uploaded in ServiceDetailScreen.
+            // Items in cart already contain valid persistent Firebase URLs.
+            const itemsWithPhotoUrls = items;
+
             const orderData = {
                 vendorId: items[0]?.vendorId || 'default', // Assuming single vendor for MVP
-                items,
+                items: itemsWithPhotoUrls, // Use items with uploaded photo URLs
                 billDetails: {
                     itemTotal: subtotal,
                     platformFee: PLATFORM_FEE,
@@ -123,11 +130,9 @@ export const CartScreen: React.FC = () => {
                     scheduledTime: pickupType === 'scheduled' ? selectedTimeSlot : null,
                     isInstant: pickupType === 'instant',
                 },
-                address: currentAddress, // Ideally full address object, but store only has label string currently? checking... store has full obj?
-                // AddressStore seems to expose `currentAddress` which is a string label? 
-                // We'll trust it for now or assume backend/profile fixes it. 
-                // Better: If AddressStore has full object, use it. Code analysis showed `currentAddress` is likely string? 
-                // Let's assume it's the address string for now.
+                address: currentAddress,
+                latitude: currentLatitude,
+                longitude: currentLongitude,
                 status: 'placed',
                 paymentMode: 'cod', // Default to COD for MVP, maybe add card option later?
             };
@@ -143,7 +148,7 @@ export const CartScreen: React.FC = () => {
             navigation.reset({
                 index: 0,
                 routes: [
-                    { name: 'OrderSuccess' }
+                    { name: 'OrderSuccess' } as any
                 ],
             });
 
@@ -186,6 +191,13 @@ export const CartScreen: React.FC = () => {
                 {item.serviceType === 'shoe_clean' && (
                     <Text style={styles.detailText}>
                         {item.shoeQuantity} pairs ({item.shoeType})
+                    </Text>
+                )}
+
+                {/* Blanket Details */}
+                {item.serviceType === 'blanket_wash' && (
+                    <Text style={styles.detailText}>
+                        {item.description || `${item.blanketQuantity || 0} Blankets`}
                     </Text>
                 )}
 

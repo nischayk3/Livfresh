@@ -226,7 +226,7 @@ export const OTPScreen: React.FC = () => {
             <Text style={styles.heading}>Verify OTP</Text>
             <Text style={styles.subtitle}>
               Enter the 6-digit code sent to{'\n'}
-              <Text style={styles.phoneText}>+91 {last4Digits}</Text>
+              <Text style={styles.phoneText}>{phone}</Text>
             </Text>
 
             <View style={styles.otpContainer}>

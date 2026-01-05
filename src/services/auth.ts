@@ -1,5 +1,6 @@
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from './firebase'; // Ensure auth is imported
+import { db, auth } from './firebase';
+import { Platform } from 'react-native';
 import {
   signInWithPhoneNumber,
   RecaptchaVerifier,
@@ -22,10 +23,19 @@ let currentUserData: {
 } = {};
 
 // Helper to get or create verifier
+// Initialize verifier for better performance
+export const initializeRecaptcha = () => {
+  if (Platform.OS !== 'web') return null; // Only needed for web
+  return getVerifier();
+};
+
 const getVerifier = () => {
-  // @ts-ignore - RecaptchaVerifier isn't typed on window clearly or we create a new one
+  if (typeof window === 'undefined') return null;
+
+  // @ts-ignore
   if (!window.recaptchaVerifier) {
     try {
+      console.log("Initializing RecaptchaVerifier...");
       window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
         size: 'invisible',
         callback: () => console.log('Recaptcha verified')

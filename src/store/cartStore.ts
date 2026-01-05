@@ -30,6 +30,7 @@ export interface CartItem {
   // Other
   description?: string; // For custom descriptions (e.g. mixture of blankets)
   specialInstructions?: string;
+  photoUrls?: string[]; // Array of photo URLs from Firebase Storage
   basePrice: number;
   totalPrice: number;
 }

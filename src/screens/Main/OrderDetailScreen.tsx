@@ -142,7 +142,11 @@ export const OrderDetailScreen: React.FC = () => {
                     {order.items?.map((item: any, idx: number) => (
                         <View key={idx} style={styles.itemRow}>
                             <Text style={styles.itemName}>
-                                {item.serviceName} ({item.serviceType === 'wash_fold' ? `${item.weight}kg` : `${item.shoeQuantity} pairs`})
+                                {item.serviceName} ({
+                                    item.serviceType === 'wash_fold' ? `${item.weight}kg` :
+                                        item.serviceType === 'blanket_wash' ? (item.description || 'Blankets') :
+                                            `${item.shoeQuantity} pairs`
+                                })
                             </Text>
                             <Text style={styles.itemPrice}>₹{item.totalPrice}</Text>
                         </View>

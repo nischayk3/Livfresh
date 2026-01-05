@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { requestOTP } from '../../services/auth';
+import { requestOTP, initializeRecaptcha } from '../../services/auth';
 import { checkUserExists } from '../../services/firestore';
 import { useAuthStore, useUIStore } from '../../store';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
@@ -38,7 +38,10 @@ export const PhoneLoginScreen: React.FC = () => {
   // RecaptchaVerifier logic moved to auth.web.ts or handled internally by the web SDK.
   // We just ensure the container exists on web.
   useEffect(() => {
-    // Platform specific setup checks if any
+    // Pre-initialize recaptcha for web to speed up OTP request
+    if (Platform.OS === 'web') {
+      initializeRecaptcha();
+    }
   }, []);
 
   const formatPhone = (text: string) => {
@@ -178,7 +181,7 @@ export const PhoneLoginScreen: React.FC = () => {
           </TouchableOpacity>
 
           {/* Fullscreen loader overlay */}
-          {loading && <BrandLoader fullscreen message="Sending OTP..." />}
+          {loading && <BrandLoader fullscreen message="Requesting Secure OTP..." />}
 
           <Text style={styles.termsText}>
             By continuing, you agree to our{' '}
@@ -263,7 +266,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     height: '100%',
-    width: 70,
+    paddingHorizontal: SPACING.md,
+    minWidth: 60,
+    width: 'auto',
   },
   prefixIcon: {
     display: 'none', // Hiding icon for cleaner look, just text +91

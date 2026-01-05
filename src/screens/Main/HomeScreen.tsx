@@ -226,17 +226,17 @@ export const HomeScreen: React.FC = () => {
             </View>
             <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
               styles.creditsButton,
               getTotalCredits() > 0 && styles.creditsButtonActive
-            ]} 
+            ]}
             onPress={() => (navigation as any).navigate('Main', { screen: 'Credits' })}
           >
-            <Ionicons 
-              name="card" 
-              size={14} 
-              color={getTotalCredits() > 0 ? COLORS.primary : COLORS.textSecondary} 
+            <Ionicons
+              name="card"
+              size={14}
+              color={getTotalCredits() > 0 ? COLORS.primary : COLORS.textSecondary}
             />
             <Text style={[
               styles.creditsText,
@@ -269,8 +269,19 @@ export const HomeScreen: React.FC = () => {
             snapToInterval={Dimensions.get('window').width - 48}
             decelerationRate="fast"
             contentContainerStyle={styles.promoList}
+            getItemLayout={(data, index) => ({
+              length: Dimensions.get('window').width - 64 + 16, // width + marginRight
+              offset: (Dimensions.get('window').width - 64 + 16) * index,
+              index,
+            })}
+            onScrollToIndexFailed={(info) => {
+              const wait = new Promise(resolve => setTimeout(resolve, 500));
+              wait.then(() => {
+                flatListRef.current?.scrollToIndex({ index: info.index, animated: true });
+              });
+            }}
             onMomentumScrollEnd={(ev) => {
-              const cardWidth = Dimensions.get('window').width - 48;
+              const cardWidth = Dimensions.get('window').width - 48; // snapInterval
               const newIndex = Math.round(ev.nativeEvent.contentOffset.x / cardWidth);
               setCurrentIndex(newIndex);
             }}

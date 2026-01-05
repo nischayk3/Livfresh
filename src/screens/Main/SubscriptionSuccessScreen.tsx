@@ -33,18 +33,27 @@ export const SubscriptionSuccessScreen: React.FC = () => {
 
         // Auto-navigate to Credits tab after 3 seconds
         const timer = setTimeout(() => {
-            (navigation.navigate as any)('Main', { screen: 'Credits' });
+            navigation.navigate('Main' as never, {
+                screen: 'MainTabs',
+                params: { screen: 'Credits' }
+            } as never);
         }, 3000);
 
         return () => clearTimeout(timer);
-    }, [navigation]);
+    }, [navigation, scaleValue, fadeValue]);
 
     const handleBackHome = () => {
-        (navigation.navigate as any)('Main', { screen: 'Home' });
+        navigation.navigate('Main' as never, {
+            screen: 'MainTabs',
+            params: { screen: 'Home' }
+        } as never);
     };
 
     const handleViewCredits = () => {
-        (navigation.navigate as any)('Main', { screen: 'Credits' });
+        navigation.navigate('Main' as never, {
+            screen: 'MainTabs',
+            params: { screen: 'Credits' }
+        } as never);
     };
 
     return (
@@ -89,14 +98,14 @@ export const SubscriptionSuccessScreen: React.FC = () => {
 
             <Animated.View style={[styles.footer, { opacity: fadeValue, paddingBottom: insets.bottom + SPACING.xl }]}>
                 <View style={styles.buttonRow}>
-                    <TouchableOpacity 
-                        style={[styles.secondaryButton, { flex: 1 }]} 
+                    <TouchableOpacity
+                        style={[styles.secondaryButton, { flex: 1 }]}
                         onPress={handleBackHome}
                     >
                         <Text style={styles.secondaryButtonText}>Go to Home</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity 
-                        style={[styles.primaryButton, { flex: 1 }]} 
+                    <TouchableOpacity
+                        style={[styles.primaryButton, { flex: 1 }]}
                         onPress={handleViewCredits}
                     >
                         <Text style={styles.primaryButtonText}>View Credits</Text>

@@ -76,7 +76,7 @@ export const BuyCreditsScreen: React.FC = () => {
       if (result.success) {
         // Refetch subscriptions to update the store immediately
         await fetchSubscriptions(user.uid);
-        
+
         // Navigate to success screen
         (navigation as any).navigate('SubscriptionSuccess', {
           subscriptionId: result.subscriptionId,
@@ -315,7 +315,7 @@ export const BuyCreditsScreen: React.FC = () => {
               <Text style={styles.purchaseButtonText}>
                 {activeSubscription
                   ? 'Active Subscription Exists'
-                  : `Pay Now • ₹${totalAmount}`}
+                  : `Pay Later • ₹${totalAmount}`}
               </Text>
             </>
           )}

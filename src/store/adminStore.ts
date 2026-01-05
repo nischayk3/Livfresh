@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import { 
-  getOrderStats, 
-  getAllOrders, 
-  getRevenue, 
+import {
+  getOrderStats,
+  getAllOrders,
+  getRevenue,
   updateOrderStatusAdmin,
   getSubscriptionStats,
   addCreditsAdmin,
@@ -74,21 +74,21 @@ interface AdminStoreState {
   orderStats: OrderStats;
   subscriptionStats: SubscriptionStats;
   userStats: UserStats;
-  
+
   // Data
   orders: AdminOrder[];
   revenue: RevenueData | null;
-  
+
   // Loading states
   statsLoading: boolean;
   ordersLoading: boolean;
   subscriptionsLoading: boolean;
   revenueLoading: boolean;
   userStatsLoading: boolean;
-  
+
   // Error states
   error: string | null;
-  
+
   // Actions
   fetchOrderStats: (silent?: boolean) => Promise<void>;
   fetchAllOrders: (silent?: boolean) => Promise<void>;
@@ -105,6 +105,12 @@ interface AdminStoreState {
       tokenNumber?: string;
       pickupOTP?: string;
       deliveryOTP?: string;
+      additionalData?: {
+        cancellationReason?: string;
+        cancellationNote?: string;
+        isCancelled?: boolean;
+        cancelledAt?: Date;
+      };
     }
   ) => Promise<boolean>;
   addCredits: (
@@ -116,7 +122,7 @@ interface AdminStoreState {
   bulkAddCredits: (
     rows: { name: string; phone: string; planType: string; credits: number }[]
   ) => Promise<{ success: boolean; processed?: number; failed?: number; errors?: string[] }>;
-  
+
   // Clear error
   clearError: () => void;
 }
@@ -155,7 +161,7 @@ export const useAdminStore = create<AdminStoreState>((set, get) => ({
 
   fetchOrderStats: async (silent = false) => {
     if (!silent) set({ statsLoading: true, error: null });
-    
+
     try {
       const stats = await getOrderStats();
       set({ orderStats: stats });
@@ -169,7 +175,7 @@ export const useAdminStore = create<AdminStoreState>((set, get) => ({
 
   fetchAllOrders: async (silent = false) => {
     if (!silent) set({ ordersLoading: true, error: null });
-    
+
     try {
       const orders = await getAllOrders();
       set({ orders });
@@ -183,7 +189,7 @@ export const useAdminStore = create<AdminStoreState>((set, get) => ({
 
   fetchRevenue: async (startDate: Date, endDate: Date) => {
     set({ revenueLoading: true, error: null });
-    
+
     try {
       const revenueData = await getRevenue(startDate, endDate);
       set({ revenue: revenueData });
@@ -197,7 +203,7 @@ export const useAdminStore = create<AdminStoreState>((set, get) => ({
 
   fetchSubscriptionStats: async (silent = false) => {
     if (!silent) set({ subscriptionsLoading: true, error: null });
-    
+
     try {
       const stats = await getSubscriptionStats();
       set({ subscriptionStats: stats });
@@ -226,19 +232,19 @@ export const useAdminStore = create<AdminStoreState>((set, get) => ({
       }));
 
       await updateOrderStatusAdmin(userId, orderId, newStatus, options);
-      
+
       // Refresh stats and orders
       get().fetchOrderStats(true);
       get().fetchAllOrders(true);
-      
+
       return true;
     } catch (error: any) {
       console.error('Error updating order status:', error);
       set({ error: error.message || 'Failed to update order status' });
-      
+
       // Revert optimistic update
       get().fetchAllOrders(true);
-      
+
       return false;
     }
   },
@@ -278,7 +284,7 @@ export const useAdminStore = create<AdminStoreState>((set, get) => ({
 
   fetchUserStats: async (silent = false) => {
     if (!silent) set({ userStatsLoading: true, error: null });
-    
+
     try {
       const stats = await getUserStats();
       set({ userStats: stats });

@@ -10,9 +10,11 @@ import {
   Modal,
   ScrollView,
   Alert,
-  Platform
+  Platform,
+  Linking
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, TYPOGRAPHY, SHADOWS } from '../../utils/constants';
 import { useAdminStore } from '../../store/adminStore';
@@ -43,7 +45,7 @@ export const AdminOrdersScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const {
     orders,
-    isLoading,
+    ordersLoading: isLoading,
     fetchAllOrders,
     updateOrderStatus
   } = useAdminStore();
@@ -67,19 +69,14 @@ export const AdminOrdersScreen: React.FC = () => {
   const [cancelReason, setCancelReason] = useState(CANCELLATION_REASONS[0]);
   const [cancelNote, setCancelNote] = useState('');
   const [orderToCancel, setOrderToCancel] = useState<any>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Initial Fetch
   useEffect(() => {
     fetchAllOrders();
   }, []);
 
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <BrandLoader />
-      </View>
-    );
-  }
+
 
   // Debug: Inspect raw order count
   useEffect(() => {
@@ -132,8 +129,9 @@ export const AdminOrdersScreen: React.FC = () => {
       const lowerQuery = searchQuery.toLowerCase();
       filtered = filtered.filter(order =>
         order.id.toLowerCase().includes(lowerQuery) ||
-        (order.userPhone || '').includes(lowerQuery) ||
-        (order.userName || '').toLowerCase().includes(lowerQuery) ||
+        order.id.toLowerCase().includes(lowerQuery) ||
+        (order.customerPhone || '').includes(lowerQuery) ||
+        (order.customerName || '').toLowerCase().includes(lowerQuery) ||
         (order.pickupOTP || '').includes(lowerQuery)
       );
     }
@@ -313,6 +311,19 @@ export const AdminOrdersScreen: React.FC = () => {
     }
   };
 
+  const handleGetDirections = (item: any) => {
+    const { latitude, longitude, address } = item;
+    const addressStr = typeof address === 'string' ? address : (address?.formattedAddress || '');
+
+    const url = latitude && longitude
+      ? `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressStr)}`;
+
+    Linking.openURL(url).catch(() => {
+      Alert.alert("Error", "Could not open map application");
+    });
+  };
+
   // Render Item
   const renderOrderItem = ({ item }: { item: any }) => {
     let formattedDate = 'Date N/A';
@@ -368,19 +379,61 @@ export const AdminOrdersScreen: React.FC = () => {
         <View style={styles.customerInfo}>
           <View style={styles.row}>
             <Ionicons name="person-outline" size={14} color={COLORS.textSecondary} />
-            <Text style={styles.customerName}>{item.customerName || item.userName || 'Unknown User'}</Text>
+            <Text style={styles.customerName}>{item.customerName || 'Unknown User'}</Text>
           </View>
           <View style={styles.row}>
             <Ionicons name="call-outline" size={14} color={COLORS.textSecondary} />
-            <Text style={styles.customerPhone}>{item.customerPhone || item.userPhone || 'No Phone'}</Text>
+            <Text style={styles.customerPhone}>{item.customerPhone || 'No Phone'}</Text>
           </View>
           <View style={[styles.row, { alignItems: 'flex-start' }]}>
             <Ionicons name="location-outline" size={14} color={COLORS.textSecondary} style={{ marginTop: 2 }} />
-            <Text style={styles.addressText} numberOfLines={2}>
-              {typeof item.address === 'string' ? item.address : (item.address?.formattedAddress || 'No Address')}
-            </Text>
+            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={[styles.addressText, { flex: 1 }]} numberOfLines={2}>
+                {typeof item.address === 'string' ? item.address : (item.address?.formattedAddress || 'No Address')}
+              </Text>
+              <TouchableOpacity
+                onPress={() => handleGetDirections(item)}
+                style={styles.directionsButton}
+              >
+                <Ionicons name="navigate-circle" size={24} color={COLORS.primary} />
+                <Text style={styles.directionsText}>Directions</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
+
+        {/* Customer Photos Section */}
+        {item.items && item.items.some((orderItem: any) => orderItem.photoUrls && orderItem.photoUrls.length > 0) && (
+          <View style={{ marginBottom: SPACING.md }}>
+            <Text style={{ ...TYPOGRAPHY.caption, color: COLORS.textSecondary, marginBottom: SPACING.sm, fontWeight: '600' }}>
+              📸 Customer Photos
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -SPACING.sm }}>
+              {item.items.flatMap((orderItem: any, idx: number) =>
+                (orderItem.photoUrls || []).map((photoUrl: string, photoIdx: number) => (
+                  <TouchableOpacity
+                    key={`${idx}-${photoIdx}`}
+                    style={{
+                      width: 80,
+                      height: 80,
+                      marginHorizontal: 4,
+                      borderRadius: 8,
+                      overflow: 'hidden',
+                      backgroundColor: COLORS.backgroundLight,
+                    }}
+                    onPress={() => setSelectedImage(photoUrl)}
+                  >
+                    <Image
+                      source={{ uri: photoUrl }}
+                      style={{ width: '100%', height: '100%' }}
+                      contentFit="cover"
+                    />
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Detailed Items (Sipzo Style) */}
         <View style={styles.itemsContainer}>
@@ -388,8 +441,17 @@ export const AdminOrdersScreen: React.FC = () => {
             item.items.map((srv: any, idx: number) => (
               <View key={idx} style={styles.itemRow}>
                 <Text style={styles.itemTag}>
-                  {srv.serviceName} {'\u2022'} {srv.quantity || srv.weight || '1'} {srv.quantityUnit || 'units'}
+                  {srv.serviceName} {'\u2022'} {
+                    srv.serviceType === 'blanket_wash'
+                      ? (srv.description || (srv.quantity || '0') + ' Blankets')
+                      : (srv.quantity || srv.weight || '1') + ' ' + (srv.quantityUnit || 'units')
+                  }
                 </Text>
+                {srv.specialInstructions ? (
+                  <Text style={{ ...TYPOGRAPHY.caption, color: COLORS.textSecondary, marginTop: 4, marginLeft: 4, fontStyle: 'italic' }}>
+                    " {srv.specialInstructions} "
+                  </Text>
+                ) : null}
               </View>
             ))
           ) : (
@@ -490,6 +552,14 @@ export const AdminOrdersScreen: React.FC = () => {
       count: counts[tab.id] || 0
     }));
   }, [orders]);
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <BrandLoader />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -692,6 +762,34 @@ export const AdminOrdersScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Image Preview Modal */}
+      <Modal
+        visible={!!selectedImage}
+        transparent={true}
+        onRequestClose={() => setSelectedImage(null)}
+        animationType="fade"
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' }}
+          activeOpacity={1}
+          onPress={() => setSelectedImage(null)}
+        >
+          <TouchableOpacity
+            style={{ position: 'absolute', top: 40, right: 20, zIndex: 10, padding: 10 }}
+            onPress={() => setSelectedImage(null)}
+          >
+            <Ionicons name="close" size={30} color="white" />
+          </TouchableOpacity>
+          {selectedImage && (
+            <Image
+              source={{ uri: selectedImage }}
+              style={{ width: '90%', height: '80%' }}
+              contentFit="contain"
+            />
+          )}
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -701,7 +799,7 @@ const getStatusColor = (status: string) => {
   switch (status) {
     case 'placed': return COLORS.info;
     case 'confirmed': return COLORS.info;
-    case 'pickup_completed': return COLORS.secondary;
+    case 'pickup_completed': return '#6366F1'; // Indigo
     case 'processing': return COLORS.warning;
     case 'ready': return COLORS.success;
     case 'out_for_delivery': return '#FF8C00'; // Dark Orange
@@ -714,6 +812,12 @@ const getStatusColor = (status: string) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: COLORS.background,
   },
   header: {
@@ -744,7 +848,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.borderLight,
-    ...SHADOWS.small,
+    ...SHADOWS.sm,
   },
   searchIcon: {
     marginRight: SPACING.sm,
@@ -796,7 +900,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: SPACING.md,
-    ...SHADOWS.medium,
+    ...SHADOWS.md,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -844,6 +948,21 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.caption,
     color: COLORS.textSecondary,
     fontStyle: 'italic',
+  },
+  directionsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.backgroundLight,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  directionsText: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.primary,
+    fontWeight: '700',
   },
   orderStats: {
     flexDirection: 'row',
@@ -902,7 +1021,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: SPACING.lg,
-    ...SHADOWS.large,
+    ...SHADOWS.lg,
   },
   modalTitle: {
     ...TYPOGRAPHY.subheading,
@@ -1076,3 +1195,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+

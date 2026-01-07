@@ -11,6 +11,7 @@ import {
   setDoc,
   writeBatch,
   collectionGroup,
+  onSnapshot,
 } from 'firebase/firestore';
 import { adminDb as db } from './firebase';
 import { generateOTP } from '../utils/otpHelpers';
@@ -345,6 +346,86 @@ export const getAllOrders = async (): Promise<any[]> => {
 };
 
 /**
+ * Subscribe to all orders from all users in real-time (for admin)
+ * Includes data enrichment for customer name/phone
+ */
+export const subscribeToAllOrdersAdmin = (callback: (orders: any[]) => void) => {
+  console.log('[Admin] Subscribing to all orders via collectionGroup...');
+  const ordersQuery = query(collectionGroup(db, 'orders'));
+  const userCache: Record<string, any> = {};
+
+  return onSnapshot(ordersQuery, async (snapshot) => {
+    // Deduplicate docs immediately
+    const uniqueDocsMap = new Map();
+    snapshot.docs.forEach(doc => {
+      if (!uniqueDocsMap.has(doc.id)) {
+        uniqueDocsMap.set(doc.id, doc);
+      }
+    });
+
+    const enrichedOrders: any[] = [];
+
+    // Process all orders
+    for (const orderDoc of Array.from(uniqueDocsMap.values())) {
+      const orderData = orderDoc.data();
+      let userId = orderData.userId;
+      if (!userId && orderDoc.ref.parent && orderDoc.ref.parent.parent) {
+        userId = orderDoc.ref.parent.parent.id;
+      }
+
+      let userName = orderData.customerName || orderData.userName || 'Unknown';
+      let userPhone = orderData.customerPhone || orderData.userPhone || '';
+
+      // Enrichment logic if missing detail
+      if (userId && (userName === 'Unknown' || !userPhone)) {
+        if (userCache[userId]) {
+          userName = userCache[userId].name || userName;
+          userPhone = userCache[userId].phone || userPhone;
+        } else {
+          try {
+            const userDocSnap = await getDoc(doc(db, 'users', userId));
+            if (userDocSnap.exists()) {
+              const userData = userDocSnap.data();
+              userCache[userId] = userData;
+              userName = userData.name || userName;
+              userPhone = userData.phone || userPhone;
+            }
+          } catch (e) {
+            console.warn(`[Admin] Enrichment failed for user ${userId}`);
+          }
+        }
+      }
+
+      enrichedOrders.push({
+        id: orderDoc.id,
+        userId: userId,
+        customerName: userName,
+        customerPhone: userPhone,
+        address: orderData.address || orderData.deliveryAddress || null,
+        ...orderData,
+      });
+    }
+
+    // Client-side sorting: Newest first
+    enrichedOrders.sort((a, b) => {
+      const getTime = (date: any) => {
+        if (!date) return 0;
+        if (typeof date === 'number') return date;
+        if (typeof date === 'string') return new Date(date).getTime();
+        if (date.toDate && typeof date.toDate === 'function') return date.toDate().getTime();
+        if (date.seconds) return date.seconds * 1000;
+        return 0;
+      };
+      return getTime(b.createdAt) - getTime(a.createdAt);
+    });
+
+    callback(enrichedOrders);
+  }, (error) => {
+    console.error('Error subscribing to all orders:', error);
+  });
+};
+
+/**
  * Get revenue data for a date range
  */
 export const getRevenue = async (startDate: Date, endDate: Date): Promise<{
@@ -606,17 +687,39 @@ export const addCreditsAdmin = async (
   credits: number
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    // Find user by phone
+    // Normalize phone number - try multiple formats
+    let normalizedPhone = phone.trim().replace(/\D/g, ''); // Remove all non-digits
+
+    // Remove leading 0 if present
+    if (normalizedPhone.startsWith('0')) {
+      normalizedPhone = normalizedPhone.substring(1);
+    }
+
+    // If it's a 10-digit number, add +91 prefix
+    const phoneWithPrefix = normalizedPhone.length === 10
+      ? `+91${normalizedPhone}`
+      : normalizedPhone.startsWith('91') && normalizedPhone.length === 12
+        ? `+${normalizedPhone}`
+        : normalizedPhone;
+
+    // Find user by phone - try with +91 prefix first
     const usersRef = collection(db, 'users');
-    const userQuery = query(usersRef, where('phone', '==', phone));
-    const userSnap = await getDocs(userQuery);
+    let userSnap = await getDocs(query(usersRef, where('phone', '==', phoneWithPrefix)));
+
+    // If not found, try without prefix (just the 10-digit number)
+    if (userSnap.empty && normalizedPhone.length === 10) {
+      userSnap = await getDocs(query(usersRef, where('phone', '==', normalizedPhone)));
+    }
+
+    // Also try with just +91 and the digits
+    if (userSnap.empty) {
+      userSnap = await getDocs(query(usersRef, where('phone', '==', `+91${normalizedPhone.slice(-10)}`)));
+    }
 
     let userId: string;
     let userData: any;
 
     if (userSnap.empty) {
-      // User doesn't exist - would need to create user first
-      // For now, return error
       return { success: false, error: 'User not found. Please ensure user has signed up first.' };
     }
 

@@ -14,6 +14,7 @@ import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore, useSubscriptionStore } from '../../store';
 import { useAddressStore } from '../../store';
@@ -67,7 +68,6 @@ const SERVICES = [
     name: 'Wash & Fold',
     icon: 'layers-sharp',
     color: '#8B5CF6',
-    description: 'Regular laundry',
     gradient: ['#F5F3FF', '#EDE9FE'],
   },
   {
@@ -75,7 +75,6 @@ const SERVICES = [
     name: 'Wash & Iron',
     icon: 'shirt-sharp',
     color: '#7C3AED',
-    description: 'Pressed & crisp',
     gradient: ['#EDE9FE', '#DDD6FE'],
   },
   {
@@ -83,7 +82,6 @@ const SERVICES = [
     name: 'Blanket Wash',
     icon: 'bed-sharp',
     color: '#6366F1',
-    description: 'Comforters & quilts',
     gradient: ['#EEF2FF', '#E0E7FF'],
   },
   {
@@ -91,7 +89,6 @@ const SERVICES = [
     name: 'Subscribe',
     icon: 'sparkles-sharp',
     color: COLORS.primary,
-    description: 'Save more',
     gradient: ['#F5F3FF', '#EDE9FE'],
     disabled: false,
   },
@@ -324,40 +321,47 @@ export const HomeScreen: React.FC = () => {
           <Text style={styles.sectionTitle}>Our Services</Text>
 
           <View style={styles.servicesGrid}>
-            {SERVICES.map((service) => (
-              <TouchableOpacity
+            {SERVICES.map((service, index) => (
+              <MotiView
                 key={service.id}
-                style={[
-                  styles.serviceCard,
-                  (service as any).disabled && styles.serviceCardDisabled
-                ]}
-                onPress={() => handleServicePress(service.id)}
-                activeOpacity={(service as any).disabled ? 1 : 0.7}
-                disabled={(service as any).disabled}
+                from={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{
+                  type: 'timing',
+                  duration: 400,
+                  delay: index * 100,
+                }}
+                style={{ width: '48%' }}
               >
-                <LinearGradient
-                  colors={service.gradient as [string, string]}
-                  style={styles.serviceOverlay}
-                />
-                <View style={[
-                  styles.serviceIconContainer,
-                  { backgroundColor: (service as any).disabled ? '#F3F4F6' : '#FFFFFF' }
-                ]}>
-                  <Ionicons
-                    name={service.icon as any}
-                    size={26}
-                    color={(service as any).disabled ? '#9CA3AF' : service.color}
+                <TouchableOpacity
+                  style={[
+                    styles.serviceCard,
+                    (service as any).disabled && styles.serviceCardDisabled
+                  ]}
+                  onPress={() => handleServicePress(service.id)}
+                  activeOpacity={(service as any).disabled ? 1 : 0.8}
+                  disabled={(service as any).disabled}
+                >
+                  <LinearGradient
+                    colors={service.gradient as [string, string]}
+                    style={styles.serviceOverlay}
                   />
-                </View>
-                <Text style={[
-                  styles.serviceName,
-                  (service as any).disabled && { color: '#9CA3AF' }
-                ]}>{service.name}</Text>
-                <Text style={[
-                  styles.serviceDescription,
-                  (service as any).disabled && { color: '#D1D5DB' }
-                ]}>{service.description}</Text>
-              </TouchableOpacity>
+                  <View style={[
+                    styles.serviceIconContainer,
+                    { backgroundColor: (service as any).disabled ? '#F3F4F6' : 'rgba(139, 92, 246, 0.1)' }
+                  ]}>
+                    <Ionicons
+                      name={service.icon as any}
+                      size={28}
+                      color={(service as any).disabled ? '#9CA3AF' : service.color}
+                    />
+                  </View>
+                  <Text style={[
+                    styles.serviceName,
+                    (service as any).disabled && { color: '#9CA3AF' }
+                  ]}>{service.name}</Text>
+                </TouchableOpacity>
+              </MotiView>
             ))}
           </View>
         </View>
@@ -458,11 +462,9 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
   },
   addressText: {
-    fontSize: 13,
-    fontWeight: '800',
+    ...TYPOGRAPHY.addressText,
     color: '#1A1A1A',
     marginTop: -1,
-    fontFamily: 'Outfit_800ExtraBold',
   },
   walletBadge: {
     borderRadius: 22,
@@ -479,8 +481,7 @@ const styles = StyleSheet.create({
   walletAmount: {
     color: '#FFFFFF',
     fontSize: 15,
-    fontWeight: '900',
-    fontFamily: 'Outfit_900Black',
+    fontFamily: 'Outfit_600SemiBold',
   },
   greetingSection: {
     flexDirection: 'row',
@@ -497,8 +498,7 @@ const styles = StyleSheet.create({
   },
   userName: {
     color: COLORS.primary,
-    fontWeight: '800',
-    fontFamily: 'Outfit_800ExtraBold',
+    fontFamily: 'Outfit_600SemiBold',
   },
   brandTagline: {
     fontSize: 14,
@@ -555,9 +555,8 @@ const styles = StyleSheet.create({
   },
   promoTitle: {
     fontSize: 22,
-    fontWeight: '800',
     color: '#1A1A1A',
-    fontFamily: 'Outfit_800ExtraBold',
+    fontFamily: 'Outfit_600SemiBold',
     lineHeight: 28,
   },
   promoSubtitle: {
@@ -592,11 +591,10 @@ const styles = StyleSheet.create({
     marginTop: 16, // Reduced from 24
   },
   sectionTitle: {
-    fontSize: 20, // Reduced from 22
-    fontWeight: '800',
+    ...TYPOGRAPHY.subheading,
+    fontSize: 20,
     color: '#1A1A1A',
-    fontFamily: 'Outfit_800ExtraBold',
-    marginBottom: 16, // Reduced from 20
+    marginBottom: 16,
     letterSpacing: -0.5,
   },
   servicesGrid: {
@@ -606,48 +604,41 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.xs,
   },
   serviceCard: {
-    width: '48%',
-    height: 145, // Further reduced for ultimate compactness
+    width: '100%',
+    height: 130,
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
+    borderRadius: 20,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
     marginBottom: 12,
     ...SHADOWS.md,
     borderWidth: 1,
     borderColor: '#F1F5F9',
     overflow: 'hidden',
+    alignItems: 'center',
     justifyContent: 'center',
   },
   serviceOverlay: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 0.08, // Slightly more visible for character
+    opacity: 0.06,
   },
   serviceCardDisabled: {
     opacity: 0.5,
   },
   serviceIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: '#F8FAFC',
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
-    ...SHADOWS.sm,
+    marginBottom: 12,
   },
   serviceName: {
-    fontSize: 15,
-    fontWeight: '800',
+    fontSize: 14,
     color: '#1A1A1A',
-    fontFamily: 'Outfit_800ExtraBold',
-    marginBottom: 2,
-  },
-  serviceDescription: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-    lineHeight: 16,
+    fontFamily: 'Outfit_500Medium',
+    textAlign: 'center',
   },
   section: {
     marginTop: 32,
@@ -659,7 +650,7 @@ const styles = StyleSheet.create({
     ...SHADOWS.xl,
   },
   cartButton: {
-    backgroundColor: '#111827', // Even darker for more "premium" feel
+    backgroundColor: COLORS.primaryDark,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

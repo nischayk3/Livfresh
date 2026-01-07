@@ -21,6 +21,7 @@ import { useAdminStore } from '../../store/adminStore';
 import { useUIStore } from '../../store/uiStore';
 import { format } from 'date-fns';
 import { BrandLoader } from '../../components/BrandLoader';
+import { subscribeToAllOrdersAdmin } from '../../services/adminFirestore';
 
 // Status tabs configuration - mirroring SpinZo flow
 const STATUS_TABS = [
@@ -71,9 +72,14 @@ export const AdminOrdersScreen: React.FC = () => {
   const [orderToCancel, setOrderToCancel] = useState<any>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  // Initial Fetch
+  // Initial Fetch & Real-time Listener
   useEffect(() => {
-    fetchAllOrders();
+    const unsubscribe = subscribeToAllOrdersAdmin((newOrders) => {
+      // Direct store update for real-time sync
+      useAdminStore.setState({ orders: newOrders, ordersLoading: false });
+    });
+
+    return () => unsubscribe();
   }, []);
 
 
@@ -334,6 +340,40 @@ export const AdminOrdersScreen: React.FC = () => {
     });
   };
 
+  const handleWhatsAppContact = (item: any) => {
+    const phone = item.customerPhone || item.userPhone;
+    if (!phone) {
+      Alert.alert("Error", "No phone number available");
+      return;
+    }
+
+    // Clean phone number: keep only digits
+    const cleanPhone = phone.replace(/\D/g, '');
+    const finalPhone = cleanPhone.startsWith('91') ? cleanPhone : `91${cleanPhone}`;
+
+    // PRE-FILLED MESSAGES BASED ON STATUS
+    let message = `Hi ${item.customerName || 'Customer'},\n\nI'm reaching out from *SpinZo* regarding your order *#${(item.id || '').toUpperCase()}*.`;
+
+    if (item.status === 'confirmed' || item.status === 'placed') {
+      message += `\n\nYour order is confirmed! Our pickup executive will reach you within the scheduled time.`;
+    } else if (item.status === 'processing') {
+      message += `\n\nYour garments are currently being processed. We'll update you once they are ready for delivery!`;
+    } else if (item.status === 'ready') {
+      message += `\n\nYour order is *Packed & Ready*! 🧺\nPlease schedule your delivery slot in the app to receive your fresh clothes.`;
+    }
+
+    const url = `whatsapp://send?text=${encodeURIComponent(message)}&phone=${finalPhone}`;
+
+    Linking.canOpenURL(url).then(supported => {
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        // Fallback to web link
+        Linking.openURL(`https://wa.me/${finalPhone}?text=${encodeURIComponent(message)}`);
+      }
+    });
+  };
+
   // Render Item
   const renderOrderItem = ({ item }: { item: any }) => {
     let formattedDate = 'Date N/A';
@@ -417,23 +457,40 @@ export const AdminOrdersScreen: React.FC = () => {
             <Ionicons name="person-outline" size={14} color={COLORS.textSecondary} />
             <Text style={styles.customerName}>{item.customerName || 'Unknown User'}</Text>
           </View>
-          <View style={styles.row}>
-            <Ionicons name="call-outline" size={14} color={COLORS.textSecondary} />
-            <Text style={styles.customerPhone}>{item.customerPhone || 'No Phone'}</Text>
-          </View>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => {
+              const phoneNumber = item.customerPhone?.replace(/\D/g, '');
+              if (phoneNumber) {
+                Linking.openURL(`tel:${phoneNumber}`);
+              }
+            }}
+          >
+            <Ionicons name="call-outline" size={14} color={COLORS.primary} />
+            <Text style={[styles.customerPhone, { color: COLORS.primary, textDecorationLine: 'underline' }]}>{item.customerPhone || 'No Phone'}</Text>
+          </TouchableOpacity>
           <View style={[styles.row, { alignItems: 'flex-start' }]}>
             <Ionicons name="location-outline" size={14} color={COLORS.textSecondary} style={{ marginTop: 2 }} />
             <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={[styles.addressText, { flex: 1 }]} numberOfLines={2}>
                 {typeof item.address === 'string' ? item.address : (item.address?.formattedAddress || 'No Address')}
               </Text>
-              <TouchableOpacity
-                onPress={() => handleGetDirections(item)}
-                style={styles.directionsButton}
-              >
-                <Ionicons name="navigate-circle" size={24} color={COLORS.primary} />
-                <Text style={styles.directionsText}>Directions</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <TouchableOpacity
+                  onPress={() => handleWhatsAppContact(item)}
+                  style={styles.whatsappButton}
+                >
+                  <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
+                  <Text style={[styles.directionsText, { color: '#25D366' }]}>WhatsApp</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleGetDirections(item)}
+                  style={styles.directionsButton}
+                >
+                  <Ionicons name="navigate-circle" size={24} color={COLORS.primary} />
+                  <Text style={styles.directionsText}>Directions</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
@@ -995,19 +1052,18 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   directionsButton: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: COLORS.backgroundLight,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginLeft: 8,
+    justifyContent: 'center',
+  },
+  whatsappButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   directionsText: {
-    ...TYPOGRAPHY.caption,
+    fontSize: 9,
     color: COLORS.primary,
     fontWeight: '700',
+    marginTop: -2,
   },
   orderStats: {
     flexDirection: 'row',

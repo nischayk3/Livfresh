@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { format, isSameDay, isAfter, addMinutes, parse } from 'date-fns';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
 import { useAuthStore } from '../../store';
-import { getOrder, getBusySlots, scheduleOrderDelivery } from '../../services/firestore';
+import { getOrder, getBusySlots, scheduleOrderDelivery, subscribeToOrder } from '../../services/firestore';
 import { BrandLoader } from '../../components/BrandLoader';
 
 // Order Status Steps
@@ -53,20 +53,20 @@ export const OrderDetailScreen: React.FC = () => {
     ];
 
     const fetchOrder = async () => {
-        if (!user?.uid || !orderId) return;
-        try {
-            const data = await getOrder(user.uid, orderId);
-            setOrder(data);
-        } catch (error) {
-            console.error('Failed to fetch order details:', error);
-        } finally {
-            setIsLoading(false);
-        }
+        // Handled by real-time listener now
     };
 
     useEffect(() => {
-        fetchOrder();
-    }, [orderId]);
+        if (!user?.uid || !orderId) return;
+
+        setIsLoading(true);
+        const unsubscribe = subscribeToOrder(user.uid, orderId, (data) => {
+            setOrder(data);
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [orderId, user?.uid]);
 
     useEffect(() => {
         if (showScheduler) {
@@ -94,8 +94,7 @@ export const OrderDetailScreen: React.FC = () => {
             const dateStr = format(DATES[selectedDateIndex], 'yyyy-MM-dd');
             await scheduleOrderDelivery(user?.uid || '', orderId, dateStr, selectedSlot);
             setShowScheduler(false);
-            // Refresh order
-            fetchOrder();
+            // Refresh order - Handled by listener
             Alert.alert("Success", `Delivery scheduled for ${selectedSlot} on ${format(DATES[selectedDateIndex], 'MMM d')}`);
         } catch (error) {
             Alert.alert("Error", "Failed to schedule delivery. Please try again.");
@@ -197,14 +196,27 @@ export const OrderDetailScreen: React.FC = () => {
                 {((['placed', 'confirmed', 'pickup_assigned'].includes(order.status)) && order.pickupOTP) && (
                     <View style={styles.otpContainer}>
                         <Text style={styles.otpLabel}>Share this OTP for Pickup</Text>
-                        <Text style={styles.otpValue}>{order.pickupOTP}</Text>
+                        <View style={styles.otpBoxContainer}>
+                            {order.pickupOTP.toString().split('').map((digit: string, idx: number) => (
+                                <View key={idx} style={styles.otpDigitBox}>
+                                    <Text style={styles.otpDigitText}>{digit}</Text>
+                                </View>
+                            ))}
+                        </View>
                     </View>
                 )}
 
-                {((['ready', 'out_for_delivery'].includes(order.status)) && order.deliveryOTP) && (
+                {/* Delivery OTP - Only show when delivery is scheduled */}
+                {((['ready', 'out_for_delivery'].includes(order.status)) && order.deliveryOTP && order.deliveryDate) && (
                     <View style={styles.otpContainer}>
                         <Text style={styles.otpLabel}>Share this OTP for Delivery</Text>
-                        <Text style={styles.otpValue}>{order.deliveryOTP}</Text>
+                        <View style={styles.otpBoxContainer}>
+                            {order.deliveryOTP.toString().split('').map((digit: string, idx: number) => (
+                                <View key={idx} style={styles.otpDigitBox}>
+                                    <Text style={styles.otpDigitText}>{digit}</Text>
+                                </View>
+                            ))}
+                        </View>
                     </View>
                 )}
 
@@ -416,23 +428,36 @@ const styles = StyleSheet.create({
     otpContainer: {
         backgroundColor: COLORS.primary,
         padding: SPACING.lg,
-        borderRadius: RADIUS.md,
+        borderRadius: RADIUS.lg,
         alignItems: 'center',
         marginBottom: SPACING.md,
-        ...SHADOWS.sm,
+        ...SHADOWS.md,
     },
     otpLabel: {
         color: '#FFF',
         fontSize: 14,
-        fontWeight: '600',
-        marginBottom: 4,
+        fontFamily: 'Outfit_600SemiBold',
+        marginBottom: SPACING.md,
         opacity: 0.9,
     },
-    otpValue: {
+    otpBoxContainer: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    otpDigitBox: {
+        width: 50,
+        height: 60,
+        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+        borderRadius: RADIUS.md,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.3)',
+    },
+    otpDigitText: {
         color: '#FFF',
-        fontSize: 32,
-        fontWeight: '800',
-        letterSpacing: 4,
+        fontSize: 28,
+        fontFamily: 'Outfit_700Bold',
     },
     header: {
         flexDirection: 'row',
@@ -708,12 +733,12 @@ const styles = StyleSheet.create({
         width: 60,
         height: 70,
         borderRadius: RADIUS.md,
-        backgroundColor: '#F3F4F6',
+        backgroundColor: COLORS.backgroundLight,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: SPACING.sm,
         borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderColor: COLORS.borderLight,
     },
     dateItemActive: {
         backgroundColor: COLORS.primary,
@@ -744,16 +769,16 @@ const styles = StyleSheet.create({
         gap: 10,
     },
     slotItem: {
-        width: '47.5%', // Adjust for 2 columns
-        padding: 12,
-        borderRadius: RADIUS.md,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: RADIUS.lg,
         borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderColor: COLORS.borderLight,
+        backgroundColor: COLORS.backgroundLight,
         alignItems: 'center',
-        marginBottom: 4,
     },
     slotItemActive: {
-        backgroundColor: COLORS.primary + '10',
+        backgroundColor: COLORS.primary,
         borderColor: COLORS.primary,
     },
     slotItemDisabled: {
@@ -762,13 +787,12 @@ const styles = StyleSheet.create({
         opacity: 0.6,
     },
     slotText: {
-        fontSize: 14,
+        fontSize: 12,
         color: COLORS.text,
-        fontWeight: '500',
+        fontFamily: 'Outfit_500Medium',
     },
     slotTextActive: {
-        color: COLORS.primary,
-        fontWeight: '700',
+        color: '#FFF',
     },
     slotTextDisabled: {
         color: COLORS.textLight,

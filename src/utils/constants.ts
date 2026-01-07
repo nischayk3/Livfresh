@@ -61,21 +61,21 @@ export const COLORS = {
 export const TYPOGRAPHY = {
   // Extra large titles (main greetings, hero text)
   display: {
-    fontFamily: 'Outfit_800ExtraBold',
+    fontFamily: 'Outfit_700Bold',
     fontSize: 28,
     lineHeight: 36,
     letterSpacing: -0.5,
   },
   // Large titles (screen headers, main headings)
   heading: {
-    fontFamily: 'Outfit_700Bold',
+    fontFamily: 'Outfit_600SemiBold',
     fontSize: 24,
     lineHeight: 30,
     letterSpacing: -0.3,
   },
   // Section titles, card titles
   subheading: {
-    fontFamily: 'Outfit_600SemiBold',
+    fontFamily: 'Outfit_500Medium',
     fontSize: 18,
     lineHeight: 24,
     letterSpacing: -0.2,
@@ -88,7 +88,7 @@ export const TYPOGRAPHY = {
   },
   // Bold body text
   bodyBold: {
-    fontFamily: 'Outfit_600SemiBold',
+    fontFamily: 'Outfit_500Medium',
     fontSize: 15,
     lineHeight: 22,
   },

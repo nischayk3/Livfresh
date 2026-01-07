@@ -28,6 +28,7 @@ export const CartScreen: React.FC = () => {
     const { showAlert } = useUIStore();
 
     const [loading, setLoading] = useState(false);
+    const [isNavigating, setIsNavigating] = useState(false);
     const [pickupType, setPickupType] = useState<'instant' | 'scheduled'>('instant');
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
@@ -137,7 +138,11 @@ export const CartScreen: React.FC = () => {
                 paymentMode: 'cod', // Default to COD for MVP, maybe add card option later?
             };
 
+            // Create the order first
             const orderId = await createOrder(user.uid, orderData);
+
+            // Set navigating state to prevent empty cart flash
+            setIsNavigating(true);
 
             // Clear cart
             clearCart();
@@ -152,8 +157,6 @@ export const CartScreen: React.FC = () => {
                     console.log("[Credit] Subscription credit consumed for order:", orderId);
                 } catch (creditError) {
                     console.error("[Credit] Failed to consume credit:", creditError);
-                    // We don't block the success flow if credit consumption fail locally, 
-                    // as the order is already placed.
                 }
             }
 
@@ -238,6 +241,11 @@ export const CartScreen: React.FC = () => {
         </View>
     );
 
+    // Show loader during order placement and navigation
+    if (loading || isNavigating) {
+        return <BrandLoader fullscreen message="Placing your order..." />;
+    }
+
     if (items.length === 0) {
         return (
             <View style={styles.emptyContainer}>
@@ -262,7 +270,6 @@ export const CartScreen: React.FC = () => {
 
     return (
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
-            {loading && <BrandLoader fullscreen message="Placing your order..." />}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={COLORS.text} />

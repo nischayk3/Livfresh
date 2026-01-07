@@ -5,6 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, TYPOGRAPHY } from '../../utils/constants'; // Adjust path if needed
+import { BrandHeader } from '../../components/BrandHeader';
 import { useAddressStore } from '../../store';
 
 export const AddressListScreen: React.FC = () => {
@@ -58,13 +59,8 @@ export const AddressListScreen: React.FC = () => {
     };
 
     return (
-        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>My Addresses</Text>
-            </View>
+        <View style={styles.container}>
+            <BrandHeader title="My Addresses" />
 
             <FlatList
                 style={styles.flatList}
@@ -86,7 +82,7 @@ export const AddressListScreen: React.FC = () => {
             >
                 <Text style={styles.addButtonText}>+ Add New Address</Text>
             </TouchableOpacity>
-        </SafeAreaView>
+        </View>
     );
 };
 
@@ -96,13 +92,7 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.background,
     },
     header: {
-        paddingTop: SPACING.md,
-        paddingHorizontal: SPACING.md,
-        paddingBottom: SPACING.md,
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.borderLight,
+        marginBottom: SPACING.md,
     },
     backButton: {
         marginRight: SPACING.md,

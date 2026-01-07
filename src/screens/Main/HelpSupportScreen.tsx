@@ -8,7 +8,7 @@ import { useUIStore } from '../../store';
 export const HelpSupportScreen: React.FC = () => {
     const navigation = useNavigation();
     const { showAlert } = useUIStore();
-    const SUPPORT_PHONE = '+91 9108558715';
+    const SUPPORT_PHONE = '+91 9661802634';
     const [message, setMessage] = useState('');
 
     const handleCallSupport = () => {

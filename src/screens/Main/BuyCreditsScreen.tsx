@@ -12,6 +12,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore, useSubscriptionStore, useUIStore } from '../../store';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
+import { BrandHeader } from '../../components/BrandHeader';
 
 type PlanType = 'single' | 'couple';
 
@@ -141,18 +142,8 @@ export const BuyCreditsScreen: React.FC = () => {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Buy Credits</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+    <View style={styles.container}>
+      <BrandHeader title="Buy Credits" />
 
       <ScrollView
         style={styles.scrollView}
@@ -331,13 +322,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderLight,
+    marginBottom: SPACING.md,
   },
   backButton: {
     padding: SPACING.xs,

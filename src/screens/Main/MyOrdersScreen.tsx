@@ -2,12 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BrandLoader } from '../../components/BrandLoader';
+import { BrandHeader } from '../../components/BrandHeader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
 import { useAuthStore } from '../../store';
-import { getUserOrders } from '../../services/firestore';
+import { subscribeToUserOrders } from '../../services/firestore';
 
 export const MyOrdersScreen: React.FC = () => {
     const navigation = useNavigation();
@@ -19,29 +20,8 @@ export const MyOrdersScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
 
     const fetchOrders = async () => {
-        if (!user?.uid) return;
-        try {
-            const userOrders = await getUserOrders(user.uid);
-            // Sort manually to ensure time-based sorting (handling potential stripped timestamps)
-            const sortedOrders = userOrders.sort((a: any, b: any) => {
-                const getTime = (date: any) => {
-                    if (!date) return 0;
-                    if (date.toDate && typeof date.toDate === 'function') return date.toDate().getTime();
-                    if (date.seconds) return date.seconds * 1000;
-                    if (date instanceof Date) return date.getTime();
-                    if (typeof date === 'string') return new Date(date).getTime();
-                    return 0;
-                };
-                return getTime(b.createdAt) - getTime(a.createdAt);
-            });
-
-            setOrders(sortedOrders);
-        } catch (error) {
-            console.error('Failed to fetch orders:', error);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
+        // This is now handled by the real-time listener below
+        // but we keep the loading state logic if needed for first load
     };
 
     // Filter orders
@@ -56,8 +36,30 @@ export const MyOrdersScreen: React.FC = () => {
     const displayOrders = activeTab === 'current' ? currentOrders : pastOrders;
 
     useEffect(() => {
-        fetchOrders();
-    }, [user]);
+        if (!user?.uid) return;
+
+        setLoading(true);
+        const unsubscribe = subscribeToUserOrders(user.uid, (userOrders) => {
+            // Sort manually to ensure time-based sorting
+            const sortedOrders = userOrders.sort((a: any, b: any) => {
+                const getTime = (date: any) => {
+                    if (!date) return 0;
+                    if (date.toDate && typeof date.toDate === 'function') return date.toDate().getTime();
+                    if (date.seconds) return date.seconds * 1000;
+                    if (date instanceof Date) return date.getTime();
+                    if (typeof date === 'string') return new Date(date).getTime();
+                    return 0;
+                };
+                return getTime(b.createdAt) - getTime(a.createdAt);
+            });
+
+            setOrders(sortedOrders);
+            setLoading(false);
+            setRefreshing(false);
+        });
+
+        return () => unsubscribe();
+    }, [user?.uid]);
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -143,15 +145,7 @@ export const MyOrdersScreen: React.FC = () => {
                 colors={[COLORS.pageBg, '#FFFFFF']}
                 style={StyleSheet.absoluteFill}
             />
-            <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? SPACING.lg : insets.top + SPACING.headerTop }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <View style={styles.backButtonBg}>
-                        <Ionicons name="arrow-back" size={20} color={COLORS.primary} />
-                    </View>
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>My Orders</Text>
-                <View style={{ width: 40 }} />
-            </View>
+            <BrandHeader title="My Orders" />
 
             {/* Tabs */}
             <View style={styles.tabOuterContainer}>
@@ -222,15 +216,7 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.pageBg,
     },
     header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: SPACING.md,
-        paddingBottom: SPACING.lg,
-        backgroundColor: '#FFFFFF',
-        borderBottomLeftRadius: 36,
-        borderBottomRightRadius: 36,
-        ...SHADOWS.sm,
+        marginBottom: SPACING.md,
     },
     backButton: {
         padding: 4,

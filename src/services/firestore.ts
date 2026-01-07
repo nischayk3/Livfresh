@@ -10,6 +10,7 @@ import {
   orderBy,
   Timestamp,
   where,
+  onSnapshot,
 } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from './firebase';
@@ -314,7 +315,7 @@ export const createOrder = async (userId: string, orderData: any) => {
   }
 };
 
-// Get user orders
+// Get user orders (one-time fetch)
 export const getUserOrders = async (userId: string) => {
   try {
     const ordersRef = collection(db, 'users', userId, 'orders');
@@ -327,7 +328,41 @@ export const getUserOrders = async (userId: string) => {
   }
 };
 
-// Get single order
+/**
+ * Subscribe to user orders in real-time
+ */
+export const subscribeToUserOrders = (userId: string, callback: (orders: any[]) => void) => {
+  const ordersRef = collection(db, 'users', userId, 'orders');
+  const q = query(ordersRef, orderBy('createdAt', 'desc'));
+
+  return onSnapshot(q, (snapshot) => {
+    const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    callback(orders);
+  }, (error) => {
+    console.error('Error subscribing to user orders:', error);
+  });
+};
+
+/**
+ * Subscribe to all orders (Admin use)
+ */
+export const subscribeToAllOrders = (callback: (orders: any[]) => void) => {
+  // We need to fetch from a top-level collection if we have one, 
+  // or use a collectionGroup query if appropriate.
+  // In this project, mirrored orders are in vendors/{vendorId}/orders
+  const vendorId = 'vendor_1'; // Standardizing on vendor_1 for now
+  const ordersRef = collection(db, 'vendors', vendorId, 'orders');
+  const q = query(ordersRef, orderBy('createdAt', 'desc'));
+
+  return onSnapshot(q, (snapshot) => {
+    const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    callback(orders);
+  }, (error) => {
+    console.error('Error subscribing to all orders:', error);
+  });
+};
+
+// Get single order (one-time fetch)
 export const getOrder = async (userId: string, orderId: string) => {
   try {
     const orderRef = doc(db, 'users', userId, 'orders', orderId);
@@ -340,6 +375,23 @@ export const getOrder = async (userId: string, orderId: string) => {
     console.error('Error getting order:', error);
     throw error;
   }
+};
+
+/**
+ * Subscribe to a single order in real-time
+ */
+export const subscribeToOrder = (userId: string, orderId: string, callback: (order: any) => void) => {
+  const orderRef = doc(db, 'users', userId, 'orders', orderId);
+
+  return onSnapshot(orderRef, (doc) => {
+    if (doc.exists()) {
+      callback({ id: doc.id, ...doc.data() });
+    } else {
+      callback(null);
+    }
+  }, (error) => {
+    console.error('Error subscribing to order:', error);
+  });
 };
 
 // Update order status with OTP verification support

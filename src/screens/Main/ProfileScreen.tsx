@@ -6,6 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
 import { useAuthStore, useUIStore } from '../../store';
+import { BrandHeader } from '../../components/BrandHeader';
 
 export const ProfileScreen: React.FC = () => {
     const navigation = useNavigation();
@@ -55,15 +56,7 @@ export const ProfileScreen: React.FC = () => {
                 colors={[COLORS.pageBg, '#FFFFFF']}
                 style={StyleSheet.absoluteFill}
             />
-            <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? SPACING.lg : insets.top + SPACING.headerTop }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <View style={styles.backButtonBg}>
-                        <Ionicons name="arrow-back" size={20} color={COLORS.primary} />
-                    </View>
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Profile</Text>
-                <View style={{ width: 40 }} />
-            </View>
+            <BrandHeader title="Profile" />
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
@@ -161,11 +154,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#F8F7FF',
     },
     header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: SPACING.md,
-        paddingBottom: SPACING.md,
+        marginBottom: SPACING.md,
     },
     backButton: {
         padding: SPACING.xs,

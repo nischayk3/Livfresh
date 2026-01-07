@@ -14,6 +14,7 @@ import { useAuthStore, useSubscriptionStore } from '../../store';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { FaqAccordion } from '../../components/FaqAccordion';
 import { UseCreditModal } from '../../components/UseCreditModal';
+import { BrandHeader } from '../../components/BrandHeader';
 
 const SUBSCRIPTION_FAQS = [
   { question: "How do credits work?", answer: "Each credit can be used to place one laundry order. Simply select a service and use your credits during checkout." },
@@ -298,18 +299,8 @@ export const SubscriptionsScreen: React.FC = () => {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Subscriptions</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+    <View style={styles.container}>
+      <BrandHeader title="Subscriptions" />
 
       {/* Tabs */}
       <View style={styles.tabsContainer}>
@@ -357,13 +348,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderLight,
+    marginBottom: SPACING.md,
   },
   backButton: {
     padding: SPACING.xs,

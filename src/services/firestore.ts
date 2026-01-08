@@ -11,6 +11,7 @@ import {
   Timestamp,
   where,
   onSnapshot,
+  runTransaction,
 } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from './firebase';
@@ -276,21 +277,41 @@ export const updateUserAddress = async (userId: string, updatedAddress: any) => 
   }
 };
 
-// Create order
+// Check slot availability
+export const checkSlotAvailability = async (date: string): Promise<string[]> => {
+  try {
+    const scheduleRef = doc(db, 'daily_schedules', date);
+    const scheduleSnap = await getDoc(scheduleRef);
+    if (scheduleSnap.exists()) {
+      return scheduleSnap.data().occupied_slots || [];
+    }
+    return [];
+  } catch (error) {
+    console.error('Error checking slot availability:', error);
+    return [];
+  }
+};
+
+// Create order with slot reservation (Transaction)
 export const createOrder = async (userId: string, orderData: any) => {
   try {
+    const { pickupDetails } = orderData;
+    const isScheduled = pickupDetails?.type === 'scheduled';
+    const scheduleDate = pickupDetails?.scheduledDate; // YYYY-MM-DD
+    const scheduleTime = pickupDetails?.scheduledTime; // "10:00 - 10:30"
+
     const ordersRef = collection(db, 'users', userId, 'orders');
-    const orderId = doc(ordersRef).id;
+    const orderId = doc(ordersRef).id; // Generate ID offline
 
     // Generate pickup OTP (4-digit)
     const pickupOTP = generateOTP();
 
     const orderWithTimestamp = {
       ...orderData,
-      pickupOTP, // Add pickup OTP
-      status: orderData.status || 'confirmed', // Ensure status is set
-      pickupVerified: false, // OTP not verified yet
-      deliveryOTP: null, // Will be generated when order is ready
+      pickupOTP,
+      status: orderData.status || 'confirmed',
+      pickupVerified: false,
+      deliveryOTP: null,
       deliveryVerified: false,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
@@ -298,14 +319,39 @@ export const createOrder = async (userId: string, orderData: any) => {
 
     const cleanOrder = cleanData(orderWithTimestamp);
 
-    // Save to user orders
-    await setDoc(doc(db, 'users', userId, 'orders', orderId), cleanOrder);
+    await runTransaction(db, async (transaction) => {
+      // 1. If scheduled, check & reserve slot
+      if (isScheduled && scheduleDate && scheduleTime) {
+        const scheduleRef = doc(db, 'daily_schedules', scheduleDate);
+        const scheduleSnap = await transaction.get(scheduleRef);
 
-    // Mirror to vendor orders
-    await setDoc(doc(db, 'vendors', orderData.vendorId, 'orders', orderId), {
-      ...cleanOrder,
-      userId,
-      userPhone: orderData.userPhone || '',
+        let currentSlots: string[] = [];
+        if (scheduleSnap.exists()) {
+          currentSlots = scheduleSnap.data().occupied_slots || [];
+        }
+
+        if (currentSlots.includes(scheduleTime)) {
+          throw new Error(`Slot ${scheduleTime} is no longer available.`);
+        }
+
+        // Add reservation
+        transaction.set(scheduleRef, {
+          occupied_slots: [...currentSlots, scheduleTime]
+        }, { merge: true });
+      }
+
+      // 2. Create User Order
+      const userOrderRef = doc(db, 'users', userId, 'orders', orderId);
+      transaction.set(userOrderRef, cleanOrder);
+
+      // 3. Mirror to Vendor Order
+      const vendorId = orderData.vendorId || 'default';
+      const vendorOrderRef = doc(db, 'vendors', vendorId, 'orders', orderId);
+      transaction.set(vendorOrderRef, {
+        ...cleanOrder,
+        userId,
+        userPhone: orderData.userPhone || '',
+      });
     });
 
     return orderId;
@@ -528,6 +574,9 @@ export const getBusySlots = async (deliveryDate: string, vendorId: string = 'ven
 /**
  * Schedule delivery for an order
  */
+/**
+ * Schedule delivery for an order (Transaction)
+ */
 export const scheduleOrderDelivery = async (
   userId: string,
   orderId: string,
@@ -535,24 +584,53 @@ export const scheduleOrderDelivery = async (
   deliveryTime: string
 ): Promise<boolean> => {
   try {
-    const userOrderRef = doc(db, 'users', userId, 'orders', orderId);
-    const userOrderSnap = await getDoc(userOrderRef);
-    if (!userOrderSnap.exists()) throw new Error('Order not found');
+    await runTransaction(db, async (transaction) => {
+      // 1. Check & Reserve Slot in Global Schedule
+      const scheduleRef = doc(db, 'daily_schedules', deliveryDate);
+      const scheduleSnap = await transaction.get(scheduleRef);
 
-    const orderData = userOrderSnap.data();
-    const vendorId = orderData.vendorId || 'vendor_1';
-    const timestamp = Timestamp.now();
+      let currentSlots: string[] = [];
+      if (scheduleSnap.exists()) {
+        currentSlots = scheduleSnap.data().occupied_slots || [];
+      }
 
-    const updateData = {
-      deliveryDate,
-      deliveryTime,
-      deliveryScheduledAt: timestamp,
-      updatedAt: timestamp,
-    };
+      if (currentSlots.includes(deliveryTime)) {
+        throw new Error(`Slot ${deliveryTime} is no longer available.`);
+      }
 
-    // Update both user and vendor orders
-    await updateDoc(userOrderRef, updateData);
-    await updateDoc(doc(db, 'vendors', vendorId, 'orders', orderId), updateData);
+
+
+      // 2. Update Order
+      const userOrderRef = doc(db, 'users', userId, 'orders', orderId);
+      const userOrderSnap = await transaction.get(userOrderRef);
+
+      if (!userOrderSnap.exists()) {
+        throw new Error('Order not found');
+      }
+
+      const orderData = userOrderSnap.data();
+      const vendorId = orderData.vendorId || 'vendor_1'; // fallback
+      const timestamp = Timestamp.now();
+
+      const updateData = {
+        deliveryDate,
+        deliveryTime,
+        deliveryScheduledAt: timestamp,
+        updatedAt: timestamp,
+      };
+
+      // 3. Perform Writes
+      // Reserve Slot
+      transaction.set(scheduleRef, {
+        occupied_slots: [...currentSlots, deliveryTime]
+      }, { merge: true });
+
+      // Update both user and vendor orders
+      transaction.update(userOrderRef, updateData);
+
+      const vendorOrderRef = doc(db, 'vendors', vendorId, 'orders', orderId);
+      transaction.update(vendorOrderRef, updateData);
+    });
 
     return true;
   } catch (error) {
@@ -560,6 +638,31 @@ export const scheduleOrderDelivery = async (
     throw error;
   }
 };
+
+// --- Geofencing / Demand Logging ---
+
+export const logUnserviceableRequest = async (
+  userId: string,
+  location: { latitude: number; longitude: number; address?: string }
+) => {
+  try {
+    await addDoc(collection(db, 'unserviceable_requests'), {
+      userId,
+      location: {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      },
+      address: location.address || 'Unknown Address',
+      timestamp: Timestamp.now(),
+      status: 'new', // For admin to review/acknowledge
+    });
+    console.log('Unserviceable request logged');
+  } catch (error) {
+    console.error('Error logging unserviceable request:', error);
+    // Don't throw, just log. We don't want to block the UI flow if logging fails.
+  }
+};
+
 
 // --- Cart Management ---
 

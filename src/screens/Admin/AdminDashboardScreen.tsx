@@ -423,6 +423,13 @@ export const AdminDashboardScreen: React.FC = () => {
               <Ionicons name="card" size={32} color={COLORS.primary} />
               <Text style={styles.quickActionText}>Subscriptions</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickActionCard}
+              onPress={() => (navigation as any).navigate('Admin', { screen: 'AdminDemand' })}
+            >
+              <Ionicons name="map" size={32} color={COLORS.primary} />
+              <Text style={styles.quickActionText}>Demand Heatmap</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>

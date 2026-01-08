@@ -35,10 +35,10 @@ const STATUS_TABS = [
 ];
 
 const CANCELLATION_REASONS = [
-  "Out of Service Area",
-  "Item Not Available",
-  "Customer Request",
-  "Operational Issue",
+  "Customer didn’t pickup the call",
+  "Customer not available at pickup location",
+  "Customer requested cancellation",
+  "Invalid/ incorrect address",
   "Other"
 ];
 
@@ -71,6 +71,9 @@ export const AdminOrdersScreen: React.FC = () => {
   const [cancelNote, setCancelNote] = useState('');
   const [orderToCancel, setOrderToCancel] = useState<any>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  // Edit Modal State
+  const [editOrderModalVisible, setEditOrderModalVisible] = useState(false);
 
   // Initial Fetch & Real-time Listener
   useEffect(() => {
@@ -374,6 +377,43 @@ export const AdminOrdersScreen: React.FC = () => {
     });
   };
 
+  const handleEditOrder = (order: any) => {
+    setSelectedOrder(order);
+    setEditOrderModalVisible(true);
+  };
+
+  const handleSaveEditedOrder = async (updatedItems: any[], newTotal: number) => {
+    if (!selectedOrder) return;
+
+    setProcessing(true);
+    try {
+      await updateOrderStatus(
+        selectedOrder.userId,
+        selectedOrder.id,
+        selectedOrder.status, // Keep same status
+        {
+          additionalData: {
+            items: updatedItems,
+            totalAmount: newTotal,
+            billDetails: {
+              // Update bill details structure if it exists, roughly
+              ...(selectedOrder.billDetails || {}),
+              total: newTotal,
+              subtotal: newTotal // assuming no tax split for now or simplified
+            }
+          }
+        }
+      );
+      setEditOrderModalVisible(false);
+      Alert.alert("Success", "Order updated successfully");
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "Failed to update order");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   // Render Item
   const renderOrderItem = ({ item }: { item: any }) => {
     let formattedDate = 'Date N/A';
@@ -441,11 +481,22 @@ export const AdminOrdersScreen: React.FC = () => {
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
               <Text style={styles.statusText}>{item.status.replace('_', ' ').toUpperCase()}</Text>
             </View>
-            {/* Cancel Button only for active orders */}
-            {['placed', 'confirmed', 'pickup_completed'].includes(item.status) && (
+            {/* Cancel Button only for New orders */}
+            {['placed', 'confirmed'].includes(item.status) && (
               <TouchableOpacity onPress={() => handleCancelOrder(item)} style={styles.cancelButtonSmall}>
                 <Ionicons name="close-circle-outline" size={20} color={COLORS.error} />
                 <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Edit Button for Pickup Completed */}
+            {item.status === 'pickup_completed' && (
+              <TouchableOpacity
+                onPress={() => handleEditOrder(item)}
+                style={[styles.cancelButtonSmall, { backgroundColor: COLORS.primary + '15' }]}
+              >
+                <Ionicons name="create-outline" size={20} color={COLORS.primary} />
+                <Text style={[styles.cancelButtonText, { color: COLORS.primary }]}>Edit</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -541,9 +592,11 @@ export const AdminOrdersScreen: React.FC = () => {
                         ? `${srv.shoeQuantity || srv.quantity || 0} pairs`
                         : srv.serviceType === 'dry_clean'
                           ? (srv.weight ? `${srv.weight}kg` : `${srv.items?.length || srv.quantity || 0} units`)
-                          : srv.weight
-                            ? `${srv.weight}kg`
-                            : `${srv.quantity || 1} units`
+                          : (
+                            // Combined logic for wash_fold, wash_iron, premium, etc.
+                            (srv.weight ? `${srv.weight}kg` : `${srv.quantity || 1} units`) +
+                            ((srv.ironingCount || srv.ironingEnabled) ? ` + ${srv.ironingCount || 0} Ironing` : '')
+                          )
                   }
                 </Text>
                 {srv.specialInstructions ? (
@@ -892,7 +945,358 @@ export const AdminOrdersScreen: React.FC = () => {
           )}
         </TouchableOpacity>
       </Modal>
+
+      {/* Edit Order Modal */}
+      {selectedOrder && (
+        <EditOrderModal
+          visible={editOrderModalVisible}
+          onClose={() => setEditOrderModalVisible(false)}
+          order={selectedOrder}
+          onSave={handleSaveEditedOrder}
+          processing={processing}
+        />
+      )}
     </View>
+  );
+};
+
+// --- Edit Order Modal Component ---
+
+const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) => {
+  const [items, setItems] = useState<any[]>([]);
+  const [totalAmount, setTotalAmount] = useState(0);
+
+  useEffect(() => {
+    if (order && order.items) {
+      // Deep copy items to avoid direct mutation
+      setItems(JSON.parse(JSON.stringify(order.items)));
+      setTotalAmount(order.billDetails?.total || order.totalAmount || 0);
+    }
+  }, [order]);
+
+  // Pricing Logic (Mirrors ServiceDetailScreen)
+  const calculateItemPrice = (item: any) => {
+    if (item.serviceId === 'wash_fold') {
+      let base = 0;
+      if (item.weight === 7) base = 479;
+      else if (item.weight === 14) base = 958;
+
+      const ironing = (item.ironingEnabled && item.ironingCount) ? (item.ironingCount * 15) : 0;
+
+      // If subscription item, usually base price is 0 (paid by credit)
+      // If we allow them to change slab, maybe we charge difference? 
+      // For now, if isCreditItem, keep base as 0 unless logic demands otherwise.
+      // But typically admin edit might mean 'correction'. 
+      // Let's assume for credit item, price remains effectively 0 for the base part if checked against credit.
+      // However, simplified approach: if it was 0, keep it 0.
+      if (item.isCreditItem) return item.totalPrice; // Don't recalc pricing for sub items easily without context
+
+      return base + ironing;
+    }
+    if (item.serviceId === 'wash_iron') {
+      if (item.weight === 3) return 360;
+      if (item.weight === 5) return 600;
+      if (item.weight === 7) return 840;
+    }
+    if (item.serviceId === 'ironing_addon' || item.serviceName?.toLowerCase().includes('ironing')) {
+      const count = item.clothesCount || item.ironingCount || 0;
+      return count * 15;
+    }
+    if (item.serviceId === 'blanket_wash') {
+      const single = item.singleBlanketCount || 0;
+      const double = item.doubleBlanketCount || 0;
+      return (single * 199) + (double * 299);
+    }
+
+    // Default fallback to existing price if logic unknown
+    return item.totalPrice;
+  };
+
+  useEffect(() => {
+    // Recalculate total whenever items change
+    const newTotal = items.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
+    setTotalAmount(newTotal);
+  }, [items]);
+
+  const updateItem = (index: number, updates: any) => {
+    const newItems = [...items];
+    const updatedItem = { ...newItems[index], ...updates };
+
+    // Update derived fields
+    if (updatedItem.serviceId === 'blanket_wash') {
+      updatedItem.blanketQuantity = (updatedItem.singleBlanketCount || 0) + (updatedItem.doubleBlanketCount || 0);
+      // Update description potentially? 
+      const parts = [];
+      if (updatedItem.singleBlanketCount > 0) parts.push(`${updatedItem.singleBlanketCount} Single`);
+      if (updatedItem.doubleBlanketCount > 0) parts.push(`${updatedItem.doubleBlanketCount} Double`);
+      updatedItem.description = parts.join(', ');
+    }
+
+    // Recalculate price for this item
+    updatedItem.totalPrice = calculateItemPrice(updatedItem);
+
+    // Update label/description based on new weight
+    if (updatedItem.serviceId === 'wash_fold' && !updatedItem.isCreditItem) {
+      updatedItem.quantity = updatedItem.weight === 7 ? 1 : 1;
+      if (updatedItem.weight === 7 && updatedItem.clothesCount > 25) updatedItem.clothesCount = 25;
+    }
+
+    newItems[index] = updatedItem;
+    setItems(newItems);
+  };
+
+  if (!visible) return null;
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+        <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={TYPOGRAPHY.heading}>Edit Order</Text>
+          <TouchableOpacity onPress={onClose}>
+            <Text style={{ color: COLORS.primary, fontSize: 16, fontWeight: '600' }}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ padding: 16, backgroundColor: '#FFF9C4', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Ionicons name="warning-outline" size={20} color="#F59E0B" />
+          <Text style={{ ...TYPOGRAPHY.caption, flex: 1, color: '#B45309' }}>
+            Actual weight is verified at pickup. Changes are allowed only before processing starts.
+          </Text>
+        </View>
+
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+          {items.map((item, index) => (
+            <View key={index} style={{ marginBottom: 24, padding: 16, backgroundColor: '#FFF', borderRadius: 12, ...SHADOWS.sm, borderWidth: 1, borderColor: COLORS.borderLight }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                <Text style={TYPOGRAPHY.subheading}>{item.serviceName}</Text>
+                <Text style={{ ...TYPOGRAPHY.subheading, color: COLORS.primary }}>₹{item.totalPrice}</Text>
+              </View>
+
+              {/* Wash & Fold Editing */}
+              {item.serviceId === 'wash_fold' && !item.isCreditItem && (
+                <View style={{ gap: 12 }}>
+                  <Text style={TYPOGRAPHY.caption}>Select Weight Slab</Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {[7, 14].map(w => (
+                      <TouchableOpacity
+                        key={w}
+                        onPress={() => updateItem(index, { weight: w })}
+                        style={{
+                          flex: 1,
+                          padding: 10,
+                          borderWidth: 1,
+                          borderColor: item.weight === w ? COLORS.primary : COLORS.borderLight,
+                          backgroundColor: item.weight === w ? COLORS.primary + '10' : '#FFF',
+                          borderRadius: 8,
+                          alignItems: 'center'
+                        }}
+                      >
+                        <Text style={{ fontWeight: item.weight === w ? '700' : '400', color: COLORS.text }}>
+                          {w} kg ({w === 7 ? '~25' : '~50'} clothes)
+                        </Text>
+                        <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>₹{w === 7 ? 479 : 958}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* Ironing Toggle/Count for Wash & Fold */}
+                  {(item.ironingEnabled || item.ironingCount > 0) && (
+                    <View style={{ marginTop: 8 }}>
+                      <Text style={TYPOGRAPHY.caption}>Ironing Count (₹15/pc)</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 }}>
+                        <TouchableOpacity
+                          style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                          onPress={() => updateItem(index, { ironingCount: Math.max(0, (item.ironingCount || 0) - 1) })}
+                        >
+                          <Ionicons name="remove" size={20} />
+                        </TouchableOpacity>
+                        <Text style={TYPOGRAPHY.subheading}>{item.ironingCount || 0}</Text>
+                        <TouchableOpacity
+                          style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                          onPress={() => updateItem(index, { ironingCount: (item.ironingCount || 0) + 1 })}
+                        >
+                          <Ionicons name="add" size={20} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* Wash & Fold Subscription (Weight Only - Credits are fixed usually but let allow slab change if needed) */}
+              {item.serviceId === 'wash_fold' && item.isCreditItem && (
+                <View style={{ gap: 12 }}>
+                  <Text style={{ fontSize: 13, color: COLORS.info, marginBottom: 4 }}> Subscription Item (Paid via Credit) </Text>
+                  <Text style={TYPOGRAPHY.caption}>Select Weight Slab</Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {[7, 14].map(w => (
+                      <TouchableOpacity
+                        key={w}
+                        onPress={() => updateItem(index, { weight: w })} // Only updates weight, price remains 0 usually
+                        style={{
+                          flex: 1,
+                          padding: 10,
+                          borderWidth: 1,
+                          borderColor: item.weight === w ? COLORS.primary : COLORS.borderLight,
+                          backgroundColor: item.weight === w ? COLORS.primary + '10' : '#FFF',
+                          borderRadius: 8,
+                          alignItems: 'center'
+                        }}
+                      >
+                        <Text style={{ fontWeight: item.weight === w ? '700' : '400', color: COLORS.text }}>
+                          {w} kg
+                        </Text>
+                        <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>{item.weight === w ? 'Selected' : ''}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+
+              {/* Ironing Add-on Editing */}
+              {(item.serviceId === 'ironing_addon' || item.serviceName?.toLowerCase().includes('ironing')) && (
+                <View style={{ marginTop: 8 }}>
+                  <Text style={TYPOGRAPHY.caption}>Number of Clothes (₹15/pc)</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 }}>
+                    <TouchableOpacity
+                      style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                      onPress={() => updateItem(index, {
+                        clothesCount: Math.max(0, (item.clothesCount || 0) - 1),
+                        ironingCount: Math.max(0, (item.clothesCount || 0) - 1)
+                      })}
+                    >
+                      <Ionicons name="remove" size={20} />
+                    </TouchableOpacity>
+
+                    <Text style={{ ...TYPOGRAPHY.heading, minWidth: 40, textAlign: 'center' }}>
+                      {item.clothesCount || item.ironingCount || 0}
+                    </Text>
+
+                    <TouchableOpacity
+                      style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                      onPress={() => updateItem(index, {
+                        clothesCount: (item.clothesCount || 0) + 1,
+                        ironingCount: (item.clothesCount || 0) + 1
+                      })}
+                    >
+                      <Ionicons name="add" size={20} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {/* Blanket Wash Editing */}
+              {item.serviceId === 'blanket_wash' && (
+                <View style={{ gap: 16 }}>
+                  {/* Single Blanket */}
+                  <View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text style={TYPOGRAPHY.caption}>Single Blankets (₹199)</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <TouchableOpacity
+                        style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                        onPress={() => updateItem(index, { singleBlanketCount: Math.max(0, (item.singleBlanketCount || 0) - 1) })}
+                      >
+                        <Ionicons name="remove" size={20} />
+                      </TouchableOpacity>
+                      <Text style={TYPOGRAPHY.subheading}>{item.singleBlanketCount || 0}</Text>
+                      <TouchableOpacity
+                        style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                        onPress={() => updateItem(index, { singleBlanketCount: (item.singleBlanketCount || 0) + 1 })}
+                      >
+                        <Ionicons name="add" size={20} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Double Blanket */}
+                  <View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text style={TYPOGRAPHY.caption}>Double Blankets (₹299)</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <TouchableOpacity
+                        style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                        onPress={() => updateItem(index, { doubleBlanketCount: Math.max(0, (item.doubleBlanketCount || 0) - 1) })}
+                      >
+                        <Ionicons name="remove" size={20} />
+                      </TouchableOpacity>
+                      <Text style={TYPOGRAPHY.subheading}>{item.doubleBlanketCount || 0}</Text>
+                      <TouchableOpacity
+                        style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                        onPress={() => updateItem(index, { doubleBlanketCount: (item.doubleBlanketCount || 0) + 1 })}
+                      >
+                        <Ionicons name="add" size={20} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* Wash & Iron Editing */}
+              {item.serviceId === 'wash_iron' && !item.serviceName?.includes('Ironing Add-on') && (
+                <View style={{ gap: 12 }}>
+                  <Text style={TYPOGRAPHY.caption}>Select Weight Slab</Text>
+                  <View style={{ gap: 8 }}>
+                    {[3, 5, 7].map(w => (
+                      <TouchableOpacity
+                        key={w}
+                        onPress={() => updateItem(index, { weight: w })}
+                        style={{
+                          padding: 12,
+                          borderWidth: 1,
+                          borderColor: item.weight === w ? COLORS.primary : COLORS.borderLight,
+                          backgroundColor: item.weight === w ? COLORS.primary + '10' : '#FFF',
+                          borderRadius: 8,
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}
+                      >
+                        <Text style={{ fontWeight: item.weight === w ? '700' : '400', color: COLORS.text }}>
+                          {w} kg ({w === 3 ? '~10' : w === 5 ? '~18' : '~25'} clothes)
+                        </Text>
+                        <Text style={{ fontWeight: '600', color: COLORS.text }}>
+                          ₹{w === 3 ? 360 : w === 5 ? 600 : 840}
+                        </Text>
+                        {item.weight === w && <Ionicons name="checkmark-circle" size={20} color={COLORS.primary} />}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Read Only or generic for others */}
+              {!['wash_fold', 'wash_iron', 'ironing_addon', 'blanket_wash'].includes(item.serviceId) && !item.serviceName?.includes('Ironing') && (
+                <Text style={{ color: COLORS.textSecondary, fontStyle: 'italic', fontSize: 12 }}>
+                  Checking/Editing specifics for this service is limited to price override.
+                </Text>
+              )}
+            </View>
+          ))}
+        </ScrollView>
+
+        <View style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          padding: 16, backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: COLORS.borderLight,
+          ...SHADOWS.lg
+        }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <Text style={TYPOGRAPHY.subheading}>Updated Total</Text>
+            <Text style={{ ...TYPOGRAPHY.heading, color: COLORS.primary }}>₹{totalAmount}</Text>
+          </View>
+          <TouchableOpacity
+            style={{ backgroundColor: COLORS.primary, padding: 16, borderRadius: 12, alignItems: 'center' }}
+            onPress={() => onSave(items, totalAmount)}
+            disabled={processing}
+          >
+            {processing ? <ActivityIndicator color="#FFF" /> : <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>Save Changes</Text>}
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
   );
 };
 
@@ -1312,4 +1716,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
 

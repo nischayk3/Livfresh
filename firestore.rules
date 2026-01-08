@@ -62,15 +62,28 @@ service cloud.firestore {
 
       match /subscriptions/{subscriptionId} {
         allow read: if isAdmin() || isOwner(userId);
-        allow write: if isAdmin();
+        // Allow users to create their own subscriptions and admins to do anything
+        allow create: if isAdmin() || isOwner(userId);
+        allow update: if isAdmin() || isOwner(userId);
+        allow delete: if isAdmin();
         
         match /creditUsage/{usageId} {
           allow read: if isAdmin() || isOwner(userId);
-          allow write: if isAdmin();
+          // Allow users to record their own credit usage
+          allow create: if isAdmin() || isOwner(userId);
+          allow update: if isAdmin() || isOwner(userId);
+          allow delete: if isAdmin();
         }
       }
     }
     
+    // Unserviceable Requests (Demand Logging)
+    match /unserviceable_requests/{requestId} {
+      allow create: if isAuthenticated();
+      allow read: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
     // Vendors collection
     match /vendors/{vendorId} {
       allow read: if isAuthenticated();
@@ -85,6 +98,12 @@ service cloud.firestore {
         allow read: if isAdmin() || isAuthenticated();
         allow write: if isAdmin();
       }
+    }
+
+    // Daily Schedules (Single Rider Slot System)
+    match /daily_schedules/{date} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
     }
   }
 }

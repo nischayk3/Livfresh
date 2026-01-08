@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { format, isSameDay, isAfter, addMinutes, parse } from 'date-fns';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
 import { useAuthStore } from '../../store';
-import { getOrder, getBusySlots, scheduleOrderDelivery, subscribeToOrder } from '../../services/firestore';
+import { getOrder, getBusySlots, scheduleOrderDelivery, subscribeToOrder, checkSlotAvailability } from '../../services/firestore';
 import { BrandLoader } from '../../components/BrandLoader';
 
 // Order Status Steps
@@ -44,13 +44,18 @@ export const OrderDetailScreen: React.FC = () => {
         return d;
     });
 
-    const TIME_SLOTS = [
-        '09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
-        '12:00 PM', '12:30 PM', '01:00 PM', '01:30 PM', '02:00 PM', '02:30 PM',
-        '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM', '05:00 PM', '05:30 PM',
-        '06:00 PM', '06:30 PM', '07:00 PM', '07:30 PM', '08:00 PM', '08:30 PM',
-        '09:00 PM'
-    ];
+    // Generate time slots (9 AM to 9 PM)
+    const generateTimeSlots = () => {
+        const slots = [];
+        for (let i = 9; i < 21; i++) {
+            const p1 = `${i.toString().padStart(2, '0')}:00`;
+            const p2 = `${i.toString().padStart(2, '0')}:30`;
+            const p3 = `${(i + 1).toString().padStart(2, '0')}:00`;
+            slots.push(`${p1} - ${p2}`);
+            slots.push(`${p2} - ${p3}`);
+        }
+        return slots;
+    };
 
     const fetchOrder = async () => {
         // Handled by real-time listener now
@@ -78,10 +83,11 @@ export const OrderDetailScreen: React.FC = () => {
         setIsLoadingBusySlots(true);
         try {
             const dateStr = format(DATES[selectedDateIndex], 'yyyy-MM-dd');
-            const slots = await getBusySlots(dateStr);
+            const slots = await checkSlotAvailability(dateStr);
             setBusySlots(slots);
         } catch (error) {
             console.error('Error fetching busy slots:', error);
+            setBusySlots([]);
         } finally {
             setIsLoadingBusySlots(false);
         }
@@ -262,8 +268,9 @@ export const OrderDetailScreen: React.FC = () => {
                             <Text style={styles.itemName}>
                                 {item.serviceName} ({
                                     item.serviceId === 'ironing_addon' ? `${item.clothesCount || item.ironingCount || 0} Clothes` :
-                                        (item.serviceType === 'wash_fold' || item.serviceType === 'wash_iron' || item.serviceType === 'premium_laundry') ? (item.weight ? `${item.weight}kg` : '') :
-                                            item.serviceType === 'blanket_wash' ? (item.description || 'Blankets') :
+                                        (item.serviceType === 'wash_fold' || item.serviceType === 'wash_iron' || item.serviceType === 'premium_laundry')
+                                            ? `${item.weight ? `${item.weight}kg` : ''}${(item.ironingCount || item.ironingEnabled) ? ` + ${item.ironingCount || 0} Ironing` : ''}`
+                                            : item.serviceType === 'blanket_wash' ? (item.description || 'Blankets') :
                                                 item.serviceType === 'shoe_clean' ? `${item.shoeQuantity} pairs` :
                                                     item.serviceType === 'dry_clean' ? (item.weight ? `${item.weight}kg` : `${item.items?.length || 0} items`) :
                                                         'Service'
@@ -349,19 +356,26 @@ export const OrderDetailScreen: React.FC = () => {
                             </View>
                         ) : (
                             <ScrollView style={styles.slotList} contentContainerStyle={styles.slotListContent}>
-                                <View style={styles.slotGrid}>
-                                    {TIME_SLOTS.map((slot) => {
+                                <View style={styles.timeGrid}>
+                                    {generateTimeSlots().map((slot) => {
                                         const isBusy = busySlots.includes(slot);
                                         const isSelected = selectedSlot === slot;
 
-                                        // Logic for today: hide past slots
-                                        const isToday = isSameDay(DATES[selectedDateIndex], new Date());
+                                        // Parse start time "09:00", "09:30" etc.
+                                        const [startStr] = slot.split(' - ');
+                                        const [hoursStr, minsStr] = startStr.split(':');
+                                        const slotHour = parseInt(hoursStr, 10);
+                                        const slotMin = parseInt(minsStr, 10);
+
                                         let isPast = false;
-                                        if (isToday) {
-                                            const slotTime = parse(slot, 'hh:mm a', new Date());
+                                        // Logic for today: hide past slots
+                                        if (isSameDay(DATES[selectedDateIndex], new Date())) {
                                             const now = new Date();
-                                            // Add 30 min buffer for delivery
-                                            isPast = !isAfter(slotTime, addMinutes(now, 30));
+                                            // Add 30 min buffer for delivery prep
+                                            const slotTime = new Date();
+                                            slotTime.setHours(slotHour, slotMin, 0, 0);
+                                            const cutoff = addMinutes(now, 30);
+                                            isPast = !isAfter(slotTime, cutoff);
                                         }
 
                                         const isDisabled = isBusy || isPast;
@@ -370,21 +384,20 @@ export const OrderDetailScreen: React.FC = () => {
                                             <TouchableOpacity
                                                 key={slot}
                                                 style={[
-                                                    styles.slotItem,
-                                                    isSelected && styles.slotItemActive,
-                                                    isDisabled && styles.slotItemDisabled
+                                                    styles.timeSlot,
+                                                    isSelected && styles.timeSlotSelected,
+                                                    isDisabled && { opacity: 0.5, backgroundColor: '#F3F4F6' }
                                                 ]}
                                                 disabled={isDisabled}
                                                 onPress={() => setSelectedSlot(slot)}
                                             >
                                                 <Text style={[
-                                                    styles.slotText,
-                                                    isSelected && styles.slotTextActive,
-                                                    isDisabled && styles.slotTextDisabled
+                                                    styles.timeText,
+                                                    isSelected && styles.timeTextSelected,
+                                                    isDisabled && { color: COLORS.textLight, textDecorationLine: isBusy ? 'line-through' : 'none' }
                                                 ]}>
                                                     {slot}
                                                 </Text>
-                                                {isBusy && <Text style={styles.takenText}>Taken</Text>}
                                             </TouchableOpacity>
                                         );
                                     })}
@@ -763,45 +776,29 @@ const styles = StyleSheet.create({
     slotListContent: {
         paddingBottom: SPACING.xl,
     },
-    slotGrid: {
+    timeGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 10,
     },
-    slotItem: {
+    timeSlot: {
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: RADIUS.lg,
         borderWidth: 1,
         borderColor: COLORS.borderLight,
         backgroundColor: COLORS.backgroundLight,
-        alignItems: 'center',
     },
-    slotItemActive: {
+    timeSlotSelected: {
         backgroundColor: COLORS.primary,
         borderColor: COLORS.primary,
     },
-    slotItemDisabled: {
-        backgroundColor: '#F9FAFB',
-        borderColor: '#F3F4F6',
-        opacity: 0.6,
-    },
-    slotText: {
+    timeText: {
         fontSize: 12,
         color: COLORS.text,
-        fontFamily: 'Outfit_500Medium',
     },
-    slotTextActive: {
+    timeTextSelected: {
         color: '#FFF',
-    },
-    slotTextDisabled: {
-        color: COLORS.textLight,
-    },
-    takenText: {
-        fontSize: 9,
-        color: COLORS.error,
-        fontWeight: '700',
-        marginTop: 2,
     },
     slotLoader: {
         height: 200,
@@ -822,6 +819,7 @@ const styles = StyleSheet.create({
     },
     confirmButtonDisabled: {
         backgroundColor: COLORS.textLight,
+        opacity: 0.7,
     },
     confirmButtonText: {
         color: '#FFF',

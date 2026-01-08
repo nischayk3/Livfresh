@@ -624,39 +624,46 @@ export const getSubscriptionStats = async (): Promise<{
       try {
         const userData = userDoc.data();
         const subscriptionsRef = collection(db, 'users', userDoc.id, 'subscriptions');
-        // Get all subscriptions and filter client-side to avoid index issues
         const subsSnap = await getDocs(subscriptionsRef);
 
+        // Get all subscriptions (active and past)
+        const allSubs = subsSnap.docs
+          .map(doc => ({ id: doc.id, ...doc.data() } as any));
+
         // Find active subscriptions
-        const activeSubs = subsSnap.docs
-          .map(doc => ({ id: doc.id, ...doc.data() } as any))
-          .filter((sub: any) => {
-            const status = sub.status || 'active';
-            const isActive = sub.isActive !== false; // Default to true if not set
-            return status === 'active' && isActive;
-          });
+        const activeSubs = allSubs.filter((sub: any) => {
+          const status = sub.status || 'active';
+          const isActive = sub.isActive !== false;
+          return status === 'active' && isActive;
+        });
 
-        if (activeSubs.length > 0) {
+        // Include this user if they have ANY subscription (active or past)
+        if (allSubs.length > 0) {
           totalSubscribers++;
-          const activeSub = activeSubs[0] as any; // Get first active subscription
 
-          activeSubscribers++;
+          // For each subscription (active or past), add to the list
+          allSubs.forEach((sub: any) => {
+            const isActiveSubscription = sub.status === 'active' && sub.isActive !== false;
 
-          subscribers.push({
-            user_id: userDoc.id,
-            phone: userData.phone || '',
-            name: userData.name || '',
-            plan_type: activeSub.planType || 'single',
-            total_credits: activeSub.totalCredits || 0,
-            credits_remaining: activeSub.creditsRemaining || 0,
-            credits_used: activeSub.creditsUsed || 0,
-            status: activeSub.status || 'active',
-            expires_at: activeSub.expiresAt?.toDate ? activeSub.expiresAt.toDate().toISOString() : (activeSub.expiresAt || ''),
-            created_at: activeSub.createdAt?.toDate ? activeSub.createdAt.toDate().toISOString() : (activeSub.createdAt || ''),
+            if (isActiveSubscription) {
+              activeSubscribers++;
+            }
+
+            subscribers.push({
+              user_id: userDoc.id,
+              phone: userData.phone || '',
+              name: userData.name || '',
+              plan_type: sub.planType || 'single',
+              total_credits: sub.totalCredits || 0,
+              credits_remaining: sub.creditsRemaining || 0,
+              credits_used: sub.creditsUsed || 0,
+              status: sub.status || 'active',
+              expires_at: sub.expiresAt?.toDate ? sub.expiresAt.toDate().toISOString() : (sub.expiresAt || ''),
+              created_at: sub.createdAt?.toDate ? sub.createdAt.toDate().toISOString() : (sub.createdAt || ''),
+            });
           });
         }
       } catch (error: any) {
-        // Skip this user if we can't access their subscriptions
         console.warn(`Cannot access subscriptions for user ${userDoc.id}:`, error.message);
         continue;
       }

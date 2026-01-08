@@ -25,6 +25,11 @@ const AdminSettingsScreen = Platform.OS === 'web'
   ? lazy(() => import('../screens/Admin/AdminSettingsScreen').then(m => ({ default: m.AdminSettingsScreen })))
   : require('../screens/Admin/AdminSettingsScreen').AdminSettingsScreen;
 
+// Fix: Ensure this is declared at module scope
+const AdminDemandScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Admin/AdminDemandScreen').then(m => ({ default: m.AdminDemandScreen })))
+  : require('../screens/Admin/AdminDemandScreen').AdminDemandScreen;
+
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -119,8 +124,8 @@ export const AdminNavigator = () => {
         }}
       >
         <Stack.Screen name="AdminTabs" component={AdminTabs} />
+        <Stack.Screen name="AdminDemand" component={AdminDemandScreen} />
       </Stack.Navigator>
     </Suspense>
   );
 };
-

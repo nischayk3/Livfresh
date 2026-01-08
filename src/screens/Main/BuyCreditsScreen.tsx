@@ -6,11 +6,14 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Linking,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore, useSubscriptionStore, useUIStore } from '../../store';
+import { trackPixelEvent } from '../../utils/pixel';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandHeader } from '../../components/BrandHeader';
 
@@ -69,37 +72,48 @@ export const BuyCreditsScreen: React.FC = () => {
       return;
     }
 
-    setPurchasing(true);
+    // Construct WhatsApp Message
+    const planName = planType.charAt(0).toUpperCase() + planType.slice(1);
+    const message = `Hi Spinzo 👋\nI want to subscribe to the ${planName} plan.\nNumber of credits: ${creditCount}\nTotal amount: ₹${totalAmount}\nPlease share payment details.`;
+
+    // WhatsApp URL (using the provided number 9661802634)
+    const phoneNumber = '919661802634';
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `whatsapp://send?phone=${phoneNumber}&text=${encodedMessage}`;
+    const webWhatsappUrl = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
 
     try {
-      const result = await createSubscription(user.uid, planType, creditCount);
-
-      if (result.success) {
-        // Refetch subscriptions to update the store immediately
-        await fetchSubscriptions(user.uid);
-
-        // Navigate to success screen
-        (navigation as any).navigate('SubscriptionSuccess', {
-          subscriptionId: result.subscriptionId,
-          planType,
-          creditCount,
-          totalAmount,
-        });
+      if (Platform.OS === 'web') {
+        window.open(webWhatsappUrl, '_blank');
       } else {
-        showAlert({
-          title: 'Purchase Failed',
-          message: result.error || 'Failed to purchase credits. Please try again.',
-          type: 'error',
-        });
+        const canOpen = await Linking.canOpenURL(whatsappUrl);
+        if (canOpen) {
+          await Linking.openURL(whatsappUrl);
+        } else {
+          // Fallback for mobile if app not installed (rare but possible) or simulator
+          await Linking.openURL(webWhatsappUrl);
+        }
       }
-    } catch (error: any) {
+
+      // Optional: Track 'Lead' or 'Contact' event instead of 'Subscribe' since purchase isn't complete?
+      // Keeping 'Subscribe' might be misleading if they don't pay. 
+      // User said "We want to see if the user is genuinely interested". 
+      // Let's track it as 'InitiateCheckout' or keep existing 'Subscribe' but maybe rename? 
+      // I'll stick to not tracking 'Subscribe' here because it's not a confirmed purchase yet. 
+      // Maybe track 'Lead'?
+      trackPixelEvent('Lead', {
+        value: totalAmount,
+        currency: 'INR',
+        content_name: `${planName} Plan Subscription Request`
+      });
+
+    } catch (error) {
+      console.error("Error opening WhatsApp:", error);
       showAlert({
         title: 'Error',
-        message: error.message || 'Failed to purchase credits. Please try again.',
-        type: 'error',
+        message: 'Could not open WhatsApp. Please contact support manually.',
+        type: 'error'
       });
-    } finally {
-      setPurchasing(false);
     }
   };
 
@@ -306,7 +320,7 @@ export const BuyCreditsScreen: React.FC = () => {
               <Text style={styles.purchaseButtonText}>
                 {activeSubscription
                   ? 'Active Subscription Exists'
-                  : `Pay Later • ₹${totalAmount}`}
+                  : `Request via WhatsApp • ₹${totalAmount}`}
               </Text>
             </>
           )}

@@ -105,12 +105,7 @@ interface AdminStoreState {
       tokenNumber?: string;
       pickupOTP?: string;
       deliveryOTP?: string;
-      additionalData?: {
-        cancellationReason?: string;
-        cancellationNote?: string;
-        isCancelled?: boolean;
-        cancelledAt?: Date;
-      };
+      additionalData?: any;
     }
   ) => Promise<boolean>;
   addCredits: (

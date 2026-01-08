@@ -34,6 +34,7 @@ export const AdminSubscriptionsScreen: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'active' | 'past'>('active');
 
   // Add Credits Modal State
   const [modalVisible, setModalVisible] = useState(false);
@@ -56,14 +57,19 @@ export const AdminSubscriptionsScreen: React.FC = () => {
 
   const filteredSubscribers = useMemo(() => {
     const subs = subscriptionStats.subscribers || [];
-    if (!searchQuery) return subs;
+    // Filter by active/past status
+    const statusFilteredSubs = subs.filter(sub =>
+      activeTab === 'active' ? sub.status === 'active' : sub.status !== 'active'
+    );
+
+    if (!searchQuery) return statusFilteredSubs;
 
     const lowerQuery = searchQuery.toLowerCase();
-    return subs.filter(sub =>
+    return statusFilteredSubs.filter(sub =>
       (sub.name || '').toLowerCase().includes(lowerQuery) ||
       (sub.phone || '').includes(lowerQuery)
     );
-  }, [subscriptionStats.subscribers, searchQuery]);
+  }, [subscriptionStats.subscribers, searchQuery, activeTab]);
 
   const handleManualAdd = async () => {
     if (!formPhone.trim()) {
@@ -164,6 +170,22 @@ export const AdminSubscriptionsScreen: React.FC = () => {
           <Text style={styles.statsValue}>{subscriptionStats.activeSubscribers}</Text>
           <Text style={styles.statsLabel}>Active Now</Text>
         </View>
+      </View>
+
+      {/* Tabs */}
+      <View style={styles.subscriptionTabsContainer}>
+        <TouchableOpacity
+          style={[styles.subscriptionTab, activeTab === 'active' && styles.subscriptionTabActive]}
+          onPress={() => setActiveTab('active')}
+        >
+          <Text style={[styles.subscriptionTabText, activeTab === 'active' && styles.subscriptionTabTextActive]}>Active</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.subscriptionTab, activeTab === 'past' && styles.subscriptionTabActive]}
+          onPress={() => setActiveTab('past')}
+        >
+          <Text style={[styles.subscriptionTabText, activeTab === 'past' && styles.subscriptionTabTextActive]}>Past</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Search Bar */}
@@ -388,8 +410,35 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   searchSection: {
-    paddingHorizontal: SPACING.lg,
-    marginBottom: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  subscriptionTabsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: SPACING.md,
+    gap: SPACING.sm,
+    marginVertical: SPACING.sm,
+  },
+  subscriptionTab: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  subscriptionTabActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight + '10',
+  },
+  subscriptionTabText: {
+    ...TYPOGRAPHY.bodySmall,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  subscriptionTabTextActive: {
+    color: COLORS.primary,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -638,3 +687,4 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 });
+

@@ -377,67 +377,71 @@ export const RootNavigator: React.FC = () => {
   }
 
   return (
-    <NavigationContainer linking={{
-      prefixes: [
-        'spinzo://',
-        'http://localhost:8081',
-        'exp://',
-        'https://spinzo.app',
-        'https://spinzo.in'
-      ],
-      config: {
-        screens: {
-          // Auth Routes
-          Onboarding: 'onboarding',
-          PhoneLogin: 'login',
-          UserDetails: 'signup',
-          OTP: 'verify-otp',
-          LocationPermission: 'location-permission',
+    <NavigationContainer
+      documentTitle={{
+        formatter: () => 'SpinZo',
+      }}
+      linking={{
+        prefixes: [
+          'spinzo://',
+          'http://localhost:8081',
+          'exp://',
+          'https://spinzo.app',
+          'https://spinzo.in'
+        ],
+        config: {
+          screens: {
+            // Auth Routes
+            Onboarding: 'onboarding',
+            PhoneLogin: 'login',
+            UserDetails: 'signup',
+            OTP: 'verify-otp',
+            LocationPermission: 'location-permission',
 
-          // Main App Routes
-          Main: {
-            screens: {
-              MainTabs: {
-                screens: {
-                  Home: 'home',
-                  MyOrders: 'my-orders',
-                  Credits: 'credits',
-                  Profile: 'profile',
+            // Main App Routes
+            Main: {
+              screens: {
+                MainTabs: {
+                  screens: {
+                    Home: 'home',
+                    MyOrders: 'my-orders',
+                    Credits: 'credits',
+                    Profile: 'profile',
+                  },
                 },
-              },
-              VendorDetail: 'vendor/:id',
-              Cart: 'cart',
-              AddressList: 'addresses',
-              AddressMap: 'map',
-              OrderSuccess: 'order-success',
-              OrderDetail: 'order/:id',
-              EditProfile: 'edit-profile',
-              HelpSupport: 'support',
-              BuyCredits: 'buy-credits',
-              SubscriptionSuccess: 'subscription-success',
-            },
-          },
-
-          // Admin Routes
-          AdminLogin: 'admin/login',
-          Admin: {
-            path: 'admin',
-            screens: {
-              AdminTabs: {
-                screens: {
-                  Dashboard: '',
-                  Orders: 'orders',
-                  Subscriptions: 'subscriptions',
-                  Settings: 'settings',
-                },
+                VendorDetail: 'vendor/:id',
+                Cart: 'cart',
+                AddressList: 'addresses',
+                AddressMap: 'map',
+                OrderSuccess: 'order-success',
+                OrderDetail: 'order/:id',
+                EditProfile: 'edit-profile',
+                HelpSupport: 'support',
+                BuyCredits: 'buy-credits',
+                SubscriptionSuccess: 'subscription-success',
               },
             },
+
+            // Admin Routes
+            AdminLogin: 'admin/login',
+            Admin: {
+              path: 'admin',
+              screens: {
+                AdminTabs: {
+                  screens: {
+                    Dashboard: '',
+                    Orders: 'orders',
+                    Subscriptions: 'subscriptions',
+                    Settings: 'settings',
+                  },
+                },
+              },
+            },
+            // Catch-all route for unknown paths
+            NotFound: '*',
           },
-          // Catch-all route for unknown paths
-          NotFound: '*',
         },
-      },
-    } as any}>
+      } as any}>
       <Suspense fallback={<View style={styles.loadingWrapper}><BrandLoader message="Loading..." /></View>}>
         <Stack.Navigator
           screenOptions={{

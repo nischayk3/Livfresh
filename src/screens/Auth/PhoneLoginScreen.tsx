@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { requestOTP, initializeRecaptcha } from '../../services/auth';
 import { checkUserExists } from '../../services/firestore';
 import { useAuthStore, useUIStore } from '../../store';
+import { trackPixelEvent } from '../../utils/pixel';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandLoader } from '../../components/BrandLoader';
 
@@ -78,6 +79,9 @@ export const PhoneLoginScreen: React.FC = () => {
       // Request OTP - verifier handled internally by platform specific service
       await requestOTP(formattedPhone);
 
+      // Track Lead event (User requested OTP)
+      trackPixelEvent('Lead');
+
       // Store phone in store
       const { setOTPData } = useAuthStore.getState();
       setOTPData(formattedPhone, '');
@@ -122,7 +126,6 @@ export const PhoneLoginScreen: React.FC = () => {
               style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={styles.appName}>SpinZo</Text>
             <Text style={styles.tagline}>Premium Laundry Services</Text>
           </View>
 

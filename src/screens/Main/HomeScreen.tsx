@@ -34,9 +34,9 @@ const HOME_FAQS = [
 ];
 
 // Import assets
-const promoPickup = require('../../../assets/promo_pickup.png');
-const promoDelivery = require('../../../assets/promo_delivery.png');
-const promoRelax = require('../../../assets/promo_relax.png');
+const promoPickup = require('../../../assets/banner_1.png');
+const promoDelivery = require('../../../assets/banner_2.png');
+const promoRelax = require('../../../assets/banner_3.png');
 
 const PROMOS = [
   {

@@ -24,6 +24,7 @@ import { COLORS, SPACING, SHADOWS, RADIUS, TYPOGRAPHY } from '../../utils/consta
 import { useCartStore, useUIStore } from '../../store';
 import { uploadServicePhotos } from '../../services/firestore';
 import { CartItem } from '../../store/cartStore';
+import { trackPixelEvent } from '../../utils/pixel';
 import { FaqAccordion } from '../../components/FaqAccordion';
 
 // -------------- FAQ DATA --------------
@@ -94,6 +95,22 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+
+  // Track ViewContent on mount
+  useEffect(() => {
+    if (visible && serviceId) {
+      // Find service name
+      let serviceName = 'Service';
+      if (serviceId === 'wash_fold') serviceName = 'Wash & Fold';
+      else if (serviceId === 'wash_iron') serviceName = 'Wash & Iron';
+      else if (serviceId === 'blanket_wash') serviceName = 'Blanket Wash';
+
+      trackPixelEvent('ViewContent', {
+        content_category: 'Laundry Service',
+        content_name: serviceName
+      });
+    }
+  }, [visible, serviceId]);
 
   // Wash & Fold / Wash & Iron state
   // Wash & Fold
@@ -577,6 +594,13 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     }
 
     addItem(cartItem);
+
+    // Track AddToCart
+    trackPixelEvent('AddToCart', {
+      value: cartItem.totalPrice,
+      currency: 'INR'
+    });
+
     onClose();
     showAlert({
       title: 'Cart Updated',

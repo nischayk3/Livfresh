@@ -11,12 +11,14 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Timestamp } from 'firebase/firestore';
+import { format } from 'date-fns';
 
 import { useCartStore, useAuthStore, useAddressStore, useUIStore, useSubscriptionStore } from '../../store';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
 import { createOrder, saveCart, clearCartInFirestore, uploadServicePhotos } from '../../services/firestore';
+import { trackPixelEvent } from '../../utils/pixel';
 import { BrandLoader } from '../../components/BrandLoader';
 
 export const CartScreen: React.FC = () => {
@@ -32,6 +34,7 @@ export const CartScreen: React.FC = () => {
     const [pickupType, setPickupType] = useState<'instant' | 'scheduled'>('instant');
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
+    const [occupiedSlots, setOccupiedSlots] = useState<string[]>([]);
 
     // Constants
     const PLATFORM_FEE = 19;
@@ -50,7 +53,7 @@ export const CartScreen: React.FC = () => {
             const d = new Date(today);
             d.setDate(today.getDate() + i);
             dates.push({
-                id: d.toISOString().split('T')[0],
+                id: format(d, 'yyyy-MM-dd'),
                 day: d.toLocaleDateString('en-US', { weekday: 'short' }),
                 date: d.getDate(),
                 fullDate: d,
@@ -61,12 +64,38 @@ export const CartScreen: React.FC = () => {
 
     const dates = generateDates();
 
-    // Generate time slots (10 AM to 10 PM)
+    // Generate time slots (9 AM to 9 PM)
     const generateTimeSlots = () => {
         const slots = [];
-        for (let i = 10; i < 22; i++) {
-            slots.push(`${i}:00 - ${i}:30`);
-            slots.push(`${i}:30 - ${i + 1}:00`);
+        // From 9:00 (9) to 21:00 (21)
+        for (let i = 9; i < 21; i++) {
+            // XX:00 - XX:30
+            const hourStart = i > 12 ? i - 12 : i;
+            const ampmStart = i >= 12 ? 'PM' : 'AM';
+            // Logic for end time of first slot
+            // 9:30 is just 9:30 AM
+
+            // Actually, let's keep the format simple and consistent with Firestore string matching
+            // Using 24h format for internal logic might be easier, but UI needs AM/PM.
+            // Let's generate simple strings as request: "10:00 - 10:30"
+            // Wait, previous code used "10:00 - 10:30" (implied 24h start, but maybe not?)
+            // The previous code was: `slots.push(\`\${i}:00 - \${i}:30\`);` where i went 10 to 22. 
+            // This is actually mixing 24h and AM/PM loosely or just 24h. 
+            // "13:00 - 13:30" etc.
+            // User requested "9 to 9". 
+            // Let's stick to 24-hour format strings for consistency in DB, but maybe formatted nicely in UI if needed.
+            // But for simplicity of matching existing DB / strings, let's use the code loop style but strictly 09-21.
+
+            // Format: "09:00 - 09:30", "09:30 - 10:00" ... "20:30 - 21:00".
+            // i starts 9, ends < 21. 
+            // Wait, last slot is 20:30 - 21:00. So loop i from 9 to 20.
+
+            const p1 = `${i.toString().padStart(2, '0')}:00`;
+            const p2 = `${i.toString().padStart(2, '0')}:30`;
+            const p3 = `${(i + 1).toString().padStart(2, '0')}:00`;
+
+            slots.push(`${p1} - ${p2}`);
+            slots.push(`${p2} - ${p3}`);
         }
         return slots;
     };
@@ -78,6 +107,61 @@ export const CartScreen: React.FC = () => {
             setSelectedDate(dates[1].id);
         }
     }, [pickupType]);
+
+    // Fetch occupied slots when date Selected
+    useEffect(() => {
+        const fetchOccupied = async () => {
+            if (selectedDate && pickupType === 'scheduled') {
+                // Determine if we need to verify import path dynamically or just assume it's available
+                const { checkSlotAvailability } = require('../../services/firestore');
+                setLoading(true);
+                const occupied = await checkSlotAvailability(selectedDate);
+                setOccupiedSlots(occupied);
+                setLoading(false);
+            }
+        };
+        fetchOccupied();
+    }, [selectedDate, pickupType]);
+
+    // ... (Focus Effect) ... 
+
+    // ... (handlePlaceOrder) ...
+    // Note: handlePlaceOrder function body is large, better to leave it mostly alone via contextual replace 
+    // unless we need to change it. 
+    // Wait, the previous replacement was mostly "top half" of component. 
+    // I need to be careful not to replace `handlePlaceOrder` with truncated placeholder logic.
+    // The instructions say "Update slot rendering".
+
+    // Let's use smaller chunks. This tool call will focus on the STATE and EFFECTS at the top.
+
+    // ...
+
+    // Actually, I can replace the `generateTimeSlots` and adds usages.
+    // But Render is at the bottom.
+
+    // Let's split. 
+    // 1. Top chunk: State, Constants, Logic.
+
+    // ... code ...
+
+    /* SKIPPING handlePlaceOrder logic replacement here to avoid massive diff. 
+       Use a separate call for render logic if needed, or if start/end line allows.
+       Actually, `generateTimeSlots` is near top (line 65). `render` is near bottom. 
+       I will target the top part first.
+    */
+
+
+    // Track InitiateCheckout when Cart is viewed
+    useFocusEffect(
+        React.useCallback(() => {
+            if (items.length > 0) {
+                trackPixelEvent('InitiateCheckout', {
+                    value: totalAmount,
+                    currency: 'INR'
+                });
+            }
+        }, [items.length, totalAmount])
+    );
 
     const handlePlaceOrder = async () => {
         if (!user) {
@@ -107,10 +191,42 @@ export const CartScreen: React.FC = () => {
             return;
         }
 
+        const { currentLatitude, currentLongitude } = useAddressStore.getState();
+
+        // --- GEOFENCING CHECK ---
+        const { isLocationServiceable } = require('../../utils/geofence');
+        const { logUnserviceableRequest } = require('../../services/firestore');
+
+        // Ensure we have lat/lng
+        if (currentLatitude && currentLongitude) {
+            const serviceable = isLocationServiceable({
+                latitude: currentLatitude,
+                longitude: currentLongitude
+            });
+
+            if (!serviceable) {
+                // Log the unserviceable attempt
+                logUnserviceableRequest(user.uid, {
+                    latitude: currentLatitude,
+                    longitude: currentLongitude,
+                    address: currentAddress
+                });
+
+                showAlert({
+                    title: 'Service Not Available',
+                    message: `Sorry, we are not serving your area yet.\n\nWe have recorded your interest and will notify you as soon as we launch near ${currentAddress.split(',')[0]}!`,
+                    type: 'info' // Use 'info' so it's not scary, just informative
+                });
+                return;
+            }
+        }
+        // ------------------------
+
         setLoading(true);
 
         try {
-            const { currentLatitude, currentLongitude } = useAddressStore.getState();
+            // Re-fetch here to be safe, though we used them above
+            // const { currentLatitude, currentLongitude } = useAddressStore.getState(); 
 
             // Upload photos logic REMOVED. Photos are already uploaded in ServiceDetailScreen.
             // Items in cart already contain valid persistent Firebase URLs.
@@ -140,6 +256,12 @@ export const CartScreen: React.FC = () => {
 
             // Create the order first
             const orderId = await createOrder(user.uid, orderData);
+
+            // Track Purchase Event
+            trackPixelEvent('Purchase', {
+                value: totalAmount,
+                currency: 'INR'
+            });
 
             // Set navigating state to prevent empty cart flash
             setIsNavigating(true);
@@ -364,17 +486,29 @@ export const CartScreen: React.FC = () => {
 
                                 <Text style={styles.pickerLabel}>Select Time</Text>
                                 <View style={styles.timeGrid}>
-                                    {timeSlots.map((slot) => (
-                                        <TouchableOpacity
-                                            key={slot}
-                                            style={[styles.timeSlot, selectedTimeSlot === slot && styles.timeSlotSelected]}
-                                            onPress={() => setSelectedTimeSlot(slot)}
-                                        >
-                                            <Text style={[styles.timeText, selectedTimeSlot === slot && styles.timeTextSelected]}>
-                                                {slot}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
+                                    {timeSlots.map((slot) => {
+                                        const isOccupied = occupiedSlots.includes(slot);
+                                        return (
+                                            <TouchableOpacity
+                                                key={slot}
+                                                disabled={isOccupied}
+                                                style={[
+                                                    styles.timeSlot,
+                                                    selectedTimeSlot === slot && styles.timeSlotSelected,
+                                                    isOccupied && styles.timeSlotDisabled
+                                                ]}
+                                                onPress={() => setSelectedTimeSlot(slot)}
+                                            >
+                                                <Text style={[
+                                                    styles.timeText,
+                                                    selectedTimeSlot === slot && styles.timeTextSelected,
+                                                    isOccupied && styles.timeTextDisabled
+                                                ]}>
+                                                    {slot}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
                                 </View>
                             </View>
                         )}
@@ -666,12 +800,21 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.primary,
         borderColor: COLORS.primary,
     },
+    timeSlotDisabled: {
+        backgroundColor: '#F3F4F6',
+        borderColor: '#E5E7EB',
+        opacity: 0.6,
+    },
     timeText: {
         fontSize: 12,
         color: COLORS.text,
     },
     timeTextSelected: {
         color: '#FFF',
+    },
+    timeTextDisabled: {
+        color: '#9CA3AF',
+        textDecorationLine: 'line-through',
     },
     addressRow: {
         flexDirection: 'row',

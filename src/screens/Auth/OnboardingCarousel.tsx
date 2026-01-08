@@ -17,9 +17,9 @@ import { COLORS, SPACING, TYPOGRAPHY, SHADOWS } from '../../utils/constants';
 
 // Import images directly or use require
 const IMAGES = {
-  slide1: require('../../../assets/onboarding_lifecycle.png'),
-  slide2: require('../../../assets/onboarding_fast.png'),
-  slide3: require('../../../assets/onboarding_eco.png'),
+  slide1: require('../../../assets/onboarding_screen_1.png'),
+  slide2: require('../../../assets/onboarding_screen_2.png'),
+  slide3: require('../../../assets/onboarding_pickup_v2.png'),
 };
 
 interface OnboardingSlide {

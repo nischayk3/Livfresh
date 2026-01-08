@@ -17,6 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { verifyOTP, getCurrentPhoneNumber } from '../../services/auth';
 import { useAuthStore, useUIStore } from '../../store';
+import { trackPixelEvent } from '../../utils/pixel';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandLoader } from '../../components/BrandLoader';
 
@@ -146,6 +147,9 @@ export const OTPScreen: React.FC = () => {
         console.log('🆕 New user detected, navigating to UserDetails');
         (navigation as any).navigate('UserDetails', { phone: firebaseUser.phoneNumber || phone });
       }
+
+      // Track Registration/Login Success
+      trackPixelEvent('CompleteRegistration');
     } catch (error: any) {
       console.error('OTP verification error:', error);
       setError(error.message || 'Invalid OTP. Please try again.');

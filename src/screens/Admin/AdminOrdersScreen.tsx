@@ -22,6 +22,7 @@ import { useUIStore } from '../../store/uiStore';
 import { format } from 'date-fns';
 import { BrandLoader } from '../../components/BrandLoader';
 import { subscribeToAllOrdersAdmin } from '../../services/adminFirestore';
+import { checkSlotAvailability, scheduleOrderDelivery } from '../../services/firestore';
 
 // Status tabs configuration - mirroring SpinZo flow
 const STATUS_TABS = [
@@ -36,7 +37,7 @@ const STATUS_TABS = [
 
 const CANCELLATION_REASONS = [
   "Customer didn’t pickup the call",
-  "Customer not available at pickup location",
+  "Customer not available at location",
   "Customer requested cancellation",
   "Invalid/ incorrect address",
   "Other"
@@ -74,6 +75,26 @@ export const AdminOrdersScreen: React.FC = () => {
 
   // Edit Modal State
   const [editOrderModalVisible, setEditOrderModalVisible] = useState(false);
+
+  // Options Menu State (Three-dots)
+  const [optionsModalVisible, setOptionsModalVisible] = useState(false);
+  const [selectedOrderForOptions, setSelectedOrderForOptions] = useState<any>(null);
+
+  // Reschedule Modal State
+  const [rescheduleModalVisible, setRescheduleModalVisible] = useState(false);
+  const [selectedRescheduleDateIndex, setSelectedRescheduleDateIndex] = useState(0);
+  const [selectedRescheduleSlot, setSelectedRescheduleSlot] = useState<string | null>(null);
+  const [busySlotsForReschedule, setBusySlotsForReschedule] = useState<string[]>([]);
+  const [isLoadingBusySlots, setIsLoadingBusySlots] = useState(false);
+
+  // Dynamic next 5 days for reschedule
+  const RESCHEDULE_DATES = useMemo(() => {
+    return Array.from({ length: 5 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      return d;
+    });
+  }, []);
 
   // Initial Fetch & Real-time Listener
   useEffect(() => {
@@ -414,34 +435,124 @@ export const AdminOrdersScreen: React.FC = () => {
     }
   };
 
+  // --- Ready Tab Action Handlers ---
+
+  const handleShowOptions = (order: any) => {
+    setSelectedOrderForOptions(order);
+    setOptionsModalVisible(true);
+  };
+
+  const handleRescheduleOption = () => {
+    setOptionsModalVisible(false);
+    setSelectedRescheduleSlot(null);
+    setSelectedRescheduleDateIndex(0);
+    setRescheduleModalVisible(true);
+  };
+
+  const handleCancelOption = () => {
+    setOptionsModalVisible(false);
+    if (selectedOrderForOptions) {
+      setOrderToCancel(selectedOrderForOptions);
+      setCancelReason(CANCELLATION_REASONS[0]);
+      setCancelNote('');
+      setCancelModalVisible(true);
+    }
+  };
+
+  useEffect(() => {
+    if (rescheduleModalVisible) {
+      fetchBusySlotsForReschedule();
+    }
+  }, [rescheduleModalVisible, selectedRescheduleDateIndex]);
+
+  const fetchBusySlotsForReschedule = async () => {
+    setIsLoadingBusySlots(true);
+    try {
+      const dateStr = format(RESCHEDULE_DATES[selectedRescheduleDateIndex], 'yyyy-MM-dd');
+      const busy = await checkSlotAvailability(dateStr);
+      setBusySlotsForReschedule(busy || []);
+    } catch (error) {
+      console.error('Error fetching busy slots for reschedule:', error);
+      setBusySlotsForReschedule([]);
+    } finally {
+      setIsLoadingBusySlots(false);
+    }
+  };
+
+  const confirmReschedule = async () => {
+    if (!selectedOrderForOptions || !selectedRescheduleSlot) return;
+
+    setProcessing(true);
+    try {
+      const dateStr = format(RESCHEDULE_DATES[selectedRescheduleDateIndex], 'yyyy-MM-dd');
+      await scheduleOrderDelivery(
+        selectedOrderForOptions.userId,
+        selectedOrderForOptions.id,
+        dateStr,
+        selectedRescheduleSlot
+      );
+      setRescheduleModalVisible(false);
+      Alert.alert("Success", "Delivery rescheduled successfully");
+    } catch (error) {
+      console.error('Reschedule error:', error);
+      Alert.alert("Error", "Failed to reschedule delivery");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const generateTimeSlots = () => {
+    const slots = [];
+    for (let i = 9; i < 21; i++) {
+      const p1 = `${i.toString().padStart(2, '0')}:00`;
+      const p2 = `${i.toString().padStart(2, '0')}:30`;
+      const p3 = `${(i + 1).toString().padStart(2, '0')}:00`;
+      slots.push(`${p1} - ${p2}`);
+      slots.push(`${p2} - ${p3}`);
+    }
+    return slots;
+  };
+
+  const getSlotFromDate = (date: Date) => {
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+
+    // If before 9 AM, use first slot
+    if (hours < 9) return "09:00 - 09:30";
+    // If after 9 PM, use last slot (or indicate day shift over)
+    if (hours >= 21) return "20:30 - 21:00";
+
+    const startHour = hours.toString().padStart(2, '0');
+    if (minutes < 30) {
+      return `${startHour}:00 - ${startHour}:30`;
+    } else {
+      const nextHour = (hours + 1).toString().padStart(2, '0');
+      return `${startHour}:30 - ${nextHour}:00`;
+    }
+  };
+
   // Render Item
   const renderOrderItem = ({ item }: { item: any }) => {
-    let formattedDate = 'Date N/A';
-    try {
-      if (item.createdAt) {
-        let date: Date | undefined;
-        const createdAt = item.createdAt as any;
-
-        if (createdAt.toDate && typeof createdAt.toDate === 'function') {
-          date = createdAt.toDate();
-        } else if (createdAt.seconds) {
-          // Handle stripped timestamp
-          date = new Date(createdAt.seconds * 1000);
-        } else if (createdAt instanceof Date) {
-          date = createdAt;
-        } else if (typeof createdAt === 'string') {
-          date = new Date(createdAt);
-        } else if (typeof createdAt === 'number') {
-          date = new Date(createdAt);
-        }
-
-        if (date && !isNaN(date.getTime())) {
-          formattedDate = format(date, 'MMM dd, yyyy • hh:mm a');
-        }
+    const getFormattedDate = (dateField: any) => {
+      if (!dateField) return null;
+      let date: Date | undefined;
+      if (dateField.toDate && typeof dateField.toDate === 'function') {
+        date = dateField.toDate();
+      } else if (dateField.seconds) {
+        date = new Date(dateField.seconds * 1000);
+      } else if (dateField instanceof Date) {
+        date = dateField;
+      } else if (typeof dateField === 'string' || typeof dateField === 'number') {
+        date = new Date(dateField);
       }
-    } catch (e) {
-      console.warn('Date formatting error:', e);
-    }
+      if (date && !isNaN(date.getTime())) {
+        return format(date, 'MMM dd, yyyy • hh:mm a');
+      }
+      return null;
+    };
+
+    const placementDate = getFormattedDate(item.createdAt) || 'Date N/A';
+    const cancellationDate = getFormattedDate(item.cancelledAt) || getFormattedDate(item.updatedAt);
 
     return (
       <View style={styles.orderCard}>
@@ -449,8 +560,26 @@ export const AdminOrdersScreen: React.FC = () => {
         <View style={styles.cardHeader}>
           <View>
             <Text style={styles.orderId}>{item.id ? item.id.toUpperCase() : 'NO ID'}</Text>
-            <Text style={styles.orderDate}>{formattedDate}</Text>
+            <Text style={[styles.orderDate, item.status === 'cancelled' && { color: COLORS.error }]}>
+              {item.status === 'cancelled' ? `Cancelled: ${cancellationDate || 'N/A'}` : placementDate}
+            </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+              {item.status === 'cancelled' && (
+                <View style={[styles.tokenBadge, { backgroundColor: COLORS.error + '10' }]}>
+                  <Ionicons name="alert-circle-outline" size={12} color={COLORS.error} />
+                  <Text style={[styles.tokenText, { color: COLORS.error }]}>
+                    Reason: {item.cancellationReason || 'Not specified'}
+                  </Text>
+                </View>
+              )}
+              {item.status === 'cancelled' && (
+                <View style={[styles.tokenBadge, { backgroundColor: COLORS.backgroundLight }]}>
+                  <Ionicons name="cart-outline" size={12} color={COLORS.textSecondary} />
+                  <Text style={[styles.tokenText, { color: COLORS.textSecondary }]}>
+                    Ordered: {placementDate}
+                  </Text>
+                </View>
+              )}
               {item.tokenNumber && (
                 <View style={styles.tokenBadge}>
                   <Ionicons name="pricetag-outline" size={12} color={COLORS.primary} />
@@ -497,6 +626,17 @@ export const AdminOrdersScreen: React.FC = () => {
               >
                 <Ionicons name="create-outline" size={20} color={COLORS.primary} />
                 <Text style={[styles.cancelButtonText, { color: COLORS.primary }]}>Edit</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Options Button for Ready status */}
+            {item.status === 'ready' && (
+              <TouchableOpacity
+                onPress={() => handleShowOptions(item)}
+                style={[styles.cancelButtonSmall, { backgroundColor: COLORS.primary + '15' }]}
+              >
+                <Ionicons name="ellipsis-vertical" size={20} color={COLORS.primary} />
+                <Text style={[styles.cancelButtonText, { color: COLORS.primary }]}>Options</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -615,7 +755,19 @@ export const AdminOrdersScreen: React.FC = () => {
             <View style={styles.slotRow}>
               <Ionicons name="calendar-outline" size={14} color={COLORS.textSecondary} />
               <Text style={styles.slotText}>
-                Pickup: {item.pickupDetails.scheduledDate || 'Today'} • {item.pickupDetails.scheduledTime || 'Anytime'}
+                Pickup: {item.pickupDetails.scheduledDate || 'Today'} • {
+                  (item.pickupDetails.type === 'instant' || item.pickupDetails.isInstant)
+                    ? (() => {
+                      const createdAt = item.createdAt;
+                      let date: Date | null = null;
+                      if (createdAt?.toDate) date = createdAt.toDate();
+                      else if (createdAt?.seconds) date = new Date(createdAt.seconds * 1000);
+                      else if (createdAt instanceof Date) date = createdAt;
+
+                      return date ? getSlotFromDate(date) : 'Anytime';
+                    })()
+                    : (item.pickupDetails.scheduledTime || 'Anytime')
+                }
               </Text>
             </View>
           )}
@@ -956,6 +1108,142 @@ export const AdminOrdersScreen: React.FC = () => {
           processing={processing}
         />
       )}
+      {/* Options Selection Modal */}
+      <Modal
+        visible={optionsModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setOptionsModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlayBottom}
+          activeOpacity={1}
+          onPress={() => setOptionsModalVisible(false)}
+        >
+          <View style={[styles.modalContent, { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Order Actions</Text>
+              <TouchableOpacity onPress={() => setOptionsModalVisible(false)}>
+                <Ionicons name="close" size={24} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.optionItem} onPress={handleRescheduleOption}>
+              <View style={[styles.optionIcon, { backgroundColor: COLORS.primary + '15' }]}>
+                <Ionicons name="calendar-outline" size={20} color={COLORS.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.optionLabel}>Reschedule Delivery</Text>
+                <Text style={styles.optionSub}>Change the delivery date or time</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.optionItem} onPress={handleCancelOption}>
+              <View style={[styles.optionIcon, { backgroundColor: COLORS.error + '15' }]}>
+                <Ionicons name="trash-outline" size={20} color={COLORS.error} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.optionLabel}>Cancel Order</Text>
+                <Text style={styles.optionSub}>Move order to cancelled tab</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Reschedule Modal */}
+      <Modal
+        visible={rescheduleModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setRescheduleModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { height: '85%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Reschedule Delivery</Text>
+              <TouchableOpacity onPress={() => setRescheduleModalVisible(false)}>
+                <Ionicons name="close" size={24} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+              <Text style={styles.sectionTitle}>Select New Date</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateList}>
+                {RESCHEDULE_DATES.map((date, index) => {
+                  const isActive = selectedRescheduleDateIndex === index;
+                  return (
+                    <TouchableOpacity
+                      key={index}
+                      style={[styles.dateItem, isActive && styles.dateItemActive]}
+                      onPress={() => setSelectedRescheduleDateIndex(index)}
+                    >
+                      <Text style={[styles.dateDay, isActive && styles.dateTextActive]}>
+                        {format(date, 'eee')}
+                      </Text>
+                      <Text style={[styles.dateNum, isActive && styles.dateTextActive]}>
+                        {format(date, 'd')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <Text style={styles.sectionTitle}>Select New Slot (9 AM - 9 PM)</Text>
+              {isLoadingBusySlots ? (
+                <View style={[styles.loaderContainer, { height: 200 }]}>
+                  <ActivityIndicator color={COLORS.primary} size="large" />
+                  <Text style={styles.loaderText}>Checking availability...</Text>
+                </View>
+              ) : (
+                <View style={styles.slotGrid}>
+                  {generateTimeSlots().map((slot) => {
+                    const isBusy = busySlotsForReschedule.includes(slot);
+                    const isSelected = selectedRescheduleSlot === slot;
+                    return (
+                      <TouchableOpacity
+                        key={slot}
+                        style={[
+                          styles.timeSlotPill,
+                          isSelected && styles.timeSlotSelected,
+                          isBusy && styles.timeSlotDisabled
+                        ]}
+                        disabled={isBusy}
+                        onPress={() => setSelectedRescheduleSlot(slot)}
+                      >
+                        <Text style={[
+                          styles.timeText,
+                          isSelected && styles.timeTextSelected,
+                          isBusy && styles.timeTextDisabled
+                        ]}>
+                          {slot}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[
+                styles.confirmButton,
+                (!selectedRescheduleSlot || processing) && { opacity: 0.6 }
+              ]}
+              disabled={!selectedRescheduleSlot || processing}
+              onPress={confirmReschedule}
+            >
+              {processing ? (
+                <ActivityIndicator color="#FFF" size="small" />
+              ) : (
+                <Text style={styles.confirmButtonText}>Confirm Reschedule</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -1320,6 +1608,131 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  optionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  optionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  optionLabel: {
+    ...TYPOGRAPHY.bodyBold,
+    color: COLORS.text,
+  },
+  optionSub: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  sectionTitle: {
+    ...TYPOGRAPHY.bodyBold,
+    color: COLORS.text,
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  dateList: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  dateItem: {
+    width: 60,
+    height: 70,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  dateItemActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  dateDay: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    textTransform: 'uppercase',
+  },
+  dateNum: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  dateTextActive: {
+    color: '#FFF',
+  },
+  slotGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingBottom: 20,
+  },
+  timeSlotPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFF',
+    minWidth: '47%',
+    alignItems: 'center',
+  },
+  timeSlotSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  timeSlotDisabled: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#F3F4F6',
+    opacity: 0.5,
+  },
+  timeText: {
+    fontSize: 13,
+    color: COLORS.text,
+  },
+  timeTextSelected: {
+    color: '#FFF',
+    fontWeight: '700',
+  },
+  timeTextDisabled: {
+    color: COLORS.textSecondary,
+    textDecorationLine: 'line-through',
+  },
+  loaderContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loaderText: {
+    marginTop: 10,
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+  },
+  confirmButton: {
+    backgroundColor: COLORS.primary,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 10,
+    ...SHADOWS.md,
+  },
+  confirmButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1522,11 +1935,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: SPACING.lg,
   },
+  modalOverlayBottom: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
   modalContent: {
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: SPACING.lg,
     ...SHADOWS.lg,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
   },
   modalTitle: {
     ...TYPOGRAPHY.subheading,

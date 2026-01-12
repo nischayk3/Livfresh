@@ -5,7 +5,7 @@
     "scheme": "spinzo",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/SpinZo.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -29,7 +29,11 @@
       "googleServicesFile": "./google-services.json"
     },
     "web": {
-      "favicon": "./assets/SpinZo.png"
+      "favicon": "./assets/SpinZo.png",
+      "icon": "./assets/SpinZo.png",
+      "backgroundColor": "#ffffff",
+      "themeColor": "#994BFF",
+      "description": "Premium Laundry & Fabricare Service"
     },
     "extra": {
       "eas": {

@@ -232,6 +232,20 @@ export const CartScreen: React.FC = () => {
             // Items in cart already contain valid persistent Firebase URLs.
             const itemsWithPhotoUrls = items;
 
+            // Pre-calculate slot for Instant Pickup for better data consistency
+            let instantSlot = null;
+            if (pickupType === 'instant') {
+                const now = new Date();
+                const hours = now.getHours();
+                const minutes = now.getMinutes();
+                const startHour = hours.toString().padStart(2, '0');
+
+                if (hours < 9) instantSlot = "09:00 - 09:30";
+                else if (hours >= 21) instantSlot = "20:30 - 21:00";
+                else if (minutes < 30) instantSlot = `${startHour}:00 - ${startHour}:30`;
+                else instantSlot = `${startHour}:30 - ${(hours + 1).toString().padStart(2, '0')}:00`;
+            }
+
             const orderData = {
                 vendorId: items[0]?.vendorId || 'default', // Assuming single vendor for MVP
                 items: itemsWithPhotoUrls, // Use items with uploaded photo URLs
@@ -243,8 +257,8 @@ export const CartScreen: React.FC = () => {
                 },
                 pickupDetails: {
                     type: pickupType,
-                    scheduledDate: pickupType === 'scheduled' ? selectedDate : null,
-                    scheduledTime: pickupType === 'scheduled' ? selectedTimeSlot : null,
+                    scheduledDate: pickupType === 'scheduled' ? selectedDate : format(new Date(), 'yyyy-MM-dd'),
+                    scheduledTime: pickupType === 'scheduled' ? selectedTimeSlot : instantSlot,
                     isInstant: pickupType === 'instant',
                 },
                 address: currentAddress,

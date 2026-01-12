@@ -77,7 +77,7 @@ export const BuyCreditsScreen: React.FC = () => {
     const message = `Hi Spinzo 👋\nI want to subscribe to the ${planName} plan.\nNumber of credits: ${creditCount}\nTotal amount: ₹${totalAmount}\nPlease share payment details.`;
 
     // WhatsApp URL (using the provided number 9661802634)
-    const phoneNumber = '919661802634';
+    const phoneNumber = '917676878832';
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `whatsapp://send?phone=${phoneNumber}&text=${encodedMessage}`;
     const webWhatsappUrl = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;

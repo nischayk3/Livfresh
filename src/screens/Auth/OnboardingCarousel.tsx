@@ -14,6 +14,7 @@ import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS, SPACING, TYPOGRAPHY, SHADOWS } from '../../utils/constants';
+import { PWAInstallBanner } from '../../components/PWAInstallBanner';
 
 // Import images directly or use require
 const IMAGES = {
@@ -139,6 +140,9 @@ export const OnboardingCarousel: React.FC = () => {
 
         {/* Background decoration */}
         <View style={styles.circleDecoration} />
+
+        {/* PWA Install Banner (Android Web only) */}
+        <PWAInstallBanner />
 
         <TouchableOpacity onPress={handleSkip} style={[styles.skipButton, { top: insets.top + 16 }]}>
           <Text style={styles.skipText}>Skip</Text>

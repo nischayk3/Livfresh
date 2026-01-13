@@ -85,7 +85,7 @@ export const LocationPermissionScreen: React.FC = () => {
       if (status !== 'granted') {
         showAlert({
           title: 'Permission Denied',
-          message: 'Location permission is required. Please enter manually.',
+          message: 'Location permission is required to find services near you. You can skip for now and set it later.',
           type: 'warning'
         });
         setLoading(false);
@@ -93,9 +93,17 @@ export const LocationPermissionScreen: React.FC = () => {
       }
 
       setStatusText('Fetching Location...');
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
+
+      // Use a race to implement a timeout for the location fetch
+      const locationPromise = Location.getCurrentPositionAsync({
+        accuracy: Platform.OS === 'web' ? Location.Accuracy.Balanced : Location.Accuracy.High,
       });
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('TIMEOUT')), 10000)
+      );
+
+      const location = await Promise.race([locationPromise, timeoutPromise]) as Location.LocationObject;
 
       setStatusText('Finding Address...');
       const formattedAddress = await getAddressFromCoordinates(
@@ -128,16 +136,24 @@ export const LocationPermissionScreen: React.FC = () => {
         });
       } else {
         showAlert({
-          title: 'Error',
-          message: 'Could not fetch address details. Please try again.',
-          type: 'error'
+          title: 'Location Found',
+          message: 'We found your location but couldn\'t resolve the address. Please use the map to refine it.',
+          type: 'info'
+        });
+        // Navigate anyway to let them refine on map
+        (navigation as any).navigate('AddressMap', {
+          initialLat: location.coords.latitude,
+          initialLng: location.coords.longitude
         });
       }
     } catch (error: any) {
       console.error('Location error:', error);
+      const isTimeout = error.message === 'TIMEOUT';
       showAlert({
-        title: 'Error',
-        message: 'Failed to get location. Please check your internet/GPS.',
+        title: isTimeout ? 'Request Timed Out' : 'Location Error',
+        message: isTimeout
+          ? 'It\'s taking longer than expected. Please try again or Skip for now.'
+          : 'Failed to get location. Please check your GPS/Internet settings or Skip for now.',
         type: 'error'
       });
     } finally {
@@ -146,10 +162,18 @@ export const LocationPermissionScreen: React.FC = () => {
     }
   };
 
-  const handleManualEntry = () => {
-    // For now, navigating to Home, but ideally should go to an address search screen
-    // navigation.navigate('AddAddress' as never);
-    (navigation as any).navigate('MainTabs', { screen: 'Home' });
+  const handleSkip = () => {
+    // Set flag to avoid being redirected back from Home
+    const { setHasSkippedLocation } = useAddressStore.getState();
+    setHasSkippedLocation(true);
+
+    // Navigate to Home. RootNavigator will handle the rest.
+    if (user) {
+      (navigation as any).navigate('Main', { screen: 'MainTabs', params: { screen: 'Home' } });
+    } else {
+      // If not logged in, they might be in the Auth stack
+      (navigation as any).navigate('MainTabs', { screen: 'Home' });
+    }
   };
 
   return (
@@ -170,11 +194,11 @@ export const LocationPermissionScreen: React.FC = () => {
       {loading && <BrandLoader fullscreen message={statusText || "Getting location..."} />}
 
       <TouchableOpacity
-        onPress={handleManualEntry}
+        onPress={handleSkip}
         disabled={loading}
         style={styles.buttonSecondary}
       >
-        <Text style={styles.buttonSecondaryText}>Enter Location Manually</Text>
+        <Text style={styles.buttonSecondaryText}>Skip for now</Text>
       </TouchableOpacity>
     </View>
   );

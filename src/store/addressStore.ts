@@ -15,6 +15,7 @@ interface AddressState {
   currentLatitude: number;
   currentLongitude: number;
   savedAddresses: Address[];
+  hasSkippedLocation: boolean;
   setCurrentAddress: (address: string, lat: number, lng: number) => void;
   clearCurrentAddress: () => void;
   setAddresses: (addresses: Address[]) => void;
@@ -22,6 +23,7 @@ interface AddressState {
   updateAddress: (address: Address) => void;
   removeAddress: (id: string) => void;
   setPrimaryAddress: (id: string) => void;
+  setHasSkippedLocation: (skipped: boolean) => void;
 }
 
 export const useAddressStore = create<AddressState>((set) => ({
@@ -29,6 +31,7 @@ export const useAddressStore = create<AddressState>((set) => ({
   currentLatitude: 0,
   currentLongitude: 0,
   savedAddresses: [],
+  hasSkippedLocation: false,
   setCurrentAddress: (address, lat, lng) =>
     set({ currentAddress: address, currentLatitude: lat, currentLongitude: lng }),
   clearCurrentAddress: () =>
@@ -50,6 +53,7 @@ export const useAddressStore = create<AddressState>((set) => ({
         isPrimary: a.id === id,
       })),
     })),
+  setHasSkippedLocation: (skipped) => set({ hasSkippedLocation: skipped }),
 }));
 
 

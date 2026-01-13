@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
+import { useAddressStore } from './addressStore';
 
 // Session timeout: 12 hours in milliseconds
 const SESSION_TIMEOUT_MS = 12 * 60 * 60 * 1000;
@@ -84,6 +85,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (error) {
       console.error('Firebase signOut error:', error);
     }
+    // Clear other stores
+    useAddressStore.getState().setHasSkippedLocation(false);
+    useAddressStore.getState().clearCurrentAddress();
+
     // Clear local state
     set({
       user: null,

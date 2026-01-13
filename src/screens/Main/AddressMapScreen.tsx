@@ -112,7 +112,16 @@ export const AddressMapScreen: React.FC = () => {
                 try {
                     const { status } = await Location.requestForegroundPermissionsAsync();
                     if (status === 'granted') {
-                        const loc = await Location.getCurrentPositionAsync({});
+                        // Use a race for timeout
+                        const locationPromise = Location.getCurrentPositionAsync({
+                            accuracy: Platform.OS === 'web' ? Location.Accuracy.Balanced : Location.Accuracy.High,
+                        });
+
+                        const timeoutPromise = new Promise((_, reject) =>
+                            setTimeout(() => reject(new Error('TIMEOUT')), 10000)
+                        );
+
+                        const loc = await Promise.race([locationPromise, timeoutPromise]) as Location.LocationObject;
                         lat = loc.coords.latitude;
                         lng = loc.coords.longitude;
                     }

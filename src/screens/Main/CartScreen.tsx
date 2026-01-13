@@ -13,11 +13,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Timestamp } from 'firebase/firestore';
-import { format } from 'date-fns';
+import { format, isAfter, addMinutes, isSameDay, parse, addDays, startOfToday, getHours } from 'date-fns';
 
 import { useCartStore, useAuthStore, useAddressStore, useUIStore, useSubscriptionStore } from '../../store';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
-import { createOrder, saveCart, clearCartInFirestore, uploadServicePhotos } from '../../services/firestore';
+import { createOrder, saveCart, clearCartInFirestore, uploadServicePhotos, getUserOrders } from '../../services/firestore';
 import { trackPixelEvent } from '../../utils/pixel';
 import { BrandLoader } from '../../components/BrandLoader';
 
@@ -35,26 +35,43 @@ export const CartScreen: React.FC = () => {
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
     const [occupiedSlots, setOccupiedSlots] = useState<string[]>([]);
+    const [orderCount, setOrderCount] = useState<number>(0);
+    const [isDiscountApplied, setIsDiscountApplied] = useState(false);
+    const [discountAmount, setDiscountAmount] = useState(0);
 
     // Constants
-    const PLATFORM_FEE = 19;
-    const GST_PERCENTAGE = 0.18;
+    const PLATFORM_FEE = 0;
+    const GST_PERCENTAGE = 0;
+    const FIRST_ORDER_DISCOUNT = 100;
+    const MIN_BUFFER_MINS = 20;
+    const OPERATIONAL_START_HOUR = 9; // 9:00 AM
+    const LAST_INSTANT_ORDER_TIME = 19.5; // 7:30 PM in decimal hours
+    const OPERATIONAL_END_HOUR = 21; // 9:00 PM
 
     const subtotal = getTotalAmount();
     const gstAmount = Math.round(subtotal * GST_PERCENTAGE);
-    const totalAmount = subtotal + PLATFORM_FEE + gstAmount;
+    const totalAmount = subtotal + PLATFORM_FEE + gstAmount - discountAmount;
 
     // Generate next 7 days dates
     const generateDates = () => {
         const dates = [];
-        const today = new Date();
+        const today = startOfToday();
+        const now = new Date();
+
+        // Check if there are any slots left today with buffer
+        // Last slot starts at 20:30 (20.5)
+        const currentHourDecimal = now.getHours() + (now.getMinutes() + MIN_BUFFER_MINS) / 60;
+        const slotsLeftToday = currentHourDecimal < 20.5;
 
         for (let i = 0; i < 7; i++) {
-            const d = new Date(today);
-            d.setDate(today.getDate() + i);
+            const d = addDays(today, i);
+
+            // If it's today and no slots left, skip to tomorrow
+            if (i === 0 && !slotsLeftToday) continue;
+
             dates.push({
                 id: format(d, 'yyyy-MM-dd'),
-                day: d.toLocaleDateString('en-US', { weekday: 'short' }),
+                day: format(d, 'EEE'),
                 date: d.getDate(),
                 fullDate: d,
             });
@@ -63,6 +80,18 @@ export const CartScreen: React.FC = () => {
     };
 
     const dates = generateDates();
+
+    // Check if store is currently open (9 AM - 7:30 PM)
+    const checkInstantAvailability = () => {
+        const now = new Date();
+        const hour = now.getHours();
+        const mins = now.getMinutes();
+        const decimalTime = hour + (mins + MIN_BUFFER_MINS) / 60;
+
+        return hour >= OPERATIONAL_START_HOUR && decimalTime <= LAST_INSTANT_ORDER_TIME;
+    };
+
+    const isInstantAvailable = checkInstantAvailability();
 
     // Generate time slots (9 AM to 9 PM)
     const generateTimeSlots = () => {
@@ -102,17 +131,66 @@ export const CartScreen: React.FC = () => {
     const timeSlots = generateTimeSlots();
 
     useEffect(() => {
-        // Select tomorrow by default if scheduled
-        if (pickupType === 'scheduled' && !selectedDate) {
-            setSelectedDate(dates[1].id);
+        const fetchOrderCount = async () => {
+            if (user?.uid) {
+                try {
+                    const orders = await getUserOrders(user.uid);
+                    setOrderCount(orders.length);
+                } catch (error) {
+                    console.error("Error fetching order count:", error);
+                }
+            }
+        };
+        fetchOrderCount();
+    }, [user?.uid]);
+
+    // Select first available date/time by default
+    useEffect(() => {
+        if (pickupType === 'instant' && !isInstantAvailable) {
+            setPickupType('scheduled');
+        }
+
+        if (pickupType === 'scheduled') {
+            // Pick first available date if none selected or if selected date is no longer in list
+            if (!selectedDate || !dates.find(d => d.id === selectedDate)) {
+                setSelectedDate(dates[0]?.id);
+            }
         }
     }, [pickupType]);
+
+    // Auto-select first available time slot when date/occupiedSlots changes
+    useEffect(() => {
+        if (selectedDate && pickupType === 'scheduled') {
+            const now = new Date();
+            const isToday = selectedDate === format(now, 'yyyy-MM-dd');
+
+            const firstAvailableSlot = timeSlots.find(slot => {
+                const isOccupied = occupiedSlots.includes(slot);
+                if (isOccupied) return false;
+
+                if (isToday) {
+                    const [startStr] = slot.split(' - ');
+                    const [h, m] = startStr.split(':').map(Number);
+                    const slotStartTime = new Date();
+                    slotStartTime.setHours(h, m, 0, 0);
+                    const bufferTime = new Date(now.getTime() + MIN_BUFFER_MINS * 60000);
+                    return slotStartTime >= bufferTime;
+                }
+                return true;
+            });
+
+            if (firstAvailableSlot) {
+                setSelectedTimeSlot(firstAvailableSlot);
+            } else {
+                setSelectedTimeSlot(null);
+            }
+        }
+    }, [selectedDate, occupiedSlots, pickupType]);
 
     // Fetch occupied slots when date Selected
     useEffect(() => {
         const fetchOccupied = async () => {
             if (selectedDate && pickupType === 'scheduled') {
-                // Determine if we need to verify import path dynamically or just assume it's available
                 const { checkSlotAvailability } = require('../../services/firestore');
                 setLoading(true);
                 const occupied = await checkSlotAvailability(selectedDate);
@@ -236,14 +314,18 @@ export const CartScreen: React.FC = () => {
             let instantSlot = null;
             if (pickupType === 'instant') {
                 const now = new Date();
-                const hours = now.getHours();
-                const minutes = now.getMinutes();
-                const startHour = hours.toString().padStart(2, '0');
+                const bufferTime = addMinutes(now, MIN_BUFFER_MINS);
 
-                if (hours < 9) instantSlot = "09:00 - 09:30";
-                else if (hours >= 21) instantSlot = "20:30 - 21:00";
-                else if (minutes < 30) instantSlot = `${startHour}:00 - ${startHour}:30`;
-                else instantSlot = `${startHour}:30 - ${(hours + 1).toString().padStart(2, '0')}:00`;
+                // Find the first slot that starts >= bufferTime (next available half-hour)
+                const firstAvailable = timeSlots.find(slot => {
+                    const [startStr] = slot.split(' - ');
+                    const [h, m] = startStr.split(':').map(Number);
+                    const slotStartTime = new Date();
+                    slotStartTime.setHours(h, m, 0, 0);
+                    return isAfter(slotStartTime, bufferTime) || slotStartTime.getTime() === bufferTime.getTime();
+                });
+
+                instantSlot = firstAvailable || "19:30 - 20:00"; // Fallback to last possible if logic fails
             }
 
             const orderData = {
@@ -253,6 +335,7 @@ export const CartScreen: React.FC = () => {
                     itemTotal: subtotal,
                     platformFee: PLATFORM_FEE,
                     gst: gstAmount,
+                    discount: discountAmount,
                     total: totalAmount,
                 },
                 pickupDetails: {
@@ -428,6 +511,47 @@ export const CartScreen: React.FC = () => {
                         {items.map(renderCartItem)}
                     </View>
 
+                    {/* Coupon Section */}
+                    {orderCount < 3 && (
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>Offers & Benefits</Text>
+                            <TouchableOpacity
+                                style={[styles.couponCard, isDiscountApplied && styles.couponCardApplied]}
+                                onPress={() => {
+                                    if (isDiscountApplied) {
+                                        setIsDiscountApplied(false);
+                                        setDiscountAmount(0);
+                                    } else {
+                                        setIsDiscountApplied(true);
+                                        setDiscountAmount(FIRST_ORDER_DISCOUNT);
+                                        showAlert({
+                                            title: 'Coupon Applied!',
+                                            message: `₹${FIRST_ORDER_DISCOUNT} discount has been added to your order.`,
+                                            type: 'success'
+                                        });
+                                    }
+                                }}
+                            >
+                                <View style={styles.couponIconContainer}>
+                                    <Ionicons name="gift-outline" size={24} color={isDiscountApplied ? '#FFF' : COLORS.primary} />
+                                </View>
+                                <View style={styles.couponInfo}>
+                                    <Text style={[styles.couponTitle, isDiscountApplied && styles.couponTextApplied]}>
+                                        {isDiscountApplied ? 'FIRST100 Applied' : 'Apply FIRST100'}
+                                    </Text>
+                                    <Text style={[styles.couponSub, isDiscountApplied && styles.couponTextApplied]}>
+                                        {isDiscountApplied ? `Saved ₹${FIRST_ORDER_DISCOUNT} on this order` : `Get ₹${FIRST_ORDER_DISCOUNT} off on your first 3 orders`}
+                                    </Text>
+                                </View>
+                                <View style={[styles.applyBadge, isDiscountApplied && styles.applyBadgeApplied]}>
+                                    <Text style={[styles.applyText, isDiscountApplied && styles.applyTextApplied]}>
+                                        {isDiscountApplied ? 'REMOVE' : 'APPLY'}
+                                    </Text>
+                                </View>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
                     {/* Bill Details */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Bill Details</Text>
@@ -435,14 +559,24 @@ export const CartScreen: React.FC = () => {
                             <Text style={styles.billLabel}>Item Total</Text>
                             <Text style={styles.billValue}>₹{subtotal}</Text>
                         </View>
-                        <View style={styles.billRow}>
-                            <Text style={styles.billLabel}>Platform Fee</Text>
-                            <Text style={styles.billValue}>₹{PLATFORM_FEE}</Text>
-                        </View>
-                        <View style={styles.billRow}>
-                            <Text style={styles.billLabel}>GST (18%)</Text>
-                            <Text style={styles.billValue}>₹{gstAmount}</Text>
-                        </View>
+                        {PLATFORM_FEE > 0 && (
+                            <View style={styles.billRow}>
+                                <Text style={styles.billLabel}>Platform Fee</Text>
+                                <Text style={styles.billValue}>₹{PLATFORM_FEE}</Text>
+                            </View>
+                        )}
+                        {gstAmount > 0 && (
+                            <View style={styles.billRow}>
+                                <Text style={styles.billLabel}>GST (18%)</Text>
+                                <Text style={styles.billValue}>₹{gstAmount}</Text>
+                            </View>
+                        )}
+                        {discountAmount > 0 && (
+                            <View style={styles.billRow}>
+                                <Text style={[styles.billLabel, { color: COLORS.success }]}>First Order Discount</Text>
+                                <Text style={[styles.billValue, { color: COLORS.success }]}>-₹{discountAmount}</Text>
+                            </View>
+                        )}
                         <View style={[styles.billRow, styles.totalRow]}>
                             <Text style={styles.totalLabel}>Grand Total</Text>
                             <Text style={styles.totalValue}>₹{totalAmount}</Text>
@@ -462,13 +596,31 @@ export const CartScreen: React.FC = () => {
                         {/* Toggle */}
                         <View style={styles.pickupToggle}>
                             <TouchableOpacity
-                                style={[styles.toggleOption, pickupType === 'instant' && styles.toggleOptionActive]}
+                                style={[
+                                    styles.toggleOption,
+                                    pickupType === 'instant' && styles.toggleOptionActive,
+                                    !isInstantAvailable && styles.toggleOptionDisabled
+                                ]}
+                                disabled={!isInstantAvailable}
                                 onPress={() => setPickupType('instant')}
                             >
-                                <Ionicons name="flash" size={16} color={pickupType === 'instant' ? '#FFF' : COLORS.text} />
-                                <Text style={[styles.toggleText, pickupType === 'instant' && styles.toggleTextActive]}>
-                                    Instant (20-30 min)
-                                </Text>
+                                <Ionicons
+                                    name="flash"
+                                    size={16}
+                                    color={!isInstantAvailable ? COLORS.textLight : (pickupType === 'instant' ? '#FFF' : COLORS.text)}
+                                />
+                                <View>
+                                    <Text style={[
+                                        styles.toggleText,
+                                        pickupType === 'instant' && styles.toggleTextActive,
+                                        !isInstantAvailable && styles.toggleTextDisabled
+                                    ]}>
+                                        Instant (20-30 min)
+                                    </Text>
+                                    {!isInstantAvailable && (
+                                        <Text style={styles.disabledHint}>Ops Ends at 7:30 PM</Text>
+                                    )}
+                                </View>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.toggleOption, pickupType === 'scheduled' && styles.toggleOptionActive]}
@@ -500,29 +652,47 @@ export const CartScreen: React.FC = () => {
 
                                 <Text style={styles.pickerLabel}>Select Time</Text>
                                 <View style={styles.timeGrid}>
-                                    {timeSlots.map((slot) => {
-                                        const isOccupied = occupiedSlots.includes(slot);
-                                        return (
-                                            <TouchableOpacity
-                                                key={slot}
-                                                disabled={isOccupied}
-                                                style={[
-                                                    styles.timeSlot,
-                                                    selectedTimeSlot === slot && styles.timeSlotSelected,
-                                                    isOccupied && styles.timeSlotDisabled
-                                                ]}
-                                                onPress={() => setSelectedTimeSlot(slot)}
-                                            >
-                                                <Text style={[
-                                                    styles.timeText,
-                                                    selectedTimeSlot === slot && styles.timeTextSelected,
-                                                    isOccupied && styles.timeTextDisabled
-                                                ]}>
-                                                    {slot}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        );
-                                    })}
+                                    {(() => {
+                                        const now = new Date();
+                                        const isToday = selectedDate === format(now, 'yyyy-MM-dd');
+                                        const bufferTime = addMinutes(now, MIN_BUFFER_MINS);
+
+                                        return timeSlots.map((slot) => {
+                                            const isOccupied = occupiedSlots.includes(slot);
+
+                                            let isPast = false;
+                                            if (isToday) {
+                                                const [startStr] = slot.split(' - ');
+                                                const [h, m] = startStr.split(':').map(Number);
+                                                const slotStartTime = new Date();
+                                                slotStartTime.setHours(h, m, 0, 0);
+                                                isPast = isAfter(bufferTime, slotStartTime);
+                                            }
+
+                                            const isDisabled = isOccupied || isPast;
+
+                                            return (
+                                                <TouchableOpacity
+                                                    key={slot}
+                                                    disabled={isDisabled}
+                                                    style={[
+                                                        styles.timeSlot,
+                                                        selectedTimeSlot === slot && styles.timeSlotSelected,
+                                                        isDisabled && styles.timeSlotDisabled
+                                                    ]}
+                                                    onPress={() => setSelectedTimeSlot(slot)}
+                                                >
+                                                    <Text style={[
+                                                        styles.timeText,
+                                                        selectedTimeSlot === slot && styles.timeTextSelected,
+                                                        isDisabled && styles.timeTextDisabled
+                                                    ]}>
+                                                        {slot}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        });
+                                    })()}
                                 </View>
                             </View>
                         )}
@@ -727,6 +897,63 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: COLORS.primary,
     },
+    couponCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: SPACING.md,
+        backgroundColor: COLORS.backgroundLight,
+        borderRadius: RADIUS.md,
+        borderWidth: 1,
+        borderColor: COLORS.primary + '30',
+        borderStyle: 'dashed',
+    },
+    couponCardApplied: {
+        backgroundColor: COLORS.primary,
+        borderColor: COLORS.primary,
+        borderStyle: 'solid',
+    },
+    couponIconContainer: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: COLORS.primary + '15',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: SPACING.md,
+    },
+    couponInfo: {
+        flex: 1,
+    },
+    couponTitle: {
+        ...TYPOGRAPHY.bodyBold,
+        fontSize: 14,
+        color: COLORS.primary,
+    },
+    couponSub: {
+        fontSize: 11,
+        color: COLORS.textSecondary,
+        marginTop: 2,
+    },
+    couponTextApplied: {
+        color: '#FFF',
+    },
+    applyBadge: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: RADIUS.sm,
+        backgroundColor: COLORS.primary + '15',
+    },
+    applyBadgeApplied: {
+        backgroundColor: 'rgba(255,255,255,0.2)',
+    },
+    applyText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: COLORS.primary,
+    },
+    applyTextApplied: {
+        color: '#FFF',
+    },
     pickupToggle: {
         flexDirection: 'row',
         backgroundColor: COLORS.backgroundLight,
@@ -754,6 +981,18 @@ const styles = StyleSheet.create({
     },
     toggleTextActive: {
         color: '#FFF',
+    },
+    toggleOptionDisabled: {
+        backgroundColor: '#F3F4F6',
+        opacity: 0.7,
+    },
+    toggleTextDisabled: {
+        color: '#9CA3AF',
+    },
+    disabledHint: {
+        fontSize: 8,
+        color: '#9CA3AF',
+        marginTop: 2,
     },
     scheduleContainer: {
         marginTop: SPACING.sm,

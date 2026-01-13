@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, TYPOGRAPHY, SHADOWS } from '../../utils/constants';
 import { useAdminStore } from '../../store/adminStore';
 import { useUIStore } from '../../store/uiStore';
-import { format } from 'date-fns';
+import { format, addDays, startOfToday } from 'date-fns';
 import { BrandLoader } from '../../components/BrandLoader';
 import { subscribeToAllOrdersAdmin } from '../../services/adminFirestore';
 import { checkSlotAvailability, scheduleOrderDelivery } from '../../services/firestore';
@@ -90,9 +90,8 @@ export const AdminOrdersScreen: React.FC = () => {
   // Dynamic next 5 days for reschedule
   const RESCHEDULE_DATES = useMemo(() => {
     return Array.from({ length: 5 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      return d;
+      const d = startOfToday();
+      return addDays(d, i);
     });
   }, []);
 

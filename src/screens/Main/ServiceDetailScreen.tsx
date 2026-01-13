@@ -462,8 +462,8 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     }
 
     if (serviceId === 'blanket_wash') {
-      const singlePrice = 199 * singleBlanketCount;
-      const doublePrice = 299 * doubleBlanketCount;
+      const singlePrice = 299 * singleBlanketCount;
+      const doublePrice = 399 * doubleBlanketCount;
       return singlePrice + doublePrice;
     }
 
@@ -814,7 +814,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
         <View style={styles.blanketRow}>
           <View style={styles.blanketInfo}>
             <Text style={styles.blanketOptionText}>Single Blanket</Text>
-            <Text style={styles.blanketPrice}>₹199 / pc</Text>
+            <Text style={styles.blanketPrice}>₹299 / pc</Text>
           </View>
           <View style={styles.quantityControls}>
             <TouchableOpacity
@@ -840,7 +840,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
         <View style={styles.blanketRow}>
           <View style={styles.blanketInfo}>
             <Text style={styles.blanketOptionText}>Double Blanket</Text>
-            <Text style={styles.blanketPrice}>₹299 / pc</Text>
+            <Text style={styles.blanketPrice}>₹399 / pc</Text>
           </View>
           <View style={styles.quantityControls}>
             <TouchableOpacity

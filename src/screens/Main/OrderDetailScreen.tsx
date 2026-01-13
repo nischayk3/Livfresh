@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, 
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { format, isSameDay, isAfter, addMinutes, parse } from 'date-fns';
+import { format, isSameDay, isAfter, addMinutes, parse, addDays, startOfToday } from 'date-fns';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
 import { useAuthStore } from '../../store';
 import { getOrder, getBusySlots, scheduleOrderDelivery, subscribeToOrder, checkSlotAvailability } from '../../services/firestore';
@@ -39,9 +39,8 @@ export const OrderDetailScreen: React.FC = () => {
 
     // Dynamic next 5 days
     const DATES = Array.from({ length: 5 }, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() + i);
-        return d;
+        const d = startOfToday();
+        return addDays(d, i);
     });
 
     // Generate time slots (9 AM to 9 PM)
@@ -193,7 +192,15 @@ export const OrderDetailScreen: React.FC = () => {
                     <View style={styles.scheduledInfoCard}>
                         <Ionicons name="time-outline" size={18} color={COLORS.success} />
                         <Text style={styles.scheduledInfoText}>
-                            Scheduled for: <Text style={{ fontWeight: '700' }}>{format(parse(order.deliveryDate, 'yyyy-MM-dd', new Date()), 'MMM d')}, {order.deliveryTime}</Text>
+                            Scheduled for: <Text style={{ fontWeight: '700' }}>
+                                {(() => {
+                                    try {
+                                        return format(parse(order.deliveryDate, 'yyyy-MM-dd', new Date()), 'MMM d');
+                                    } catch (e) {
+                                        return order.deliveryDate;
+                                    }
+                                })()}, {order.deliveryTime}
+                            </Text>
                         </Text>
                     </View>
                 )}
@@ -288,14 +295,24 @@ export const OrderDetailScreen: React.FC = () => {
                         <Text style={styles.billLabel}>Item Total</Text>
                         <Text style={styles.billValue}>₹{order.billDetails?.itemTotal}</Text>
                     </View>
-                    <View style={styles.billRow}>
-                        <Text style={styles.billLabel}>Platform Fee</Text>
-                        <Text style={styles.billValue}>₹{order.billDetails?.platformFee}</Text>
-                    </View>
-                    <View style={styles.billRow}>
-                        <Text style={styles.billLabel}>GST</Text>
-                        <Text style={styles.billValue}>₹{order.billDetails?.gst}</Text>
-                    </View>
+                    {(order.billDetails?.platformFee > 0) && (
+                        <View style={styles.billRow}>
+                            <Text style={styles.billLabel}>Platform Fee</Text>
+                            <Text style={styles.billValue}>₹{order.billDetails?.platformFee}</Text>
+                        </View>
+                    )}
+                    {(order.billDetails?.gst > 0) && (
+                        <View style={styles.billRow}>
+                            <Text style={styles.billLabel}>GST</Text>
+                            <Text style={styles.billValue}>₹{order.billDetails?.gst}</Text>
+                        </View>
+                    )}
+                    {(order.billDetails?.discount > 0) && (
+                        <View style={styles.billRow}>
+                            <Text style={[styles.billLabel, { color: COLORS.success }]}>Discount</Text>
+                            <Text style={[styles.billValue, { color: COLORS.success }]}>-₹{order.billDetails?.discount}</Text>
+                        </View>
+                    )}
                     <View style={[styles.billRow, styles.totalRow]}>
                         <Text style={styles.totalLabel}>Grand Total</Text>
                         <Text style={styles.totalValue}>₹{order.billDetails?.total}</Text>

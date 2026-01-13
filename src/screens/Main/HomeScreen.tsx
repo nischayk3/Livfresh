@@ -34,11 +34,20 @@ const HOME_FAQS = [
 ];
 
 // Import assets
-const promoPickup = require('../../../assets/banner_1.png');
-const promoDelivery = require('../../../assets/banner_2.png');
-const promoRelax = require('../../../assets/banner_3.png');
+const promoPickup = require('../../../assets/onboarding_screen_1.png');
+const promoDelivery = require('../../../assets/onboarding_screen_2.png');
+const promoRelax = require('../../../assets/onboarding_pickup_v2.png');
+const promoOffer = require('../../../assets/banner_promo.png');
 
 const PROMOS = [
+  {
+    id: '4',
+    title: 'Save ₹300 Total!',
+    subtitle: '₹100 OFF on your first 3 orders',
+    image: promoOffer,
+    gradient: ['#EEF2FF', '#E0E7FF'], // Fresh Blue/White gradient
+    badge: 'Limited Offer'
+  },
   {
     id: '1',
     title: 'Quick Pickup',
@@ -128,11 +137,13 @@ export const HomeScreen: React.FC = () => {
 
   // Redirect to Location Permission if no address is set (e.g. fresh login)
   useEffect(() => {
-    // Check if we need to force location setup
-    if (!currentAddress && user) {
+    const { hasSkippedLocation } = useAddressStore.getState();
+
+    // Only redirect if they have NO address AND haven't explicitly skipped in this session
+    if (!currentAddress && user && !hasSkippedLocation) {
       // Small delay to allow hydration to finish if it's racing
       const timer = setTimeout(() => {
-        if (!useAddressStore.getState().currentAddress) {
+        if (!useAddressStore.getState().currentAddress && !useAddressStore.getState().hasSkippedLocation) {
           navigation.navigate('LocationPermission' as never);
         }
       }, 1000);
@@ -194,7 +205,7 @@ export const HomeScreen: React.FC = () => {
       >
         <View style={styles.promoContent}>
           <View style={styles.promoBadge}>
-            <Text style={styles.promoBadgeText}>Why SpinZo?</Text>
+            <Text style={styles.promoBadgeText}>{item.badge || 'Why SpinZo?'}</Text>
           </View>
           <Text style={styles.promoTitle}>{item.title}</Text>
           <Text style={styles.promoSubtitle}>{item.subtitle}</Text>

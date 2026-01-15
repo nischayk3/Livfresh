@@ -20,6 +20,7 @@ import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/consta
 import { createOrder, saveCart, clearCartInFirestore, uploadServicePhotos, getUserOrders } from '../../services/firestore';
 import { trackPixelEvent } from '../../utils/pixel';
 import { BrandLoader } from '../../components/BrandLoader';
+import { CartTrust } from '../../components/CartTrust';
 
 export const CartScreen: React.FC = () => {
     const navigation = useNavigation();
@@ -699,28 +700,31 @@ export const CartScreen: React.FC = () => {
                     </View>
 
                     {/* Address Preview (Static for now) */}
-                    <View style={styles.section}>
+                    {/* Address Preview (Clean) */}
+                    <View style={styles.cleanAddressContainer}>
                         <View style={styles.addressRow}>
-                            <View>
-                                <Text style={styles.sectionTitle}>Delivery Address</Text>
-                                <Text style={styles.addressText} numberOfLines={1}>
-                                    {currentAddress || 'No Address Selected'}
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.addressLabel}>Delivery Address</Text>
+                                <Text style={styles.cleanAddressText} numberOfLines={2}>
+                                    {currentAddress || 'Select Delivery Address'}
                                 </Text>
                             </View>
                             <TouchableOpacity
-                                style={styles.changeAddressBtn}
                                 onPress={() => navigation.navigate('AddressList' as never)}
                             >
-                                <Text style={styles.changeAddressText}>CHANGE</Text>
+                                <Text style={styles.cleanChangeText}>CHANGE</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
+
+                    {/* Trust Signals */}
+                    <CartTrust />
 
                 </ScrollView>
             </View>
 
             {/* Footer */}
-            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, SPACING.lg) }]}>
+            <View style={styles.footer}>
                 <View>
                     <Text style={styles.footerLabel}>Total to Pay</Text>
                     <Text style={styles.footerTotal}>₹{totalAmount}</Text>
@@ -730,7 +734,7 @@ export const CartScreen: React.FC = () => {
                     onPress={handlePlaceOrder}
                     disabled={loading}
                 >
-                    <Text style={styles.placeOrderText}>Place Order</Text>
+                    <Text style={styles.placeOrderText}>Book Now & Pay Later</Text>
                     <Ionicons name="arrow-forward" size={20} color="#FFF" />
                 </TouchableOpacity>
             </View>
@@ -790,7 +794,7 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         flexGrow: 1,
-        paddingBottom: 120,
+        paddingBottom: 40,
         ...(Platform.OS === 'web' ? {
             minHeight: 'auto',
         } : {}),
@@ -847,6 +851,32 @@ const styles = StyleSheet.create({
     itemDetails: {
         marginLeft: 40,
         marginBottom: 8,
+    },
+    cleanAddressContainer: {
+        paddingHorizontal: SPACING.lg,
+        paddingVertical: SPACING.md,
+        backgroundColor: '#FFFFFF',
+        marginBottom: SPACING.sm,
+    },
+    addressLabel: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#1E293B',
+        marginBottom: 4,
+        fontFamily: 'Outfit_600SemiBold',
+    },
+    cleanAddressText: {
+        fontSize: 15,
+        color: '#334155',
+        lineHeight: 22,
+        fontFamily: 'Outfit_500Medium',
+    },
+    cleanChangeText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: COLORS.primary,
+        fontFamily: 'Outfit_700Bold',
+        letterSpacing: 0.5,
     },
     detailText: {
         fontSize: 12,
@@ -1090,17 +1120,18 @@ const styles = StyleSheet.create({
     },
     footer: {
         backgroundColor: COLORS.background,
-        padding: SPACING.lg,
+        paddingHorizontal: SPACING.lg,
+        paddingVertical: 16,
+        paddingBottom: Platform.OS === 'ios' ? 34 : 24, // Explicit safe area padding
         borderTopWidth: 1,
         borderTopColor: COLORS.borderLight,
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
         shadowColor: '#000',
+        elevation: 20, // Increased elevation for better separation
         shadowOffset: { width: 0, height: -4 },
         shadowOpacity: 0.1,
         shadowRadius: 8,
-        elevation: 10,
         ...(Platform.OS === 'web' ? {
             position: 'relative' as any,
             zIndex: 1000,
@@ -1112,19 +1143,25 @@ const styles = StyleSheet.create({
     footerLabel: {
         fontSize: 12,
         color: COLORS.textLight,
+        marginBottom: 2,
+        fontFamily: 'Outfit_500Medium',
     },
     footerTotal: {
-        fontSize: 24,
+        fontSize: 26, // Increased slightly for visibility
         fontWeight: '800',
         color: COLORS.text,
+        fontFamily: 'Outfit_800ExtraBold',
+        letterSpacing: -0.5, // Tighten numbers slightly
     },
     placeOrderBtn: {
+        flex: 1, // Take remaining space
+        marginLeft: 24, // Spacing from text
         backgroundColor: COLORS.primary,
-        paddingHorizontal: 32,
-        paddingVertical: 14,
+        paddingVertical: 16,
         borderRadius: RADIUS.xl,
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center', // Center content
         gap: 8,
         ...SHADOWS.md,
         ...(Platform.OS === 'web' ? {
@@ -1136,6 +1173,8 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontWeight: '700',
         fontSize: 16,
+        fontFamily: 'Outfit_700Bold',
+        textAlign: 'center',
     },
     emptyContainer: {
         flex: 1,

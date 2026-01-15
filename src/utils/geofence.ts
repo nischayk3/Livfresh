@@ -17,26 +17,50 @@ interface ServiceZone {
     radiusMeters: number;
 }
 
-// Service Zones derived from:
-// https://www.mapdevelopers.com/draw-circle-tool.php?circles=%5B%5B3000%2C12.9170243%2C77.5881958%2C%22%23AAAAAA%22%2C%22%23000000%22%2C0.4%5D%2C%5B3353.92%2C12.9164386%2C77.6204467%2C%22%23AAAAAA%22%2C%22%23000000%22%2C0.4%5D%2C%5B1752.81%2C12.9092895%2C77.6432908%2C%22%23AAAAAA%22%2C%22%23000000%22%2C0.4%5D%5D
+// Service Zones updated based on user map:
+// Added 100m buffer to each radius for better edge coverage
 export const SERVICE_ZONES: ServiceZone[] = [
     {
         id: 'jayanagar_area',
         name: 'Jayanagar & Surroundings',
-        center: { latitude: 12.9170243, longitude: 77.5881958 },
-        radiusMeters: 3000,
+        center: { latitude: 12.9170047, longitude: 77.5883353 },
+        radiusMeters: 3100, // 3000 + 100
     },
     {
         id: 'hsr_area',
         name: 'HSR Layout',
-        center: { latitude: 12.9164386, longitude: 77.6204467 },
-        radiusMeters: 3353.92,
+        center: { latitude: 12.9181432, longitude: 77.623322 },
+        radiusMeters: 2100, // 2000 + 100
     },
     {
         id: 'hsr_ext',
         name: 'HSR Extension / Kudlu',
-        center: { latitude: 12.9092895, longitude: 77.6432908 },
-        radiusMeters: 1752.81,
+        center: { latitude: 12.9123289, longitude: 77.6434815 },
+        radiusMeters: 1600, // 1500 + 100
+    },
+    {
+        id: 'koramangala',
+        name: 'Koramangala / Inner Ring',
+        center: { latitude: 12.9374402, longitude: 77.6176586 },
+        radiusMeters: 1600, // 1500 + 100
+    },
+    {
+        id: 'wilson_garden',
+        name: 'Wilson Garden',
+        center: { latitude: 12.9455512, longitude: 77.5974994 },
+        radiusMeters: 1100, // 1000 + 100
+    },
+    {
+        id: 'shanti_nagar',
+        name: 'Shanti Nagar',
+        center: { latitude: 12.9541732, longitude: 77.5940298 },
+        radiusMeters: 1100, // 1000 + 100
+    },
+    {
+        id: 'begur',
+        name: 'Begur / Bommanahalli',
+        center: { latitude: 12.8959262, longitude: 77.6211877 },
+        radiusMeters: 2100, // 2000 + 100
     },
 ];
 

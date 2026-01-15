@@ -154,7 +154,7 @@ export const OrderDetailScreen: React.FC = () => {
                 <View style={styles.infoCard}>
                     <View style={styles.infoCol}>
                         <Text style={styles.infoLabel}>Order ID</Text>
-                        <Text style={styles.infoValue}>{order.id.toUpperCase()}</Text>
+                        <Text style={styles.infoValue}>#{order.id.slice(-6).toUpperCase()}</Text>
                         {order.tokenNumber && (
                             <View style={styles.tokenRow}>
                                 <Ionicons name="pricetag" size={14} color={COLORS.primary} />

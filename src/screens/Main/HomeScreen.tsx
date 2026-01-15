@@ -23,10 +23,14 @@ import { ServiceDetailScreen } from './ServiceDetailScreen';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandLoader } from '../../components/BrandLoader';
 import { FaqAccordion } from '../../components/FaqAccordion';
+import { TestimonialsSection } from '../../components/TestimonialsSection';
+import { HowItWorks } from '../../components/HowItWorks';
 
 const HOME_FAQS = [
   { question: "How does SpinZo's service work?", answer: "We pick up your clothes within 30 minutes, wash and fold them, and deliver them back within 6 hours. Simple, fast, and hassle-free." },
   { question: "Do you offer pickup and delivery?", answer: "Yes, doorstep pickup and delivery are completely free in all supported areas." },
+  { question: "What happens if my clothes are damaged?", answer: "We have a 100% safety guarantee. In the rare event of any damage, we provide compensation up to 10x the service value." },
+  { question: "How do you ensure hygiene?", answer: "We wash each customer's clothes separately. Your clothes never mix with others, ensuring 100% hygiene." },
   { question: "How will my clothes be weighed?", answer: "Our delivery partner weighs your clothes on the spot using a digital weighing scale for accurate billing." },
   { question: "How long does the laundry process take?", answer: "Most orders are completed and delivered within 6 hours." },
   { question: "What payment methods do you accept?", answer: "We accept UPI, GPay, Paytm, and cash on delivery." },
@@ -43,32 +47,36 @@ const PROMOS = [
   {
     id: '4',
     title: 'Save ₹300 Total!',
-    subtitle: '₹100 OFF on your first 3 orders',
+    subtitle: '₹100 OFF on first 3 orders',
     image: promoOffer,
-    gradient: ['#EEF2FF', '#E0E7FF'], // Fresh Blue/White gradient
-    badge: 'Limited Offer'
-  },
-  {
-    id: '1',
-    title: 'Quick Pickup',
-    subtitle: 'We come to your doorstep',
-    image: promoPickup,
-    gradient: ['#FDFCFE', '#F5F3FF'],
+    gradient: ['#FFF7ED', '#FFEDD5'], // Soft Orange
+    badge: 'LIMITED OFFER',
   },
   {
     id: '2',
     title: 'Same Day Delivery',
     subtitle: 'Fresh clothes, fast',
     image: promoDelivery,
-    gradient: ['#F5F3FF', '#EDE9FE'],
+    gradient: ['#F3E8FF', '#E9D5FF'], // Soft Purple
+    badge: 'WHY SPINZO?',
+  },
+  {
+    id: '1',
+    title: 'Quick Pickup',
+    subtitle: 'We come to your doorstep',
+    image: promoPickup,
+    gradient: ['#EEF2FF', '#E0E7FF'], // Soft Blue
+    badge: 'WHY SPINZO?',
   },
   {
     id: '3',
     title: 'Relax & Unwind',
     subtitle: 'We handle the rest',
     image: promoRelax,
-    gradient: ['#EDE9FE', '#F5F3FF'],
+    gradient: ['#F0FDFA', '#CCFBF1'], // Soft Teal
+    badge: 'WHY SPINZO?', // or "HASSLE FREE"
   },
+
 ];
 
 const SERVICES = [
@@ -293,12 +301,13 @@ export const HomeScreen: React.FC = () => {
             keyExtractor={(item) => item.id}
             horizontal
             showsHorizontalScrollIndicator={false}
-            snapToInterval={Dimensions.get('window').width - 48}
+            snapToInterval={Dimensions.get('window').width - 40 + 12} // Card width + margin
+            snapToAlignment="center"
             decelerationRate="fast"
             contentContainerStyle={styles.promoList}
             getItemLayout={(data, index) => ({
-              length: Dimensions.get('window').width - 64 + 16, // width + marginRight
-              offset: (Dimensions.get('window').width - 64 + 16) * index,
+              length: Dimensions.get('window').width - 40 + 12, // width + marginRight
+              offset: (Dimensions.get('window').width - 40 + 12) * index,
               index,
             })}
             onScrollToIndexFailed={(info) => {
@@ -308,7 +317,7 @@ export const HomeScreen: React.FC = () => {
               });
             }}
             onMomentumScrollEnd={(ev) => {
-              const cardWidth = Dimensions.get('window').width - 48; // snapInterval
+              const cardWidth = Dimensions.get('window').width - 40 + 12; // snapInterval
               const newIndex = Math.round(ev.nativeEvent.contentOffset.x / cardWidth);
               setCurrentIndex(newIndex);
             }}
@@ -376,6 +385,12 @@ export const HomeScreen: React.FC = () => {
             ))}
           </View>
         </View>
+
+        {/* How It Works */}
+        <HowItWorks />
+
+        {/* Testimonials */}
+        <TestimonialsSection />
 
         {/* Home FAQs */}
         <View style={styles.section}>
@@ -530,12 +545,12 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
   },
   promoCard: {
-    width: Dimensions.get('window').width - 48,
-    height: 140,
-    borderRadius: 24,
+    width: Dimensions.get('window').width - 40, // Increased width slightly
+    height: 170, // Increased height for better spacing
+    borderRadius: RADIUS.xl, // rounded-2xl
     marginRight: 12,
     overflow: 'hidden',
-    ...SHADOWS.lg,
+    ...SHADOWS.md,
     backgroundColor: '#FFFFFF',
   },
   promoGradient: {
@@ -544,42 +559,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 24,
+    paddingRight: 16,
   },
   promoContent: {
-    flex: 1.2,
+    flex: 1,
+    justifyContent: 'center',
+    paddingRight: 10,
   },
   promoBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    paddingHorizontal: 12,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
     paddingVertical: 6,
-    borderRadius: 12,
+    borderRadius: 20,
     alignSelf: 'flex-start',
     marginBottom: 12,
     ...SHADOWS.sm,
   },
   promoBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '800',
-    color: COLORS.primary,
+    color: '#7C3AED', // Consistent purple across banners for "Why Spinzo"
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
+    fontFamily: 'Outfit_800ExtraBold',
   },
   promoTitle: {
-    fontSize: 22,
-    color: '#1A1A1A',
-    fontFamily: 'Outfit_600SemiBold',
-    lineHeight: 28,
+    fontSize: 26, // Larger
+    color: '#1E293B',
+    fontFamily: 'Outfit_700Bold', // Bold
+    lineHeight: 30,
+    marginBottom: 4,
   },
   promoSubtitle: {
-    fontSize: 14,
+    fontSize: 15, // Slightly larger
     color: '#64748B',
     fontWeight: '500',
-    marginTop: 4,
+    fontFamily: 'Outfit_500Medium',
   },
   promoImage: {
-    width: 80,
-    height: 80,
-    flex: 0.8,
+    width: 110, // Larger image
+    height: 110,
+    marginRight: -10, // Slight negative margin to push to edge if needed
   },
   paginationDots: {
     flexDirection: 'row',

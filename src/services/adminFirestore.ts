@@ -200,10 +200,14 @@ export const getOrderStats = async (): Promise<{
 
       // Check if order is from today
       if (orderTime >= todayStartTime && orderTime < todayEndTime) {
+        const status = order.status || 'pending';
+
+        // Skip cancelled orders for stats - they shouldn't count towards today's total or status breakdown
+        if (status === 'cancelled') return;
+
         seenOrderIds.add(orderId);
         total++;
 
-        const status = order.status || 'pending';
         switch (status) {
           case 'confirmed':
           case 'placed':
@@ -473,6 +477,11 @@ export const getRevenue = async (startDate: Date, endDate: Date): Promise<{
       const orderTime = getTime(orderCreatedAt);
 
       if (orderTime >= startTime && orderTime <= endTime) {
+        const status = order.status || 'pending';
+
+        // Exclude cancelled orders from revenue calculations
+        if (status === 'cancelled') return;
+
         seenOrderIds.add(orderId);
         // Robust amount check: order.billDetails.total is preferred for new orders
         const amount = order.billDetails?.total || order.totalAmount || order.total || 0;

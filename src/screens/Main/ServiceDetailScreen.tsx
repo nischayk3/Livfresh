@@ -26,6 +26,9 @@ import { uploadServicePhotos } from '../../services/firestore';
 import { CartItem } from '../../store/cartStore';
 import { trackPixelEvent } from '../../utils/pixel';
 import { FaqAccordion } from '../../components/FaqAccordion';
+import { TrustBanner } from '../../components/TrustBanner';
+import { ServiceStats } from '../../components/ServiceStats';
+import { ServiceInfo } from '../../components/ServiceInfo';
 
 // -------------- FAQ DATA --------------
 const WASH_FOLD_FAQS = [
@@ -620,6 +623,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       <View>
         {/* Weight Selection */}
         <View style={styles.section}>
+          <ServiceStats rating={4.8} reviewCount={1400} />
           <Text style={styles.sectionTitle}>Select Estimated Weight</Text>
           <TouchableOpacity
             style={[styles.weightOption, washFoldWeight === 'small' && styles.weightOptionSelected]}
@@ -721,6 +725,9 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
           {renderPhotoGallery()}
         </View>
 
+        {/* Service Info */}
+        <ServiceInfo serviceId="wash_fold" />
+
         {/* FAQs */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>FAQs</Text>
@@ -735,6 +742,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       <View>
         {/* Weight Selection */}
         <View style={styles.section}>
+          <ServiceStats rating={4.8} reviewCount={1200} />
           <Text style={styles.sectionTitle}>Select Estimated Weight</Text>
 
           {/* 3kg Slot */}
@@ -796,6 +804,9 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
           {renderPhotoGallery()}
         </View>
 
+        {/* Service Info */}
+        <ServiceInfo serviceId="wash_iron" />
+
         {/* FAQs */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>FAQs</Text>
@@ -808,6 +819,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   const renderBlanketWash = () => (
     <View>
       <View style={styles.section}>
+        <ServiceStats rating={4.7} reviewCount={800} />
         <Text style={styles.sectionTitle}>Select Blanket Type & Quantity</Text>
 
         {/* Single Blanket Row */}
@@ -877,6 +889,9 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
         {renderPhotoGallery()}
       </View>
 
+      {/* Service Info */}
+      <ServiceInfo serviceId="blanket_wash" />
+
       {/* FAQs */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>FAQs</Text>
@@ -885,11 +900,10 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     </View>
   );
 
-
-
   const renderShoeCleaning = () => (
     <View>
       <View style={styles.section}>
+        <ServiceStats rating={4.7} reviewCount={800} />
         <Text style={styles.sectionTitle}>Select Shoe Type</Text>
         {[
           { id: 'canvas_sports', name: 'Canvas / Sports', icon: 'footsteps', price: 150 },
@@ -1002,6 +1016,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     <View>
       {/* Weight Selection */}
       <View style={styles.section}>
+        <ServiceStats rating={4.7} reviewCount={800} />
         <Text style={styles.sectionTitle}>Select Estimated Weight</Text>
         <Text style={[styles.sectionSubtitle, { marginBottom: SPACING.md, color: COLORS.primary }]}>
           Premium care for delicate and high-end garments
@@ -1141,6 +1156,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
               contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
               showsVerticalScrollIndicator={false}
             >
+              <TrustBanner />
               <View style={styles.serviceHeader}>
                 <View style={styles.titleRow}>
                   <Text style={styles.serviceName}>{service?.name}</Text>
@@ -1244,12 +1260,15 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    overflow: 'visible',
+    zIndex: 10, // Ensure content scrolls OVER the header image
   },
   scrollContent: {
-    padding: SPACING.lg,
+    paddingBottom: 100, // Fixed padding, dynamic added in render
   },
   serviceHeader: {
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.sm,
+    paddingHorizontal: SPACING.lg, // moved padding here
   },
   titleRow: {
     flexDirection: 'row',
@@ -1286,6 +1305,7 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: SPACING.xl,
+    paddingHorizontal: SPACING.lg, // moved padding here
   },
   sectionTitle: {
     fontSize: 18,
@@ -1717,3 +1737,6 @@ const styles = StyleSheet.create({
     marginVertical: SPACING.md,
   },
 });
+
+
+

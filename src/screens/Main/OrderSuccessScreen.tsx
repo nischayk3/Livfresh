@@ -1,9 +1,12 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, TYPOGRAPHY, RADIUS } from '../../utils/constants';
+import { MotiView, MotiText } from 'moti';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
+import { AnimatedButton } from '../../components/AnimatedButton';
 
 // NOTE: Ideally use Lottie here, but for now using a custom Animated sequence 
 // to guarantee it works without external asset dependencies immediately. 
@@ -12,27 +15,8 @@ import { COLORS, SPACING, TYPOGRAPHY, RADIUS } from '../../utils/constants';
 export const OrderSuccessScreen: React.FC = () => {
     const navigation = useNavigation();
     const insets = useSafeAreaInsets();
-    const scaleValue = useRef(new Animated.Value(0)).current;
-    const fadeValue = useRef(new Animated.Value(0)).current;
-
-    useEffect(() => {
-        Animated.sequence([
-            Animated.timing(scaleValue, {
-                toValue: 1,
-                duration: 600,
-                useNativeDriver: true,
-                easing: Easing.elastic(1.5),
-            }),
-            Animated.timing(fadeValue, {
-                toValue: 1,
-                duration: 500,
-                useNativeDriver: true,
-            })
-        ]).start();
-    }, []);
 
     const handleViewOrders = () => {
-        // Reset stack and navigate to MyOrders tab
         (navigation as any).navigate('MainTabs', { screen: 'MyOrders' });
     };
 
@@ -41,35 +25,68 @@ export const OrderSuccessScreen: React.FC = () => {
     };
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom + SPACING.xl }]}>
-            <View style={styles.content}>
-                <Animated.View style={[styles.iconContainer, { transform: [{ scale: scaleValue }] }]}>
-                    <View style={styles.circle}>
-                        <Ionicons name="checkmark" size={80} color="#FFFFFF" />
-                    </View>
-                </Animated.View>
+        <View style={styles.container}>
+            <LinearGradient
+                colors={['#E0E7FF', '#F8FAFC']}
+                style={StyleSheet.absoluteFill}
+            />
 
-                <Animated.View style={[styles.textContainer, { opacity: fadeValue }]}>
+            <View style={[styles.content, { paddingTop: insets.top + 60 }]}>
+                <MotiView
+                    from={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: 'spring', delay: 200 }}
+                    style={styles.iconWrapper}
+                >
+                    <LinearGradient
+                        colors={[COLORS.success, '#10B981']}
+                        style={styles.iconCircle}
+                    >
+                        <Ionicons name="checkmark" size={60} color="#FFFFFF" />
+                    </LinearGradient>
+                </MotiView>
+
+                <MotiView
+                    from={{ translateY: 20, opacity: 0 }}
+                    animate={{ translateY: 0, opacity: 1 }}
+                    transition={{ delay: 500 }}
+                    style={styles.textContainer}
+                >
                     <Text style={styles.title}>Order Confirmed!</Text>
                     <Text style={styles.subtitle}>
-                        Your laundry pickup has been scheduled successfully.
+                        Sit back and relax. We're on our way to pick up your clothes.
                     </Text>
-                    <Text style={styles.subtext}>
-                        Our delivery partner will arrive at your location shortly.
-                    </Text>
-                </Animated.View>
+                </MotiView>
+
+                {/* Trust Seal */}
+                <MotiView
+                    from={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 800 }}
+                    style={styles.trustSeal}
+                >
+                    <Ionicons name="shield-checkmark" size={16} color={COLORS.primary} />
+                    <Text style={styles.trustSealText}>Premium Care Guaranteed</Text>
+                </MotiView>
             </View>
 
-            <Animated.View style={[styles.footer, { opacity: fadeValue }]}>
-                <TouchableOpacity style={styles.primaryButton} onPress={handleViewOrders}>
-                    <Text style={styles.primaryButtonText}>Check Order Status</Text>
-                    <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-                </TouchableOpacity>
+            <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
+                <AnimatedButton
+                    onPress={handleViewOrders}
+                    style={styles.primaryButton}
+                >
+                    <Text style={styles.primaryButtonText}>Track My Order</Text>
+                    <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                </AnimatedButton>
 
-                <TouchableOpacity style={styles.secondaryButton} onPress={handleBackHome}>
+                <TouchableOpacity
+                    style={styles.secondaryButton}
+                    onPress={handleBackHome}
+                    activeOpacity={0.6}
+                >
                     <Text style={styles.secondaryButtonText}>Back to Home</Text>
                 </TouchableOpacity>
-            </Animated.View>
+            </View>
         </View>
     );
 };
@@ -77,88 +94,88 @@ export const OrderSuccessScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.background,
-        justifyContent: 'center',
-        padding: SPACING.xl,
+        backgroundColor: '#F8FAFC',
     },
     content: {
+        flex: 1,
         alignItems: 'center',
-        flex: 0.7,
-        justifyContent: 'center',
+        paddingHorizontal: 30,
     },
-    iconContainer: {
-        marginBottom: SPACING.xl,
+    iconWrapper: {
+        marginBottom: 40,
+        ...SHADOWS.md,
     },
-    circle: {
-        width: 120,
-        height: 120,
-        borderRadius: 60,
-        backgroundColor: COLORS.success,
+    iconCircle: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: COLORS.success,
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.3,
-        shadowRadius: 20,
-        elevation: 15,
+        ...SHADOWS.success,
     },
     textContainer: {
         alignItems: 'center',
+        marginBottom: 24,
     },
     title: {
-        ...TYPOGRAPHY.heading,
-        fontSize: 28,
+        ...TYPOGRAPHY.display,
+        fontSize: 32,
         color: COLORS.text,
-        marginBottom: SPACING.md,
         textAlign: 'center',
+        marginBottom: 12,
     },
     subtitle: {
         ...TYPOGRAPHY.body,
-        fontSize: 16,
+        fontSize: 17,
         color: COLORS.textSecondary,
         textAlign: 'center',
-        marginBottom: SPACING.sm,
         lineHeight: 24,
     },
-    subtext: {
-        ...TYPOGRAPHY.caption,
-        color: COLORS.textLight,
-        textAlign: 'center',
-        maxWidth: 260,
+    trustSeal: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.white,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 20,
+        gap: 8,
+        ...SHADOWS.sm,
+        borderWidth: 1,
+        borderColor: COLORS.borderLight,
+    },
+    trustSealText: {
+        ...TYPOGRAPHY.tiny,
+        color: COLORS.primary,
+        fontWeight: '700',
+        letterSpacing: 0.5,
     },
     footer: {
-        flex: 0.3,
-        justifyContent: 'flex-end',
-        gap: SPACING.md,
+        paddingHorizontal: 24,
+        gap: 12,
     },
     primaryButton: {
         backgroundColor: COLORS.primary,
-        paddingVertical: 16,
-        borderRadius: RADIUS.xl,
+        height: 56,
+        borderRadius: 16,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
-        shadowColor: COLORS.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        elevation: 5,
+        gap: 10,
+        ...SHADOWS.primary,
     },
     primaryButtonText: {
+        ...TYPOGRAPHY.button,
         color: '#FFFFFF',
-        fontWeight: '700',
         fontSize: 16,
     },
     secondaryButton: {
-        paddingVertical: 16,
-        borderRadius: RADIUS.xl,
+        height: 56,
         alignItems: 'center',
         justifyContent: 'center',
     },
     secondaryButtonText: {
+        ...TYPOGRAPHY.button,
         color: COLORS.textSecondary,
-        fontWeight: '600',
-        fontSize: 16,
+        fontSize: 15,
     },
 });

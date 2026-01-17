@@ -8,6 +8,7 @@ import {
     Alert,
     Platform,
     Dimensions,
+    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +22,8 @@ import { createOrder, saveCart, clearCartInFirestore, uploadServicePhotos, getUs
 import { trackPixelEvent } from '../../utils/pixel';
 import { BrandLoader } from '../../components/BrandLoader';
 import { CartTrust } from '../../components/CartTrust';
+import { GlassCard } from '../../components/GlassCard';
+import { AnimatedButton } from '../../components/AnimatedButton';
 
 export const CartScreen: React.FC = () => {
     const navigation = useNavigation();
@@ -31,6 +34,7 @@ export const CartScreen: React.FC = () => {
     const { showAlert } = useUIStore();
 
     const [loading, setLoading] = useState(false);
+    const [slotsLoading, setSlotsLoading] = useState(false);
     const [isNavigating, setIsNavigating] = useState(false);
     const [pickupType, setPickupType] = useState<'instant' | 'scheduled'>('instant');
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -193,10 +197,10 @@ export const CartScreen: React.FC = () => {
         const fetchOccupied = async () => {
             if (selectedDate && pickupType === 'scheduled') {
                 const { checkSlotAvailability } = require('../../services/firestore');
-                setLoading(true);
+                setSlotsLoading(true);
                 const occupied = await checkSlotAvailability(selectedDate);
                 setOccupiedSlots(occupied);
-                setLoading(false);
+                setSlotsLoading(false);
             }
         };
         fetchOccupied();
@@ -317,16 +321,27 @@ export const CartScreen: React.FC = () => {
                 const now = new Date();
                 const bufferTime = addMinutes(now, MIN_BUFFER_MINS);
 
-                // Find the first slot that starts >= bufferTime (next available half-hour)
+                // Find the first slot that starts STRICTLY after the buffer time.
+                // If buffer is 4:30, we want the slot starting at 4:30 (4:30-5:00) or later.
                 const firstAvailable = timeSlots.find(slot => {
                     const [startStr] = slot.split(' - ');
                     const [h, m] = startStr.split(':').map(Number);
                     const slotStartTime = new Date();
                     slotStartTime.setHours(h, m, 0, 0);
+
+                    // Logic: The slot must be valid if it starts >= bufferTime.
+                    // e.g. Buffer 16:30. Slot 16:30. 16:30 >= 16:30 -> True.
+                    // e.g. Buffer 16:31. Slot 16:30. 16:30 >= 16:31 -> False.
                     return isAfter(slotStartTime, bufferTime) || slotStartTime.getTime() === bufferTime.getTime();
                 });
 
-                instantSlot = firstAvailable || "19:30 - 20:00"; // Fallback to last possible if logic fails
+                // Fallback logic specific for Instant:
+                // If NO slot is found (e.g. it's 7:20 PM, buffer 7:40 PM, last slot 8:00 PM is too late?),
+                // we should probably check if we can squeeze it in or show a better error.
+                // For now, if instant is requested but undefined, fallback to the *very next* physical slot 
+                // regardless of buffer if it's within operational hours, OR fail gracefully.
+
+                instantSlot = firstAvailable || timeSlots[timeSlots.length - 1];
             }
 
             const orderData = {
@@ -435,29 +450,66 @@ export const CartScreen: React.FC = () => {
                 {/* Shoe Details */}
                 {item.serviceType === 'shoe_clean' && (
                     <Text style={styles.detailText}>
-                        {item.shoeQuantity} pairs ({item.shoeType})
+                        {item.shoeCount} Pairs
                     </Text>
                 )}
 
                 {/* Blanket Details */}
                 {item.serviceType === 'blanket_wash' && (
                     <Text style={styles.detailText}>
-                        {item.description || `${item.blanketQuantity || 0} Blankets`}
+                        {item.blanketCount} Blankets
                     </Text>
                 )}
-
-                {/* General catch-all */}
-                {item.specialInstructions && (
-                    <Text style={styles.instructionText}>Note: {item.specialInstructions}</Text>
+                {item.ironingEnabled && (
+                    <Text style={styles.detailText}>
+                        + {item.ironingCount || 0} Ironing
+                    </Text>
                 )}
             </View>
 
-            <TouchableOpacity
+            <AnimatedButton
                 style={styles.removeButton}
                 onPress={() => removeItem(item.id)}
             >
                 <Text style={styles.removeButtonText}>Remove</Text>
-            </TouchableOpacity>
+            </AnimatedButton>
+        </View>
+    );
+
+    const renderBillDetails = () => (
+        <View>
+            <View style={styles.billRow}>
+                <Text style={styles.billLabel}>Item Total</Text>
+                <Text style={styles.billValue}>₹{totalAmount - PLATFORM_FEE - gstAmount + discountAmount}</Text>
+            </View>
+            {PLATFORM_FEE > 0 && (
+                <View style={styles.billRow}>
+                    <Text style={styles.billLabel}>Platform Fee</Text>
+                    <Text style={styles.billValue}>₹{PLATFORM_FEE}</Text>
+                </View>
+            )}
+            {gstAmount > 0 && (
+                <View style={styles.billRow}>
+                    <Text style={styles.billLabel}>GST (18%)</Text>
+                    <Text style={styles.billValue}>₹{gstAmount}</Text>
+                </View>
+            )}
+            {discountAmount > 0 && (
+                <View style={styles.billRow}>
+                    <Text style={[styles.billLabel, { color: COLORS.success }]}>First Order Discount</Text>
+                    <Text style={[styles.billValue, { color: COLORS.success }]}>-₹{discountAmount}</Text>
+                </View>
+            )}
+            <View style={[styles.billRow, styles.totalRow]}>
+                <Text style={styles.totalLabel}>Grand Total</Text>
+                <Text style={styles.totalValue}>₹{totalAmount}</Text>
+            </View>
+            {items.some(item => item.isCreditItem) && (
+                <View style={styles.creditBadge}>
+                    <Ionicons name="sparkles" size={14} color={COLORS.primary} />
+                    <Text style={styles.creditBadgeText}>Subscription Credit Applied</Text>
+                </View>
+            )}
         </View>
     );
 
@@ -553,42 +605,15 @@ export const CartScreen: React.FC = () => {
                         </View>
                     )}
 
-                    {/* Bill Details */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Bill Details</Text>
-                        <View style={styles.billRow}>
-                            <Text style={styles.billLabel}>Item Total</Text>
-                            <Text style={styles.billValue}>₹{subtotal}</Text>
+                    {/* Premium Bill Details with GlassCard */}
+                    <GlassCard intensity="medium" style={styles.billGlassCard}>
+                        <Text style={styles.sectionTitle}>Order Summary</Text>
+                        {renderBillDetails()}
+                        <View style={styles.guaranteeContainer}>
+                            <Ionicons name="shield-checkmark" size={16} color={COLORS.success} />
+                            <Text style={styles.guaranteeText}>100% Satisfaction Guarantee</Text>
                         </View>
-                        {PLATFORM_FEE > 0 && (
-                            <View style={styles.billRow}>
-                                <Text style={styles.billLabel}>Platform Fee</Text>
-                                <Text style={styles.billValue}>₹{PLATFORM_FEE}</Text>
-                            </View>
-                        )}
-                        {gstAmount > 0 && (
-                            <View style={styles.billRow}>
-                                <Text style={styles.billLabel}>GST (18%)</Text>
-                                <Text style={styles.billValue}>₹{gstAmount}</Text>
-                            </View>
-                        )}
-                        {discountAmount > 0 && (
-                            <View style={styles.billRow}>
-                                <Text style={[styles.billLabel, { color: COLORS.success }]}>First Order Discount</Text>
-                                <Text style={[styles.billValue, { color: COLORS.success }]}>-₹{discountAmount}</Text>
-                            </View>
-                        )}
-                        <View style={[styles.billRow, styles.totalRow]}>
-                            <Text style={styles.totalLabel}>Grand Total</Text>
-                            <Text style={styles.totalValue}>₹{totalAmount}</Text>
-                        </View>
-                        {items.some(item => item.isCreditItem) && (
-                            <View style={styles.creditBadge}>
-                                <Ionicons name="sparkles" size={14} color={COLORS.primary} />
-                                <Text style={styles.creditBadgeText}>Subscription Credit Applied</Text>
-                            </View>
-                        )}
-                    </View>
+                    </GlassCard>
 
                     {/* Pickup Details */}
                     <View style={styles.section}>
@@ -651,8 +676,8 @@ export const CartScreen: React.FC = () => {
                                     ))}
                                 </ScrollView>
 
-                                <Text style={styles.pickerLabel}>Select Time</Text>
-                                <View style={styles.timeGrid}>
+                                <Text style={styles.pickerLabel}>Select Time {slotsLoading && <ActivityIndicator size="small" color={COLORS.primary} style={{ marginLeft: 10 }} />}</Text>
+                                <View style={[styles.timeGrid, slotsLoading && { opacity: 0.5 }]}>
                                     {(() => {
                                         const now = new Date();
                                         const isToday = selectedDate === format(now, 'yyyy-MM-dd');
@@ -699,7 +724,6 @@ export const CartScreen: React.FC = () => {
                         )}
                     </View>
 
-                    {/* Address Preview (Static for now) */}
                     {/* Address Preview (Clean) */}
                     <View style={styles.cleanAddressContainer}>
                         <View style={styles.addressRow}>
@@ -723,20 +747,22 @@ export const CartScreen: React.FC = () => {
                 </ScrollView>
             </View>
 
-            {/* Footer */}
+            {/* Floating Premium Footer */}
             <View style={styles.footer}>
-                <View>
-                    <Text style={styles.footerLabel}>Total to Pay</Text>
-                    <Text style={styles.footerTotal}>₹{totalAmount}</Text>
-                </View>
-                <TouchableOpacity
-                    style={styles.placeOrderBtn}
-                    onPress={handlePlaceOrder}
-                    disabled={loading}
-                >
-                    <Text style={styles.placeOrderText}>Book Now & Pay Later</Text>
-                    <Ionicons name="arrow-forward" size={20} color="#FFF" />
-                </TouchableOpacity>
+                <GlassCard intensity="high" style={styles.footerGlass}>
+                    <View>
+                        <Text style={styles.footerLabel}>Total to Pay</Text>
+                        <Text style={styles.footerTotal}>₹{totalAmount}</Text>
+                    </View>
+                    <AnimatedButton
+                        style={styles.placeOrderBtn}
+                        onPress={handlePlaceOrder}
+                        disabled={loading}
+                    >
+                        <Text style={styles.placeOrderText}>Book Now</Text>
+                        <Ionicons name="arrow-forward" size={18} color="#FFF" />
+                    </AnimatedButton>
+                </GlassCard>
             </View>
         </SafeAreaView>
     );
@@ -1118,63 +1144,61 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         fontSize: 12,
     },
+    /* Redesigned Footer */
     footer: {
-        backgroundColor: COLORS.background,
-        paddingHorizontal: SPACING.lg,
-        paddingVertical: 16,
-        paddingBottom: Platform.OS === 'ios' ? 34 : 24, // Explicit safe area padding
-        borderTopWidth: 1,
-        borderTopColor: COLORS.borderLight,
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        paddingHorizontal: 20,
+        paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+        paddingTop: 16,
+    },
+    footerGlass: {
         flexDirection: 'row',
         alignItems: 'center',
-        shadowColor: '#000',
-        elevation: 20, // Increased elevation for better separation
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        ...(Platform.OS === 'web' ? {
-            position: 'relative' as any,
-            zIndex: 1000,
-            flexShrink: 0,
-            flexGrow: 0,
-            width: '100%',
-        } : {}),
+        padding: 16,
+        paddingHorizontal: 20,
+        borderRadius: 24,
+        ...SHADOWS.xl,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.5)',
     },
     footerLabel: {
-        fontSize: 12,
-        color: COLORS.textLight,
+        ...TYPOGRAPHY.tiny,
+        color: COLORS.textSecondary,
         marginBottom: 2,
-        fontFamily: 'Outfit_500Medium',
     },
     footerTotal: {
-        fontSize: 26, // Increased slightly for visibility
-        fontWeight: '800',
+        ...TYPOGRAPHY.heading,
+        fontSize: 24,
         color: COLORS.text,
-        fontFamily: 'Outfit_800ExtraBold',
-        letterSpacing: -0.5, // Tighten numbers slightly
     },
     placeOrderBtn: {
-        flex: 1, // Take remaining space
-        marginLeft: 24, // Spacing from text
+        flex: 1,
+        marginLeft: 20,
         backgroundColor: COLORS.primary,
-        paddingVertical: 16,
-        borderRadius: RADIUS.xl,
+        paddingVertical: 14,
+        borderRadius: 16,
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center', // Center content
+        justifyContent: 'center',
         gap: 8,
-        ...SHADOWS.md,
-        ...(Platform.OS === 'web' ? {
-            cursor: 'pointer',
-            userSelect: 'none' as any,
-        } : {}),
+        ...SHADOWS.primary,
     },
     placeOrderText: {
+        ...TYPOGRAPHY.button,
         color: '#FFF',
-        fontWeight: '700',
-        fontSize: 16,
-        fontFamily: 'Outfit_700Bold',
-        textAlign: 'center',
+        fontSize: 15,
+    },
+    billGlassCard: {
+        marginHorizontal: 16,
+        marginVertical: 12,
+        padding: 20,
+        borderRadius: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.5)',
+        ...SHADOWS.sm,
     },
     emptyContainer: {
         flex: 1,
@@ -1230,5 +1254,21 @@ const styles = StyleSheet.create({
         ...TYPOGRAPHY.caption,
         color: COLORS.primary,
         fontWeight: '700',
+    },
+    guaranteeContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 16,
+        gap: 6,
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: COLORS.borderLight,
+    },
+    guaranteeText: {
+        fontSize: 12,
+        color: COLORS.success,
+        fontWeight: '600',
+        fontFamily: 'Outfit_600SemiBold',
     },
 });

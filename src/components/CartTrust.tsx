@@ -24,7 +24,7 @@ export const CartTrust: React.FC = () => {
             {/* Trust Matrix */}
             <View style={styles.matrixContainer}>
                 <View style={styles.matrixItem}>
-                    <Text style={styles.statValue}>15K+</Text>
+                    <Text style={styles.statValue}>5K+</Text>
                     <Text style={styles.statLabel}>Orders{'\n'}Delivered</Text>
                 </View>
 
@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
         lineHeight: 26,
     },
     highlight: {
-        color: '#10B981', // Trust Green
+        color: COLORS.primary, // Trust Green
         fontWeight: '800',
     },
     underline: {

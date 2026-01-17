@@ -113,6 +113,9 @@ export const EditProfileScreen: React.FC = () => {
                                 placeholderTextColor={COLORS.textLight}
                                 keyboardType="email-address"
                                 autoCapitalize="none"
+                                autoCorrect={false}
+                                autoComplete="off"
+                                importantForAutofill="no"
                             />
                         </View>
                     </View>

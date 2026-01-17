@@ -13,11 +13,17 @@ import {
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { BrandAlert } from './src/components/BrandAlert';
 import { View } from 'react-native';
+import * as Sentry from '@sentry/react-native';
+
+Sentry.init({
+  dsn: 'https://4823ae2cb52c014cbaa58bda55d5ce78@o4510713966166016.ingest.de.sentry.io/4510714043367504',
+  debug: false, // If `true`, Sentry will try to print out useful debugging information if something goes wrong with sending the event. Set it to `false` in production
+});
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
-export default function App() {
+export default Sentry.wrap(function App() {
   const [fontsLoaded, fontError] = useFonts({
     Outfit_400Regular,
     Outfit_500Medium,
@@ -43,4 +49,4 @@ export default function App() {
       <StatusBar style="dark" />
     </SafeAreaProvider>
   );
-}
+});

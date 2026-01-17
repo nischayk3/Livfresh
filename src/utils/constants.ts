@@ -1,84 +1,83 @@
-// Colors - Purple Primary Theme (#994bff) for SpinZo
 export const COLORS = {
-  // Primary - Purple
-  primary: '#994BFF',
-  primaryLight: '#B794F4',
-  primaryDark: '#7C3AED',
+  // Primary - Deep Premium Violet
+  primary: '#7C3AED',
+  primaryLight: '#A78BFA',
+  primaryDark: '#5B21B6',
 
-  // Gradient Colors
-  gradientStart: '#994BFF',
-  gradientEnd: '#7C3AED',
-  gradientLight: ['#C2B0FF', '#E9D5FF'],
+  // Gradient Colors (Deeper, more sophisticated)
+  gradientStart: '#7C3AED',
+  gradientEnd: '#4C1D95',
+  gradientLight: ['#F5F3FF', '#EDE9FE'],
 
-  // Text (Black as per user preference)
-  text: '#1F1F1F',
-  textSecondary: '#666666',
-  textLight: '#999999',
+  // Text (Deep Indigo Tinted for luxury feel)
+  text: '#1E1B4B',
+  textSecondary: '#475569',
+  textLight: '#94A3B8',
 
   white: '#FFFFFF',
 
-  // Backgrounds
+  // Backgrounds - Modern Surface Palette
   background: '#FFFFFF',
-  backgroundLight: '#FFFFFF', // Tinted from F3F4F6 to brand white
-  backgroundGradient: '#F5F3FF',
-  pageBg: '#EAE8FC', // Deeper tint for maximum white card popping
+  backgroundLight: '#F8FAFC',
+  backgroundGradient: '#F1F5F9',
+  pageBg: '#F1F5F9', // Light Slate for card popping
   cardBg: '#FFFFFF',
-  glassBg: 'rgba(255, 255, 255, 0.8)',
-  glassBorder: 'rgba(255, 255, 255, 0.5)',
+  glassBg: 'rgba(255, 255, 255, 0.7)',
+  glassBorder: 'rgba(255, 255, 255, 0.2)',
 
   // Brand Accents
-  accentPurple: '#E9D5FF',
-  accentBlue: '#DBEAFE',
-  accentIndigo: '#E0E7FF',
+  accentPurple: '#F5F3FF',
+  accentBlue: '#F0F9FF',
+  accentIndigo: '#EEF2FF',
 
-  // Status
+  // Status (Desaturated & Modern)
   success: '#10B981',
   error: '#EF4444',
   warning: '#F59E0B',
   info: '#3B82F6',
 
   // UI
-  border: '#EEE7FF', // Tinted border
-  borderLight: '#F3F0FF',
-  disabled: '#D1D5DB',
+  border: '#E2E8F0',
+  borderLight: '#F1F5F9',
+  disabled: '#E2E8F0',
 
   // Shadows
-  shadowColor: '#000000',
-  shadowLight: '#994BFF20',
+  shadowColor: '#1E1B4B',
+  shadowLight: '#7C3AED10',
 
-  // Service tiles (modern aesthetic variants)
+  // Service tiles (Sophisticated variants)
   service1: '#F5F3FF',
-  service1Dark: '#C2B0FF',
+  service1Dark: '#C4B5FD',
   service2: '#F0F9FF',
   service2Dark: '#BAE6FD',
   service3: '#ECFDF5',
   service3Dark: '#A7F3D0',
   service4: '#FFF7ED',
-  service4Dark: '#FFEDD5',
+  service4Dark: '#FED7AA',
 };
 
 // Typography - Standardized for professional, aesthetic look using Outfit
 export const TYPOGRAPHY = {
   // Extra large titles (main greetings, hero text)
   display: {
-    fontFamily: 'Outfit_700Bold',
-    fontSize: 28,
-    lineHeight: 36,
-    letterSpacing: -0.5,
+    fontFamily: 'Outfit_800ExtraBold',
+    fontSize: 24,
+    lineHeight: 32,
+    letterSpacing: -1,
   },
   // Large titles (screen headers, main headings)
   heading: {
-    fontFamily: 'Outfit_600SemiBold',
-    fontSize: 24,
-    lineHeight: 30,
-    letterSpacing: -0.3,
+    fontFamily: 'Outfit_700Bold',
+    fontSize: 20,
+    lineHeight: 26,
+    letterSpacing: -0.5,
   },
   // Section titles, card titles
   subheading: {
-    fontFamily: 'Outfit_500Medium',
-    fontSize: 18,
-    lineHeight: 24,
-    letterSpacing: -0.2,
+    fontFamily: 'Outfit_600SemiBold',
+    fontSize: 16,
+    lineHeight: 22,
+    letterSpacing: -0.3,
   },
   // Regular body text (primary content)
   body: {
@@ -137,14 +136,14 @@ export const TYPOGRAPHY = {
 export const SPACING = {
   xs: 4,
   sm: 8,
-  md: 16,
-  lg: 24,
-  xl: 32,
-  xxl: 48,
-  xxxl: 64,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  xxl: 40,
+  xxxl: 56,
   // Header specific spacing
-  headerTop: 16, // More breathing room
-  headerGap: 24, // More space between top pill and greeting
+  headerTop: 12,
+  headerGap: 16,
 };
 
 // Border Radius
@@ -178,49 +177,58 @@ const shadowGenerator = (color: string, offset: { width: number, height: number 
 
 export const SHADOWS = {
   sm: Platform.OS === 'web'
-    ? { boxShadow: '0px 2px 10px rgba(153, 75, 255, 0.12)' }
+    ? { boxShadow: '0px 2px 8px rgba(30, 27, 75, 0.05)' }
     : {
-      shadowColor: '#7C3AED',
+      shadowColor: '#1E1B4B',
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.12,
-      shadowRadius: 5,
-      elevation: 3,
+      shadowOpacity: 0.05,
+      shadowRadius: 4,
+      elevation: 2,
     },
   md: Platform.OS === 'web'
-    ? { boxShadow: '0px 6px 20px rgba(153, 75, 255, 0.18)' }
+    ? { boxShadow: '0px 8px 16px rgba(30, 27, 75, 0.08)' }
     : {
-      shadowColor: '#7C3AED', // Deeper purple for shadow
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.18,
-      shadowRadius: 10,
-      elevation: 6,
+      shadowColor: '#1E1B4B',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
+      elevation: 5,
     },
   lg: Platform.OS === 'web'
-    ? { boxShadow: '0px 12px 30px rgba(153, 75, 255, 0.22)' }
+    ? { boxShadow: '0px 12px 24px rgba(30, 27, 75, 0.12)' }
     : {
-      shadowColor: '#7C3AED',
-      shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.22,
+      shadowColor: '#1E1B4B',
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.12,
       shadowRadius: 20,
-      elevation: 12,
+      elevation: 8,
     },
   xl: Platform.OS === 'web'
-    ? { boxShadow: '0px 20px 40px rgba(153, 75, 255, 0.2)' }
+    ? { boxShadow: '0px 24px 48px rgba(30, 27, 75, 0.15)' }
     : {
-      shadowColor: '#994BFF',
-      shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: 0.2,
-      shadowRadius: 24,
-      elevation: 15,
+      shadowColor: '#1E1B4B',
+      shadowOffset: { width: 0, height: 24 },
+      shadowOpacity: 0.15,
+      shadowRadius: 32,
+      elevation: 12,
     },
   primary: Platform.OS === 'web'
-    ? { boxShadow: '0px 8px 24px rgba(153, 75, 255, 0.35)' }
+    ? { boxShadow: '0px 8px 24px rgba(124, 58, 237, 0.25)' }
     : {
-      shadowColor: '#994BFF',
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.35,
+      shadowColor: '#7C3AED',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.25,
       shadowRadius: 16,
-      elevation: 10,
+      elevation: 6,
+    },
+  success: Platform.OS === 'web'
+    ? { boxShadow: '0px 8px 24px rgba(16, 185, 129, 0.25)' }
+    : {
+      shadowColor: '#10B981',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.25,
+      shadowRadius: 16,
+      elevation: 6,
     },
 };
 

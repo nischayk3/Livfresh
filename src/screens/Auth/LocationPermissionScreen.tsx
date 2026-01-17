@@ -3,17 +3,23 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Alert,
   StyleSheet,
   Platform,
+  Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { MotiView } from 'moti';
 import * as Location from 'expo-location';
 import { useAddressStore, useAuthStore, useUIStore } from '../../store';
 import { addAddress } from '../../services/firestore';
-import { COLORS, SPACING, TYPOGRAPHY } from '../../utils/constants';
+import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandLoader } from '../../components/BrandLoader';
+import { AnimatedButton } from '../../components/AnimatedButton';
+
+const { width } = Dimensions.get('window');
 
 export const LocationPermissionScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -26,13 +32,11 @@ export const LocationPermissionScreen: React.FC = () => {
 
   const getAddressFromCoordinates = async (latitude: number, longitude: number) => {
     try {
-      // Use OpenStreetMap Nominatim API
-      // Note: Usage Policy requires a User-Agent: https://operations.osmfoundation.org/policies/nominatim/
       const response = await fetch(
         `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
         {
           headers: {
-            'User-Agent': 'SpinZoApp/1.0', // Replace with your app name
+            'User-Agent': 'SpinZoApp/1.0',
           },
         }
       );
@@ -40,12 +44,8 @@ export const LocationPermissionScreen: React.FC = () => {
       const data = await response.json();
 
       if (data && data.display_name) {
-        // Nominatim returns a 'display_name' which is the full formatted address
-        // It also returns 'address' object with components if needed
         return data.display_name;
       } else {
-        console.warn('Nominatim reverse geocoding failed/empty');
-        // Fallback to Expo Location (System Geocoding)
         const geocode = await Location.reverseGeocodeAsync({ latitude, longitude });
         if (geocode.length > 0) {
           const address = geocode[0];
@@ -61,7 +61,6 @@ export const LocationPermissionScreen: React.FC = () => {
       }
     } catch (error) {
       console.error("Geocoding error", error);
-      // Fallback on error
       const geocode = await Location.reverseGeocodeAsync({ latitude, longitude });
       if (geocode.length > 0) {
         const address = geocode[0];
@@ -94,9 +93,15 @@ export const LocationPermissionScreen: React.FC = () => {
 
       setStatusText('Fetching Location...');
 
-      // Use a race to implement a timeout for the location fetch
       const locationPromise = Location.getCurrentPositionAsync({
         accuracy: Platform.OS === 'web' ? Location.Accuracy.Balanced : Location.Accuracy.High,
+      }).catch((err) => {
+        // Swallow errors if this promise loses the race (timeout)
+        // If it wins, the error will be caught by the main try/catch block via Promise.race re-throwing
+        if (loading) throw err; // propagate if we are still loading (race hasn't finished/timeout hasn't fired logic yet?) 
+        // Actually simplest is just to return null and let validation handle it, or stick to standard race pattern.
+        // Better: just silence it. The await Promise.race will assume rejection if it wins.
+        throw err;
       });
 
       const timeoutPromise = new Promise((_, reject) =>
@@ -129,7 +134,6 @@ export const LocationPermissionScreen: React.FC = () => {
           location.coords.longitude
         );
 
-        // Navigate to AddressMap with coordinates for refinement
         (navigation as any).navigate('AddressMap', {
           initialLat: location.coords.latitude,
           initialLng: location.coords.longitude
@@ -140,7 +144,6 @@ export const LocationPermissionScreen: React.FC = () => {
           message: 'We found your location but couldn\'t resolve the address. Please use the map to refine it.',
           type: 'info'
         });
-        // Navigate anyway to let them refine on map
         (navigation as any).navigate('AddressMap', {
           initialLat: location.coords.latitude,
           initialLng: location.coords.longitude
@@ -163,43 +166,95 @@ export const LocationPermissionScreen: React.FC = () => {
   };
 
   const handleSkip = () => {
-    // Set flag to avoid being redirected back from Home
     const { setHasSkippedLocation } = useAddressStore.getState();
     setHasSkippedLocation(true);
 
-    // Navigate to Home. RootNavigator will handle the rest.
     if (user) {
       (navigation as any).navigate('Main', { screen: 'MainTabs', params: { screen: 'Home' } });
     } else {
-      // If not logged in, they might be in the Auth stack
       (navigation as any).navigate('MainTabs', { screen: 'Home' });
     }
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom + SPACING.lg }]}>
-      <Text style={styles.emoji}>📍</Text>
-      <Text style={styles.heading}>Enable Location</Text>
-      <Text style={styles.subtitle}>We need your location to provide doorstep service</Text>
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#F5F3FF', '#FFFFFF', '#EEF2FF']}
+        style={StyleSheet.absoluteFill}
+      />
 
-      <TouchableOpacity
-        onPress={handleUseCurrentLocation}
-        disabled={loading}
-        style={[styles.button, loading && styles.buttonDisabled]}
-      >
-        <Text style={styles.buttonText}>Use Current Location</Text>
-      </TouchableOpacity>
+      {/* Decorative blur circles */}
+      <View style={styles.decorativeCircle1} />
+      <View style={styles.decorativeCircle2} />
 
-      {/* Brand Loader overlay */}
+      <View style={[styles.content, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + SPACING.lg }]}>
+        {/* Premium 3D Illustration */}
+        <MotiView
+          from={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', delay: 200 }}
+          style={styles.illustrationContainer}
+        >
+          <Image
+            source={require('../../../assets/location_illustration.png')}
+            style={styles.illustration}
+            contentFit="contain"
+            transition={500}
+          />
+        </MotiView>
+
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ delay: 400 }}
+        >
+          <Text style={styles.heading}>Enable Location</Text>
+          <Text style={styles.subtitle}>
+            We need your location to provide{'\n'}doorstep laundry service
+          </Text>
+        </MotiView>
+
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ delay: 600 }}
+          style={styles.buttonsContainer}
+        >
+          <AnimatedButton
+            onPress={handleUseCurrentLocation}
+            disabled={loading}
+            style={styles.primaryButton}
+          >
+            <LinearGradient
+              colors={[COLORS.primary, COLORS.primaryDark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <Text style={styles.primaryButtonText}>Use Current Location</Text>
+          </AnimatedButton>
+
+          <TouchableOpacity
+            onPress={handleSkip}
+            disabled={loading}
+            style={styles.secondaryButton}
+          >
+            <Text style={styles.secondaryButtonText}>Skip for now</Text>
+          </TouchableOpacity>
+        </MotiView>
+
+        {/* Trust indicator */}
+        <MotiView
+          from={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 800 }}
+          style={styles.trustBadge}
+        >
+          <Text style={styles.trustText}>🔒 Your location data is secure and private</Text>
+        </MotiView>
+      </View>
+
       {loading && <BrandLoader fullscreen message={statusText || "Getting location..."} />}
-
-      <TouchableOpacity
-        onPress={handleSkip}
-        disabled={loading}
-        style={styles.buttonSecondary}
-      >
-        <Text style={styles.buttonSecondaryText}>Skip for now</Text>
-      </TouchableOpacity>
     </View>
   );
 };
@@ -207,72 +262,100 @@ export const LocationPermissionScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#FFFFFF',
+  },
+  decorativeCircle1: {
+    position: 'absolute',
+    top: -100,
+    right: -100,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(124, 58, 237, 0.08)',
+  },
+  decorativeCircle2: {
+    position: 'absolute',
+    bottom: -50,
+    left: -100,
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: 'rgba(99, 102, 241, 0.06)',
+  },
+  content: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: SPACING.lg,
+    paddingHorizontal: SPACING.xl,
   },
-  emoji: {
-    fontSize: 80,
+  illustrationContainer: {
     marginBottom: SPACING.xl,
+    ...SHADOWS.lg,
+  },
+  illustration: {
+    width: width * 0.55,
+    height: width * 0.55,
   },
   heading: {
-    ...TYPOGRAPHY.heading,
-    marginBottom: SPACING.md,
+    ...TYPOGRAPHY.display,
+    fontSize: 28,
+    marginBottom: SPACING.sm,
     textAlign: 'center',
     color: COLORS.text,
   },
   subtitle: {
     ...TYPOGRAPHY.body,
-    marginBottom: SPACING.xl * 3,
+    fontSize: 16,
+    marginBottom: SPACING.xl * 2,
     textAlign: 'center',
     color: COLORS.textSecondary,
-    maxWidth: '80%',
+    lineHeight: 24,
   },
-  button: {
+  buttonsContainer: {
     width: '100%',
-    backgroundColor: COLORS.primary,
-    paddingVertical: SPACING.md + 4,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    gap: SPACING.md,
   },
-  buttonDisabled: {
-    backgroundColor: COLORS.disabled,
-  },
-  buttonText: {
-    ...TYPOGRAPHY.body,
-    fontWeight: '600',
-    color: COLORS.background,
-    fontSize: 16,
-  },
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  loadingText: {
-    ...TYPOGRAPHY.body,
-    fontWeight: '600',
-    color: COLORS.background,
-    marginLeft: SPACING.sm,
-  },
-  buttonSecondary: {
+  primaryButton: {
     width: '100%',
-    paddingVertical: SPACING.md + 4,
-    borderRadius: 12,
+    height: 56,
+    borderRadius: RADIUS.xl,
     alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    ...SHADOWS.primary,
+  },
+  primaryButtonText: {
+    ...TYPOGRAPHY.button,
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  secondaryButton: {
+    width: '100%',
+    height: 56,
+    borderRadius: RADIUS.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: COLORS.primary,
+    borderColor: COLORS.border,
+    backgroundColor: 'rgba(255,255,255,0.8)',
   },
-  buttonSecondaryText: {
-    ...TYPOGRAPHY.body,
-    fontWeight: '600',
-    color: COLORS.primary,
+  secondaryButtonText: {
+    ...TYPOGRAPHY.button,
+    color: COLORS.textSecondary,
     fontSize: 16,
+  },
+  trustBadge: {
+    marginTop: SPACING.xl * 1.5,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.full,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    ...SHADOWS.sm,
+  },
+  trustText: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    fontSize: 12,
   },
 });

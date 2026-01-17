@@ -130,7 +130,7 @@ export const PhoneLoginScreen: React.FC = () => {
           </View>
 
           <View style={styles.welcomeContainer}>
-            <Text style={styles.heading}>Welcome Back!</Text>
+            <Text style={styles.heading}>Get Started</Text>
             <Text style={styles.subtitle}>
               Enter your mobile number to login or signup
             </Text>
@@ -191,6 +191,14 @@ export const PhoneLoginScreen: React.FC = () => {
             <Text style={styles.termsLink}>Terms & Conditions</Text> and{' '}
             <Text style={styles.termsLink}>Privacy Policy</Text>
           </Text>
+
+          {/* Trust Badge */}
+          <View style={styles.trustBadgeContainer}>
+            <View style={styles.trustBadge}>
+              <Ionicons name="shield-checkmark" size={16} color={COLORS.success} />
+              <Text style={styles.trustText}>Trusted by 2000+ families in Bangalore</Text>
+            </View>
+          </View>
         </ScrollView>
       </LinearGradient>
     </KeyboardAvoidingView>
@@ -324,6 +332,26 @@ const styles = StyleSheet.create({
   },
   termsLink: {
     color: COLORS.primary,
+    fontWeight: '600',
+  },
+  trustBadgeContainer: {
+    alignItems: 'center',
+    marginTop: SPACING.lg,
+  },
+  trustBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.full,
+    gap: SPACING.xs,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  trustText: {
+    ...TYPOGRAPHY.caption,
+    color: '#166534',
     fontWeight: '600',
   },
 });

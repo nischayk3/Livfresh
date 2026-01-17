@@ -34,7 +34,7 @@ export const HowItWorks: React.FC = () => {
                 {STEPS.map((step, index) => (
                     <View key={index} style={styles.step}>
                         <View style={styles.iconContainer}>
-                            <Ionicons name={step.icon as any} size={24} color={COLORS.primary} />
+                            <Ionicons name={step.icon as any} size={28} color={COLORS.primary} />
                         </View>
                         <Text style={styles.stepTitle}>{step.title}</Text>
                         <Text style={styles.stepDesc}>{step.desc}</Text>
@@ -52,6 +52,7 @@ const styles = StyleSheet.create({
     container: {
         paddingHorizontal: SPACING.md,
         marginTop: SPACING.lg,
+        marginBottom: SPACING.xl, // Spacing before Testimonials
     },
     title: {
         fontSize: 20,
@@ -70,16 +71,21 @@ const styles = StyleSheet.create({
         position: 'relative',
     },
     iconContainer: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: '#EEF2FF',
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: '#F5F3FF',
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 8,
+        marginBottom: 10,
         zIndex: 2,
         borderWidth: 2,
         borderColor: '#FFFFFF',
+        shadowColor: COLORS.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 4,
     },
     stepTitle: {
         fontSize: 12,

@@ -8,6 +8,9 @@ import {
   addCreditsAdmin,
   bulkAddCreditsAdmin,
   getUserStats,
+  getUserAnalytics,
+  UserAnalytics,
+  AbandonedCartUser,
 } from '../services/adminFirestore';
 import { Timestamp } from 'firebase/firestore';
 
@@ -78,6 +81,7 @@ interface AdminStoreState {
   // Data
   orders: AdminOrder[];
   revenue: RevenueData | null;
+  userAnalytics: UserAnalytics | null;
 
   // Loading states
   statsLoading: boolean;
@@ -85,6 +89,7 @@ interface AdminStoreState {
   subscriptionsLoading: boolean;
   revenueLoading: boolean;
   userStatsLoading: boolean;
+  userAnalyticsLoading: boolean;
 
   // Error states
   error: string | null;
@@ -95,6 +100,7 @@ interface AdminStoreState {
   fetchRevenue: (startDate: Date, endDate: Date) => Promise<void>;
   fetchSubscriptionStats: (silent?: boolean) => Promise<void>;
   fetchUserStats: (silent?: boolean) => Promise<void>;
+  fetchUserAnalytics: (silent?: boolean) => Promise<void>;
   updateOrderStatus: (
     userId: string,
     orderId: string,
@@ -152,6 +158,8 @@ export const useAdminStore = create<AdminStoreState>((set, get) => ({
   subscriptionsLoading: false,
   revenueLoading: false,
   userStatsLoading: false,
+  userAnalyticsLoading: false,
+  userAnalytics: null,
   error: null,
 
   fetchOrderStats: async (silent = false) => {
@@ -288,6 +296,20 @@ export const useAdminStore = create<AdminStoreState>((set, get) => ({
       set({ error: error.message || 'Failed to fetch user stats' });
     } finally {
       if (!silent) set({ userStatsLoading: false });
+    }
+  },
+
+  fetchUserAnalytics: async (silent = false) => {
+    if (!silent) set({ userAnalyticsLoading: true, error: null });
+
+    try {
+      const analytics = await getUserAnalytics();
+      set({ userAnalytics: analytics });
+    } catch (error: any) {
+      console.error('Error fetching user analytics:', error);
+      set({ error: error.message || 'Failed to fetch user analytics' });
+    } finally {
+      if (!silent) set({ userAnalyticsLoading: false });
     }
   },
 

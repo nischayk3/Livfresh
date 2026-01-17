@@ -5,10 +5,10 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   Platform,
   StatusBar,
   Dimensions,
+  LayoutChangeEvent,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +16,13 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, {
+  useSharedValue,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  interpolate,
+  Extrapolation
+} from 'react-native-reanimated';
 import { useAuthStore, useSubscriptionStore } from '../../store';
 import { useAddressStore } from '../../store';
 import { useCartStore } from '../../store';
@@ -25,11 +32,13 @@ import { BrandLoader } from '../../components/BrandLoader';
 import { FaqAccordion } from '../../components/FaqAccordion';
 import { TestimonialsSection } from '../../components/TestimonialsSection';
 import { HowItWorks } from '../../components/HowItWorks';
+import { GlassCard } from '../../components/GlassCard';
+import { AnimatedButton } from '../../components/AnimatedButton';
 
 const HOME_FAQS = [
   { question: "How does SpinZo's service work?", answer: "We pick up your clothes within 30 minutes, wash and fold them, and deliver them back within 6 hours. Simple, fast, and hassle-free." },
   { question: "Do you offer pickup and delivery?", answer: "Yes, doorstep pickup and delivery are completely free in all supported areas." },
-  { question: "What happens if my clothes are damaged?", answer: "We have a 100% safety guarantee. In the rare event of any damage, we provide compensation up to 10x the service value." },
+  { question: "What happens if my clothes are damaged?", answer: "We have a 100% safety guarantee. In the rare event of any damage, we provide compensation up to 2x the service value." },
   { question: "How do you ensure hygiene?", answer: "We wash each customer's clothes separately. Your clothes never mix with others, ensuring 100% hygiene." },
   { question: "How will my clothes be weighed?", answer: "Our delivery partner weighs your clothes on the spot using a digital weighing scale for accurate billing." },
   { question: "How long does the laundry process take?", answer: "Most orders are completed and delivered within 6 hours." },
@@ -38,30 +47,22 @@ const HOME_FAQS = [
 ];
 
 // Import assets
-const promoPickup = require('../../../assets/onboarding_screen_1.png');
-const promoDelivery = require('../../../assets/onboarding_screen_2.png');
-const promoRelax = require('../../../assets/onboarding_pickup_v2.png');
-const promoOffer = require('../../../assets/banner_promo.png');
-
+// Premium 3D Assets
+const promoOffer = require('../../../assets/banner_offer_3d.png');
+const promoDelivery = require('../../../assets/banner_delivery_3d.png');
+const promoRelax = require('../../../assets/banner_relax_3d.png');
+const promoPickup = require('../../../assets/onboarding_pickup_v2.png');
 const PROMOS = [
   {
-    id: '4',
+    id: '1',
     title: 'Save ₹300 Total!',
     subtitle: '₹100 OFF on first 3 orders',
     image: promoOffer,
-    gradient: ['#FFF7ED', '#FFEDD5'], // Soft Orange
+    gradient: ['#FFF7ED', '#FFEDD5'],
     badge: 'LIMITED OFFER',
   },
   {
-    id: '2',
-    title: 'Same Day Delivery',
-    subtitle: 'Fresh clothes, fast',
-    image: promoDelivery,
-    gradient: ['#F3E8FF', '#E9D5FF'], // Soft Purple
-    badge: 'WHY SPINZO?',
-  },
-  {
-    id: '1',
+    id: '4',
     title: 'Quick Pickup',
     subtitle: 'We come to your doorstep',
     image: promoPickup,
@@ -69,14 +70,21 @@ const PROMOS = [
     badge: 'WHY SPINZO?',
   },
   {
+    id: '2',
+    title: 'Same Day Delivery',
+    subtitle: 'Fresh clothes, fast',
+    image: promoDelivery,
+    gradient: ['#F5F3FF', '#EDE9FE'],
+    badge: 'FAST SERVICE',
+  },
+  {
     id: '3',
     title: 'Relax & Unwind',
-    subtitle: 'We handle the rest',
+    subtitle: 'We handle everything',
     image: promoRelax,
-    gradient: ['#F0FDFA', '#CCFBF1'], // Soft Teal
-    badge: 'WHY SPINZO?', // or "HASSLE FREE"
+    gradient: ['#F3E8FF', '#E9D5FF'],
+    badge: 'HASSLE FREE',
   },
-
 ];
 
 const SERVICES = [
@@ -123,9 +131,44 @@ export const HomeScreen: React.FC = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [serviceModalVisible, setServiceModalVisible] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(380); // Default estimate
 
   const cartItemCount = items.length;
   const cartTotal = getTotalAmount();
+
+  // Scroll Animation Logic
+  const scrollY = useSharedValue(0);
+  const scrollHandler = useAnimatedScrollHandler((event) => {
+    scrollY.value = event.contentOffset.y;
+  });
+
+  const headerAnimatedStyle = useAnimatedStyle(() => {
+    const translateY = interpolate(
+      scrollY.value,
+      [0, headerHeight],
+      [0, -headerHeight * 0.6], // Moves up slower than scroll (parallax)
+      Extrapolation.CLAMP
+    );
+
+    const opacity = interpolate(
+      scrollY.value,
+      [0, headerHeight * 0.6], // Fade out faster
+      [1, 0],
+      Extrapolation.CLAMP
+    );
+
+    const scale = interpolate(
+      scrollY.value,
+      [-100, 0], // Scale up on pull down
+      [1.1, 1],
+      Extrapolation.CLAMP
+    );
+
+    return {
+      transform: [{ translateY }, { scale }],
+      opacity,
+    };
+  });
 
   // Fetch subscriptions when user is available
   useEffect(() => {
@@ -240,16 +283,29 @@ export const HomeScreen: React.FC = () => {
     return <BrandLoader message="Loading your experience..." />;
   }
 
+  const handleHeaderLayout = (event: LayoutChangeEvent) => {
+    setHeaderHeight(event.nativeEvent.layout.height);
+  };
+
+  const STICKY_HEADER_HEIGHT = insets.top + 60; // Estimated height for sticky bar
+
   return (
     <View style={styles.container}>
       <LinearGradient
         colors={[COLORS.pageBg, '#FFFFFF']}
         style={StyleSheet.absoluteFill}
       />
-      {/* Header Area */}
-      <View style={[styles.premiumHeader, { paddingTop: insets.top + SPACING.headerTop }]}>
+
+      {/* Sticky Header (Address & Wallet) - Always on Top */}
+      <View style={[
+        styles.stickyHeader,
+        {
+          paddingTop: insets.top + 10,
+          height: STICKY_HEADER_HEIGHT
+        }
+      ]}>
         <View style={styles.headerTopArea}>
-          <TouchableOpacity style={styles.addressPill} onPress={handleAddressPress}>
+          <AnimatedButton style={styles.addressPill} onPress={handleAddressPress}>
             <View style={styles.iconCircle}>
               <Ionicons name="location" size={16} color={COLORS.primary} />
             </View>
@@ -260,9 +316,9 @@ export const HomeScreen: React.FC = () => {
               </Text>
             </View>
             <Ionicons name="chevron-down" size={14} color={COLORS.textSecondary} />
-          </TouchableOpacity>
+          </AnimatedButton>
 
-          <TouchableOpacity
+          <AnimatedButton
             style={styles.walletBadge}
             onPress={() => (navigation as any).navigate('Main', { screen: 'Credits' })}
           >
@@ -272,26 +328,47 @@ export const HomeScreen: React.FC = () => {
               end={{ x: 1, y: 1 }}
               style={styles.walletGradient}
             >
-              <Ionicons name="wallet-outline" size={14} color="#FFF" />
+              <Ionicons name="wallet" size={14} color="#FFF" />
               <Text style={styles.walletAmount}>{getTotalCredits()}</Text>
             </LinearGradient>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.greetingSection}>
-          <View>
-            <Text style={styles.welcomeText}>
-              {getGreeting()}, <Text style={styles.userName}>{user?.name?.split(' ')[0] || 'Guest'}</Text> 👋
-            </Text>
-            <Text style={styles.brandTagline}>Ready for fresh clothes?</Text>
-          </View>
+          </AnimatedButton>
         </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+      {/* Parallax Header Container (Greeting & Banners) */}
+      <Animated.View
+        style={[
+          styles.parallaxHeaderContainer,
+          { zIndex: 1 }, // Below sticky header
+          headerAnimatedStyle
+        ]}
+        onLayout={handleHeaderLayout}
       >
+        {/* Greeting Section */}
+        <View style={[
+          styles.premiumHeader,
+          {
+            paddingTop: STICKY_HEADER_HEIGHT + 10, // Push down below sticky header
+            marginTop: 0,
+            paddingBottom: 20 // Reduced spacing above banners
+          }
+        ]}>
+          <View style={styles.greetingSection}>
+            <View>
+              <MotiView
+                from={{ opacity: 0, translateX: -10 }}
+                animate={{ opacity: 1, translateX: 0 }}
+                transition={{ type: 'timing', duration: 600 }}
+              >
+                <Text style={styles.welcomeText}>
+                  {getGreeting()}, <Text style={styles.userName}>{user?.name?.split(' ')[0] || 'Guest'}</Text> 👋
+                </Text>
+              </MotiView>
+              <Text style={styles.brandTagline}>Ready for fresh clothes?</Text>
+            </View>
+          </View>
+        </View>
+
         {/* Promo Section */}
         <View style={styles.promoSection}>
           <FlatList
@@ -301,13 +378,13 @@ export const HomeScreen: React.FC = () => {
             keyExtractor={(item) => item.id}
             horizontal
             showsHorizontalScrollIndicator={false}
-            snapToInterval={Dimensions.get('window').width - 40 + 12} // Card width + margin
+            snapToInterval={Dimensions.get('window').width - 32 + 12} // New card width + margin
             snapToAlignment="center"
             decelerationRate="fast"
             contentContainerStyle={styles.promoList}
             getItemLayout={(data, index) => ({
-              length: Dimensions.get('window').width - 40 + 12, // width + marginRight
-              offset: (Dimensions.get('window').width - 40 + 12) * index,
+              length: Dimensions.get('window').width - 32 + 12, // width + marginRight
+              offset: (Dimensions.get('window').width - 32 + 12) * index,
               index,
             })}
             onScrollToIndexFailed={(info) => {
@@ -317,7 +394,7 @@ export const HomeScreen: React.FC = () => {
               });
             }}
             onMomentumScrollEnd={(ev) => {
-              const cardWidth = Dimensions.get('window').width - 40 + 12; // snapInterval
+              const cardWidth = Dimensions.get('window').width - 32 + 12; // snapInterval
               const newIndex = Math.round(ev.nativeEvent.contentOffset.x / cardWidth);
               setCurrentIndex(newIndex);
             }}
@@ -335,54 +412,114 @@ export const HomeScreen: React.FC = () => {
             ))}
           </View>
         </View>
+      </Animated.View>
 
-        {/* Services Grid */}
+      <Animated.ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: headerHeight + 20 } // Push content below fixed header
+        ]}
+        showsVerticalScrollIndicator={false}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+      >
         <View style={styles.servicesSection}>
-          <Text style={styles.sectionTitle}>Our Services</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Our Services</Text>
+            <View style={styles.trustBadgeCompact}>
+              <Ionicons name="shield-checkmark" size={12} color={COLORS.primary} />
+              <Text style={styles.trustBadgeText}>Trusted in Bangalore</Text>
+            </View>
 
-          <View style={styles.servicesGrid}>
-            {SERVICES.map((service, index) => (
-              <MotiView
-                key={service.id}
-                from={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{
-                  type: 'timing',
-                  duration: 400,
-                  delay: index * 100,
-                }}
-                style={{ width: '48%' }}
-              >
-                <TouchableOpacity
-                  style={[
-                    styles.serviceCard,
-                    (service as any).disabled && styles.serviceCardDisabled
-                  ]}
-                  onPress={() => handleServicePress(service.id)}
-                  activeOpacity={(service as any).disabled ? 1 : 0.8}
-                  disabled={(service as any).disabled}
+          </View>
+
+          <View style={styles.bentoGrid}>
+            {/* Row 1: 50/50 split */}
+            <View style={styles.bentoRow}>
+              {[SERVICES[0], SERVICES[1]].map((service, index) => (
+                <MotiView
+                  key={service.id}
+                  from={{ opacity: 0, translateY: 20 }}
+                  animate={{ opacity: 1, translateY: 0 }}
+                  transition={{ delay: 200 + index * 100 }}
+                  style={{ width: '48.5%' }}
                 >
-                  <LinearGradient
-                    colors={service.gradient as [string, string]}
-                    style={styles.serviceOverlay}
-                  />
-                  <View style={[
-                    styles.serviceIconContainer,
-                    { backgroundColor: (service as any).disabled ? '#F3F4F6' : 'rgba(139, 92, 246, 0.1)' }
-                  ]}>
-                    <Ionicons
-                      name={service.icon as any}
-                      size={28}
-                      color={(service as any).disabled ? '#9CA3AF' : service.color}
+                  <AnimatedButton
+                    onPress={() => handleServicePress(service.id)}
+                    style={styles.bentoCardSquare}
+                  >
+                    <LinearGradient
+                      colors={service.gradient as [string, string]}
+                      style={styles.serviceOverlay}
                     />
+                    <View style={styles.serviceIconContainer}>
+                      <Ionicons name={service.icon as any} size={28} color={service.color} />
+                    </View>
+                    <Text style={styles.serviceName}>{service.name}</Text>
+                  </AnimatedButton>
+                </MotiView>
+              ))}
+            </View>
+
+            {/* Row 2: Full Width Immersive */}
+            <MotiView
+              from={{ opacity: 0, translateY: 20 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ delay: 400 }}
+              style={styles.bentoRowFull}
+            >
+              <AnimatedButton
+                onPress={() => handleServicePress(SERVICES[2].id)}
+                style={styles.bentoCardRectangle}
+              >
+                <LinearGradient
+                  colors={SERVICES[2].gradient as [string, string]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.serviceOverlay}
+                />
+                <View style={styles.bentoContentRow}>
+                  <View style={styles.serviceIconContainer}>
+                    <Ionicons name={SERVICES[2].icon as any} size={32} color={SERVICES[2].color} />
                   </View>
-                  <Text style={[
-                    styles.serviceName,
-                    (service as any).disabled && { color: '#9CA3AF' }
-                  ]}>{service.name}</Text>
-                </TouchableOpacity>
-              </MotiView>
-            ))}
+                  <View style={styles.bentoTextContent}>
+                    <Text style={styles.bentoTitle}>{SERVICES[2].name}</Text>
+                    <Text style={styles.bentoSubtitle}>Professional care for large loads</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.textLight} />
+                </View>
+              </AnimatedButton>
+            </MotiView>
+
+            {/* Row 3: Subscribe Feature Card */}
+            <MotiView
+              from={{ opacity: 0, translateY: 20 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ delay: 500 }}
+              style={styles.bentoRowFull}
+            >
+              <GlassCard cornerRadius="xl" style={styles.subscribeBentoCard}>
+                <LinearGradient
+                  colors={['rgba(124, 94, 237, 0.9)', 'rgba(76, 29, 149, 0.9)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                <AnimatedButton
+                  onPress={() => handleServicePress('subscription')}
+                  style={styles.subscribeContent}
+                >
+                  <View>
+                    <View style={styles.exclusiveBadge}>
+                      <Text style={styles.exclusiveBadgeText}>EXCLUSIVE</Text>
+                    </View>
+                    <Text style={styles.subscribeTitle}>Smart Care Subscription</Text>
+                    <Text style={styles.subscribeSubtitle}>Save 20% on every wash ✨</Text>
+                  </View>
+                  <Ionicons name="sparkles" size={32} color="#FDE047" />
+                </AnimatedButton>
+              </GlassCard>
+            </MotiView>
           </View>
         </View>
 
@@ -400,7 +537,7 @@ export const HomeScreen: React.FC = () => {
           </View>
         </View>
         <View style={{ height: 100 }} />
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* Floating Cart Button */}
       {cartItemCount > 0 && (
@@ -516,7 +653,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   welcomeText: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '600',
     color: '#64748B',
     fontFamily: 'Outfit_600SemiBold',
@@ -527,11 +664,11 @@ const styles = StyleSheet.create({
     fontFamily: 'Outfit_600SemiBold',
   },
   brandTagline: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#94A3B8',
     fontWeight: '500',
     fontFamily: 'Outfit_500Medium',
-    marginTop: 4,
+    marginTop: 2,
   },
   scrollContent: {
     paddingBottom: 140,
@@ -541,30 +678,32 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   promoList: {
-    paddingHorizontal: SPACING.md,
+    paddingHorizontal: SPACING.sm, // Reduced to show peek of next card
     paddingVertical: SPACING.sm,
   },
   promoCard: {
-    width: Dimensions.get('window').width - 40, // Increased width slightly
-    height: 170, // Increased height for better spacing
-    borderRadius: RADIUS.xl, // rounded-2xl
+    width: Dimensions.get('window').width - 32, // Slightly narrower to show peek
+    height: 180, // Taller for more impact
+    borderRadius: RADIUS.xl,
     marginRight: 12,
     overflow: 'hidden',
-    ...SHADOWS.md,
+    ...SHADOWS.lg,
     backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.8)',
   },
   promoGradient: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 24,
+    padding: 20,
     paddingRight: 16,
   },
   promoContent: {
     flex: 1,
     justifyContent: 'center',
-    paddingRight: 10,
+    paddingRight: 12,
   },
   promoBadge: {
     backgroundColor: '#FFFFFF',
@@ -572,34 +711,34 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
     alignSelf: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 14,
     ...SHADOWS.sm,
   },
   promoBadgeText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
-    color: '#7C3AED', // Consistent purple across banners for "Why Spinzo"
+    color: '#7C3AED',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
     fontFamily: 'Outfit_800ExtraBold',
   },
   promoTitle: {
-    fontSize: 26, // Larger
+    fontSize: 24,
     color: '#1E293B',
-    fontFamily: 'Outfit_700Bold', // Bold
-    lineHeight: 30,
+    fontFamily: 'Outfit_700Bold',
+    lineHeight: 28,
     marginBottom: 4,
   },
   promoSubtitle: {
-    fontSize: 15, // Slightly larger
+    fontSize: 14,
     color: '#64748B',
     fontWeight: '500',
     fontFamily: 'Outfit_500Medium',
   },
   promoImage: {
-    width: 110, // Larger image
-    height: 110,
-    marginRight: -10, // Slight negative margin to push to edge if needed
+    width: 130,
+    height: 130,
+    marginRight: -8,
   },
   paginationDots: {
     flexDirection: 'row',
@@ -621,54 +760,143 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     marginTop: 16, // Reduced from 24
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   sectionTitle: {
     ...TYPOGRAPHY.subheading,
-    fontSize: 20,
-    color: '#1A1A1A',
-    marginBottom: 16,
-    letterSpacing: -0.5,
+    color: COLORS.text,
   },
-  servicesGrid: {
+  seeAllText: {
+    ...TYPOGRAPHY.bodySmall,
+    color: COLORS.primary,
+    fontFamily: 'Outfit_600SemiBold',
+  },
+  bentoGrid: {
+    gap: 12,
+  },
+  bentoRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'space-between',
-    paddingBottom: SPACING.xs,
   },
-  serviceCard: {
+  bentoRowFull: {
     width: '100%',
-    height: 130,
+  },
+  bentoCardSquare: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    marginBottom: 12,
-    ...SHADOWS.md,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    overflow: 'hidden',
+    borderRadius: 24,
+    padding: 20,
+    height: 140,
     alignItems: 'center',
     justifyContent: 'center',
+    ...SHADOWS.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+    overflow: 'hidden',
+  },
+  bentoCardRectangle: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    height: 100,
+    ...SHADOWS.md,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+    overflow: 'hidden',
+  },
+  bentoContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  bentoTextContent: {
+    flex: 1,
+  },
+  bentoTitle: {
+    ...TYPOGRAPHY.subheading,
+    fontSize: 18,
+    color: COLORS.text,
+    marginBottom: 2,
+  },
+  bentoSubtitle: {
+    ...TYPOGRAPHY.bodySmall,
+    color: COLORS.textSecondary,
+  },
+  trustBadgeCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  trustBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.text,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  subscribeBentoCard: {
+    height: 120,
+    ...SHADOWS.primary,
+  },
+  subscribeContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    zIndex: 1,
+  },
+  exclusiveBadge: {
+    backgroundColor: 'rgba(255, 224, 71, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 224, 71, 0.3)',
+  },
+  exclusiveBadgeText: {
+    ...TYPOGRAPHY.tiny,
+    color: '#FEF08A',
+    letterSpacing: 1,
+  },
+  subscribeTitle: {
+    ...TYPOGRAPHY.subheading,
+    color: '#FFFFFF',
+    fontSize: 18,
+  },
+  subscribeSubtitle: {
+    ...TYPOGRAPHY.bodySmall,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   serviceOverlay: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 0.06,
-  },
-  serviceCardDisabled: {
-    opacity: 0.5,
+    opacity: 0.08,
   },
   serviceIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    width: 60,
+    height: 60,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
+    ...SHADOWS.sm,
   },
   serviceName: {
-    fontSize: 14,
-    color: '#1A1A1A',
-    fontFamily: 'Outfit_500Medium',
+    ...TYPOGRAPHY.bodyBold,
+    color: COLORS.text,
     textAlign: 'center',
   },
   section: {
@@ -679,45 +907,63 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     ...SHADOWS.xl,
+    zIndex: 100,
   },
   cartButton: {
-    backgroundColor: COLORS.primaryDark,
+    backgroundColor: COLORS.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 18,
-    paddingHorizontal: 24,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    ...SHADOWS.primary,
   },
   cartInfo: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   cartCountBadge: {
-    backgroundColor: COLORS.primary,
-    width: 28,
-    height: 28,
-    borderRadius: 10,
+    backgroundColor: COLORS.white,
+    width: 24,
+    height: 24,
+    borderRadius: RADIUS.sm,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
   cartCountText: {
-    color: '#FFFFFF',
-    fontWeight: '900',
+    color: COLORS.primary,
+    fontFamily: 'Outfit_800ExtraBold',
     fontSize: 13,
   },
   cartButtonText: {
+    ...TYPOGRAPHY.button,
     color: '#FFFFFF',
-    fontWeight: '800',
     fontSize: 16,
-    fontFamily: 'Outfit_800ExtraBold',
   },
   cartButtonSubtext: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 12,
-    fontWeight: '500',
+    ...TYPOGRAPHY.bodySmall,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: -2,
+  },
+  parallaxHeaderContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'transparent',
+  },
+  stickyHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)', // Slightly translucent
+    zIndex: 100, // Above everything
+    paddingHorizontal: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    ...SHADOWS.sm,
   },
 });

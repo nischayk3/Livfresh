@@ -59,7 +59,22 @@
       "./plugins/withFirebaseModularHeaders",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
-      "expo-font"
+      "expo-font",
+      [
+        "@sentry/react-native",
+        {
+          "organization": "think41-1s",
+          "project": "react-native"
+        }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "react-native",
+          "organization": "think41-1s"
+        }
+      ]
     ]
   }
 }

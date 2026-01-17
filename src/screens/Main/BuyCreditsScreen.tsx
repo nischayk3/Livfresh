@@ -16,6 +16,10 @@ import { useAuthStore, useSubscriptionStore, useUIStore } from '../../store';
 import { trackPixelEvent } from '../../utils/pixel';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandHeader } from '../../components/BrandHeader';
+import { GlassCard } from '../../components/GlassCard';
+import { AnimatedButton } from '../../components/AnimatedButton';
+import { MotiView } from 'moti';
+import { LinearGradient } from 'expo-linear-gradient';
 
 type PlanType = 'single' | 'couple';
 
@@ -165,90 +169,107 @@ export const BuyCreditsScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* Plan Type Selection */}
-        <View style={styles.planTypeCard}>
+        <GlassCard intensity="low" style={styles.planTypeCard}>
           <Text style={styles.sectionLabel}>Select Plan Type</Text>
           <View style={styles.tabsContainer}>
-            <TouchableOpacity
-              style={[styles.tab, planType === 'single' && styles.tabActive]}
+            <AnimatedButton
+              style={[
+                styles.tab,
+                planType === 'single' ? styles.tabActive : {}
+              ]}
               onPress={() => setPlanType('single')}
-              activeOpacity={0.7}
             >
               <Text
-                style={[styles.tabText, planType === 'single' && styles.tabTextActive]}
+                style={[
+                  styles.tabText,
+                  planType === 'single' ? styles.tabTextActive : {}
+                ]}
               >
                 Single
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, planType === 'couple' && styles.tabActive]}
+            </AnimatedButton>
+            <AnimatedButton
+              style={[
+                styles.tab,
+                planType === 'couple' ? styles.tabActive : {}
+              ]}
               onPress={() => setPlanType('couple')}
-              activeOpacity={0.7}
             >
               <Text
-                style={[styles.tabText, planType === 'couple' && styles.tabTextActive]}
+                style={[
+                  styles.tabText,
+                  planType === 'couple' ? styles.tabTextActive : {}
+                ]}
               >
                 Couple
               </Text>
-            </TouchableOpacity>
+            </AnimatedButton>
           </View>
-        </View>
+        </GlassCard>
 
         {/* Plan Display Card */}
-        <View style={styles.planDisplayCard}>
-          <View style={styles.planIconContainer}>
-            <Ionicons name="card" size={28} color={COLORS.primary} />
-          </View>
-          <View style={styles.planInfo}>
-            <Text style={styles.planTitle}>
-              {planType.charAt(0).toUpperCase() + planType.slice(1)} Plan
-            </Text>
-            <Text style={styles.planSubtitle}>
-              {kgPerCredit} kg per credit • Valid 30 days
-            </Text>
-          </View>
-        </View>
+        <MotiView
+          from={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: 'timing', duration: 400 }}
+        >
+          <LinearGradient
+            colors={['#F5F3FF', '#FFFFFF']}
+            style={styles.planDisplayCard}
+          >
+            <View style={styles.planIconContainer}>
+              <Ionicons name="card" size={28} color={COLORS.primary} />
+            </View>
+            <View style={styles.planInfo}>
+              <Text style={styles.planTitle}>
+                {planType.charAt(0).toUpperCase() + planType.slice(1)} Plan
+              </Text>
+              <Text style={styles.planSubtitle}>
+                {kgPerCredit} kg per credit • Valid 30 days
+              </Text>
+            </View>
+          </LinearGradient>
+        </MotiView>
 
-        {/* Credit Counter */}
-        <View style={styles.creditCounterCard}>
+        {/* Credit Counter Card */}
+        <GlassCard intensity="medium" style={styles.creditCounterCard}>
           <Text style={styles.sectionLabel}>
             Select number of credits (2-4 credits)
           </Text>
           <View style={styles.counterContainer}>
-            <TouchableOpacity
+            <AnimatedButton
               style={[
                 styles.counterButton,
-                creditCount <= 2 && styles.counterButtonDisabled,
+                creditCount <= 2 ? styles.counterButtonDisabled : {},
               ]}
               onPress={() => setCreditCount(Math.max(2, creditCount - 1))}
               disabled={creditCount <= 2}
-              activeOpacity={0.7}
             >
               <Ionicons
                 name="remove"
                 size={20}
                 color={creditCount <= 2 ? COLORS.textSecondary : COLORS.primary}
               />
-            </TouchableOpacity>
+            </AnimatedButton>
             <View style={styles.counterDisplay}>
               <Text style={styles.counterValue}>{creditCount}</Text>
               <Text style={styles.counterLabel}>Credits</Text>
             </View>
-            <TouchableOpacity
+            <AnimatedButton
               style={[
                 styles.counterButton,
                 styles.counterButtonPrimary,
-                creditCount >= 4 && styles.counterButtonDisabled,
+                creditCount >= 4 ? styles.counterButtonDisabled : {},
               ]}
               onPress={() => setCreditCount(Math.min(4, creditCount + 1))}
               disabled={creditCount >= 4}
-              activeOpacity={0.7}
             >
               <Ionicons
                 name="add"
                 size={20}
                 color={creditCount >= 4 ? COLORS.textSecondary : '#FFFFFF'}
               />
-            </TouchableOpacity>
+            </AnimatedButton>
           </View>
 
           <View style={styles.priceBreakdown}>
@@ -265,7 +286,7 @@ export const BuyCreditsScreen: React.FC = () => {
           <Text style={styles.expiryNote}>
             Credits expire in 30 days from purchase date.
           </Text>
-        </View>
+        </GlassCard>
 
         {/* Included / Not Included */}
         <View style={styles.includedSection}>
@@ -306,17 +327,25 @@ export const BuyCreditsScreen: React.FC = () => {
 
       {/* Bottom CTA */}
       <View style={[styles.bottomCTA, { paddingBottom: insets.bottom + SPACING.md }]}>
-        <TouchableOpacity
-          style={[styles.purchaseButton, (loading || purchasing || !!activeSubscription) && styles.purchaseButtonDisabled]}
+        <AnimatedButton
+          style={[
+            styles.purchaseButton,
+            (loading || purchasing || !!activeSubscription) ? styles.purchaseButtonDisabled : {}
+          ]}
           onPress={handlePurchase}
           disabled={loading || purchasing || !!activeSubscription}
-          activeOpacity={0.8}
         >
           {purchasing ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
             <>
-              <Ionicons name="card" size={20} color="#FFFFFF" />
+              <LinearGradient
+                colors={[COLORS.primary, COLORS.primaryDark]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
               <Text style={styles.purchaseButtonText}>
                 {activeSubscription
                   ? 'Active Subscription Exists'
@@ -324,7 +353,7 @@ export const BuyCreditsScreen: React.FC = () => {
               </Text>
             </>
           )}
-        </TouchableOpacity>
+        </AnimatedButton>
       </View>
     </View>
   );

@@ -157,6 +157,9 @@ export const UserDetailsScreen: React.FC = () => {
                   onChangeText={setEmail}
                   keyboardType="email-address"
                   autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="off"
+                  importantForAutofill="no"
                   placeholderTextColor={COLORS.textLight}
                 />
               </View>

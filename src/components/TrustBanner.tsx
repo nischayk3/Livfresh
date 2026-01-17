@@ -12,7 +12,7 @@ export const TrustBanner: React.FC<{ style?: any }> = ({ style }) => {
                     <View style={styles.iconBox}>
                         <Ionicons name="people" size={18} color={COLORS.primary} />
                     </View>
-                    <Text style={styles.text}>Trusted by{'\n'}5000+ Families</Text>
+                    <Text style={styles.text}>Trusted by{'\n'}2000+ Families</Text>
                 </View>
 
                 <View style={styles.divider} />

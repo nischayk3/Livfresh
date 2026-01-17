@@ -383,6 +383,13 @@ export const AdminOrdersScreen: React.FC = () => {
       message += `\n\nYour garments are currently being processed. We'll update you once they are ready for delivery!`;
     } else if (item.status === 'ready') {
       message += `\n\nYour order is *Packed & Ready*! 🧺\nPlease schedule your delivery slot in the app to receive your fresh clothes.`;
+    } else if (item.status === 'out_for_delivery') {
+      message += `\n\nYour order is out for delivery! 🚚\nPlease keep your *Delivery OTP* ready.`;
+    }
+
+    // Add Direct Order Link
+    if (item.id) {
+      message += `\n\nView Order Details: https://spinzo.in/order/${item.id}`;
     }
 
     const url = `whatsapp://send?text=${encodeURIComponent(message)}&phone=${finalPhone}`;

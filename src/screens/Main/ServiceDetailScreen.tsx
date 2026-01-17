@@ -19,6 +19,13 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as Speech from 'expo-speech';
 import { useNavigation } from '@react-navigation/native';
+import Animated, {
+  useSharedValue,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  interpolate,
+  Extrapolation,
+} from 'react-native-reanimated';
 
 import { COLORS, SPACING, SHADOWS, RADIUS, TYPOGRAPHY } from '../../utils/constants';
 import { useCartStore, useUIStore } from '../../store';
@@ -29,12 +36,14 @@ import { FaqAccordion } from '../../components/FaqAccordion';
 import { TrustBanner } from '../../components/TrustBanner';
 import { ServiceStats } from '../../components/ServiceStats';
 import { ServiceInfo } from '../../components/ServiceInfo';
+import { GlassCard } from '../../components/GlassCard';
+import { AnimatedButton } from '../../components/AnimatedButton';
 
 // -------------- FAQ DATA --------------
 const WASH_FOLD_FAQS = [
   { question: "How is the weight calculated?", answer: "We weigh your clothes on the spot using a digital weighing scale for 100% accuracy." },
   { question: "What's included in Wash & Fold?", answer: "Daily wear clothes including shirts, pants, t-shirts, and tops. Blankets are not included." },
-  { question: "How long does it take?", answer: "Most Wash & Fold orders are delivered within 48 hours." }, // Adapted from Wash&Iron
+  { question: "How long does it take?", answer: "Most Wash & Fold orders are delivered within 6-12 hours." }, // Adapted from Wash&Iron
   { question: "Do I need to separate colour-leaking clothes?", answer: "Yes, our team is not responsible for any damage, though we take all necessary precautions." },
 ];
 
@@ -48,7 +57,7 @@ const WASH_IRON_FAQS = [
 const BLANKET_WASH_FAQS = [
   { question: "How is blanket cleaning done?", answer: "Blankets are washed in specialized heavy-duty machines for deep cleaning." },
   { question: "What types of blankets do you accept?", answer: "We accept single and double blankets of all materials." },
-  { question: "How long does Blanket Wash take?", answer: "Most blanket wash orders are delivered within 12 hours." },
+  { question: "How long does Blanket Wash take?", answer: "Most blanket wash orders are delivered within 6-12 hours." },
   { question: "Do you clean heavy duvets / quilts?", answer: "Yes, but pricing may vary depending on thickness." },
 ];
 
@@ -621,41 +630,30 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
     return (
       <View>
-        {/* Weight Selection */}
-        <View style={styles.section}>
+        {/* Statistics & Trust Badge */}
+        <View style={styles.statsRow}>
           <ServiceStats rating={4.8} reviewCount={1400} />
-          <Text style={styles.sectionTitle}>Select Estimated Weight</Text>
-          <TouchableOpacity
-            style={[styles.weightOption, washFoldWeight === 'small' && styles.weightOptionSelected]}
-            onPress={() => {
-              setWashFoldWeight('small');
-              // Don't reset ironing to 0 if enabled, just clamp it maybe?
-              // logic: if changing weight, max limit changes.
-              if (washFoldIroningEnabled && washFoldIroningCount > 25) {
-                setWashFoldIroningCount(25);
-              }
-            }}
-          >
-            <View style={styles.weightOptionContent}>
-              <View style={styles.radioButton}>
-                {washFoldWeight === 'small' && <View style={styles.radioButtonInner} />}
-              </View>
-              <Text style={styles.weightOptionText}>~7kg • Max 25 clothes</Text>
-              <Text style={styles.weightPrice}>₹479</Text>
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.weightOption, washFoldWeight === 'large' && styles.weightOptionSelected]}
-            onPress={() => setWashFoldWeight('large')}
-          >
-            <View style={styles.weightOptionContent}>
-              <View style={styles.radioButton}>
-                {washFoldWeight === 'large' && <View style={styles.radioButtonInner} />}
-              </View>
-              <Text style={styles.weightOptionText}>~14kg • Max 50 clothes</Text>
-              <Text style={styles.weightPrice}>₹958</Text>
-            </View>
-          </TouchableOpacity>
+        </View>
+
+        {/* Improved Weight Selection */}
+        <View style={styles.premiumSection}>
+          <Text style={styles.premiumSectionTitle}>Select Estimated Weight</Text>
+          <View style={styles.weightPillsContainer}>
+            <TouchableOpacity
+              style={[styles.weightPill, washFoldWeight === 'small' && styles.weightPillSelected]}
+              onPress={() => setWashFoldWeight('small')}
+            >
+              <Text style={[styles.weightPillLabel, washFoldWeight === 'small' && styles.weightPillLabelSelected]}>~7kg</Text>
+              <Text style={[styles.weightPillSub, washFoldWeight === 'small' && styles.weightPillSubSelected]}>Max 25 pcs • ₹479</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.weightPill, washFoldWeight === 'large' && styles.weightPillSelected]}
+              onPress={() => setWashFoldWeight('large')}
+            >
+              <Text style={[styles.weightPillLabel, washFoldWeight === 'large' && styles.weightPillLabelSelected]}>~14kg</Text>
+              <Text style={[styles.weightPillSub, washFoldWeight === 'large' && styles.weightPillSubSelected]}>Max 50 pcs • ₹958</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Ironing Add-on */}
@@ -726,7 +724,9 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
         </View>
 
         {/* Service Info */}
-        <ServiceInfo serviceId="wash_fold" />
+        <View style={{ paddingHorizontal: 24 }}>
+          <ServiceInfo serviceId="wash_fold" />
+        </View>
 
         {/* FAQs */}
         <View style={styles.section}>
@@ -1120,6 +1120,43 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
   const totalPrice = calculateTotal();
 
+  // Parallax Logic
+  const scrollY = useSharedValue(0);
+  const scrollHandler = useAnimatedScrollHandler((event) => {
+    scrollY.value = event.contentOffset.y;
+  });
+
+  const HEADER_HEIGHT = 280; // Increased base height slightly
+
+  const headerAnimatedStyle = useAnimatedStyle(() => {
+    const height = interpolate(
+      scrollY.value,
+      [-100, 0, 200],
+      [HEADER_HEIGHT + 100, HEADER_HEIGHT, HEADER_HEIGHT * 0.5], // Grow on pull down, shrink on scroll up
+      Extrapolation.CLAMP
+    );
+
+    const translateY = interpolate(
+      scrollY.value,
+      [-100, 0, 200],
+      [-50, 0, -50], // Moves slower than scroll
+      Extrapolation.CLAMP
+    );
+
+    const opacity = interpolate(
+      scrollY.value,
+      [0, 200],
+      [1, 0], // Fade out as it shrinks
+      Extrapolation.CLAMP
+    );
+
+    return {
+      height,
+      transform: [{ translateY }],
+      opacity, // Optional: fade out
+    };
+  });
+
   return (
     <Modal
       visible={visible}
@@ -1133,28 +1170,44 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
           style={styles.container}
         >
           <View style={styles.content}>
-            {/* Header with Image */}
-            <View style={styles.imageHeader}>
+            {/* Animated Parallax Header (Absolute) */}
+            <Animated.View style={[styles.imageHeader, headerAnimatedStyle]}>
               <Image
                 source={getServiceImage()}
-                style={styles.headerImage}
+                style={StyleSheet.absoluteFill} // Use absolute fill for responsive scaling
                 contentFit="cover"
+                transition={200}
               />
               <LinearGradient
-                colors={['rgba(0,0,0,0.4)', 'transparent']}
-                style={styles.imageOverlay}
+                colors={['rgba(0,0,0,0.6)', 'transparent', 'rgba(248, 247, 255, 1)']}
+                locations={[0, 0.4, 0.95]}
+                style={StyleSheet.absoluteFill}
               />
-              <TouchableOpacity style={[styles.closeButton, { top: insets.top + (SPACING.sm || 10) }]} onPress={onClose}>
-                <View style={styles.closeIconBg}>
-                  <Ionicons name="close" size={24} color="#1A1A1A" />
-                </View>
-              </TouchableOpacity>
-            </View>
+            </Animated.View>
 
-            <ScrollView
+            {/* Close Button (Fixed on top of everything) */}
+            <TouchableOpacity
+              style={[styles.closeButton, { top: insets.top + 12 }]}
+              onPress={onClose}
+              activeOpacity={0.7}
+            >
+              <GlassCard cornerRadius="full" style={styles.closeIconBg}>
+                <Ionicons name="close" size={22} color={COLORS.text} />
+              </GlassCard>
+            </TouchableOpacity>
+
+            <Animated.ScrollView
               style={styles.scrollView}
-              contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
+              contentContainerStyle={[
+                styles.scrollContent,
+                {
+                  paddingBottom: insets.bottom + 100,
+                  paddingTop: HEADER_HEIGHT - 30, // Push content down to overlap header slightly
+                }
+              ]}
               showsVerticalScrollIndicator={false}
+              onScroll={scrollHandler}
+              scrollEventThrottle={16}
             >
               <TrustBanner />
               <View style={styles.serviceHeader}>
@@ -1162,7 +1215,11 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
                   <Text style={styles.serviceName}>{service?.name}</Text>
                   <View style={styles.timeBadge}>
                     <Ionicons name="time-outline" size={14} color={COLORS.primary} />
-                    <Text style={styles.timeBadgeText}>24-48h</Text>
+                    <Text style={styles.timeBadgeText}>
+                      {(serviceId === 'wash_fold' || serviceId === 'blanket_wash')
+                        ? '6-12h'
+                        : '24-48h'}
+                    </Text>
                   </View>
                 </View>
                 <Text style={styles.serviceDescription}>
@@ -1181,29 +1238,34 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
                   <Text style={{ color: COLORS.textSecondary }}>Coming Soon</Text>
                 </View>
               )}
-            </ScrollView>
+            </Animated.ScrollView>
 
-            <View style={[styles.footer, { paddingBottom: insets.bottom > 0 ? insets.bottom : SPACING.md }]}>
-              <View style={styles.priceContainer}>
-                <Text style={styles.priceLabel}>Estimated Total</Text>
-                <Text style={styles.totalPrice}>₹{calculateTotal()}</Text>
-              </View>
-              <TouchableOpacity
-                style={[
-                  styles.addToCartButton,
-                  calculateTotal() === 0 && styles.addToCartButtonDisabled
-                ]}
-                onPress={handleAddToCart}
-                disabled={calculateTotal() === 0}
-              >
-                <LinearGradient
-                  colors={calculateTotal() === 0 ? ['#9CA3AF', '#6B7280'] : [COLORS.primary, COLORS.primaryDark]}
-                  style={styles.addToCartGradient}
+            {/* Floating Premium Footer */}
+            <View style={[styles.floatingFooter, { bottom: insets.bottom + 16 }]}>
+              <GlassCard intensity="high" style={styles.footerGlass}>
+                <View style={styles.priceContainer}>
+                  <Text style={styles.priceLabel}>Estimated Total</Text>
+                  <Text style={styles.totalPrice}>₹{calculateTotal()}</Text>
+                </View>
+                <AnimatedButton
+                  style={[
+                    styles.addToCartButton,
+                    calculateTotal() === 0 ? styles.addToCartButtonDisabled : {}
+                  ]}
+                  onPress={handleAddToCart}
+                  disabled={calculateTotal() === 0}
                 >
-                  <Text style={styles.addToCartText}>Add to Cart</Text>
-                  <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={calculateTotal() === 0 ? ['#9CA3AF', '#6B7280'] : [COLORS.primary, COLORS.primaryDark]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.addToCartGradient}
+                  >
+                    <Text style={styles.addToCartText}>Add to Cart</Text>
+                    <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                  </LinearGradient>
+                </AnimatedButton>
+              </GlassCard>
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -1230,10 +1292,17 @@ const styles = StyleSheet.create({
   },
   imageHeader: {
     width: '100%',
-    height: 180,
-    backgroundColor: '#EEE7FF',
+    height: 260,
+    backgroundColor: COLORS.service1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 0, // Behind scrollview
+    overflow: 'hidden', // Clip image when shrinking
   },
   headerImage: {
+    // Removed fixed height, handled by Animated View
     width: '100%',
     height: '100%',
   },
@@ -1246,66 +1315,67 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     position: 'absolute',
-    right: SPACING.md,
-    zIndex: 10,
+    right: 20,
+    zIndex: 100, // On top of everything
   },
   closeIconBg: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.9)',
     alignItems: 'center',
     justifyContent: 'center',
     ...SHADOWS.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   scrollView: {
     flex: 1,
-    overflow: 'visible',
-    zIndex: 10, // Ensure content scrolls OVER the header image
+    zIndex: 10,
+    backgroundColor: 'transparent', // Transparent to see parallax header behind
+    // Removed margin top as we use padding now
   },
   scrollContent: {
     paddingBottom: 100, // Fixed padding, dynamic added in render
+    paddingTop: 12,
   },
   serviceHeader: {
-    marginBottom: SPACING.sm,
-    paddingHorizontal: SPACING.lg, // moved padding here
+    marginBottom: 20,
+    paddingHorizontal: 24,
   },
   titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
+    alignItems: 'baseline',
+    marginBottom: 4,
   },
   serviceName: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#1A1A1A',
-    fontFamily: 'Outfit_800ExtraBold',
+    ...TYPOGRAPHY.display,
+    fontSize: 28,
+    color: COLORS.text,
   },
   timeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F3FF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    gap: 4,
+    backgroundColor: COLORS.accentPurple,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 6,
   },
   timeBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
+    ...TYPOGRAPHY.tiny,
     color: COLORS.primary,
-    fontFamily: 'Outfit_700Bold',
+    fontWeight: '800',
   },
   serviceDescription: {
-    fontSize: 15,
-    color: '#64748B',
+    ...TYPOGRAPHY.body,
+    color: COLORS.textSecondary,
     lineHeight: 22,
-    fontFamily: 'Outfit_400Regular',
   },
   section: {
     marginBottom: SPACING.xl,
-    paddingHorizontal: SPACING.lg, // moved padding here
+    paddingHorizontal: 24, // standardized to match header
   },
   sectionTitle: {
     fontSize: 18,
@@ -1538,6 +1608,7 @@ const styles = StyleSheet.create({
   photoThumbnail: {
     width: '100%',
     height: '100%',
+    borderRadius: 12,
   },
   removePhotoButton: {
     position: 'absolute',
@@ -1550,15 +1621,99 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+
+  // Premium Detail Styles
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    marginTop: 8,
+    paddingHorizontal: 24, // standardized padding
+  },
+  trustBadgeCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.service1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
+  },
+  trustBadgeText: {
+    ...TYPOGRAPHY.tiny,
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
+  premiumSection: {
+    marginBottom: 24,
+    paddingHorizontal: 24, // standardized padding
+  },
+  premiumSectionTitle: {
+    ...TYPOGRAPHY.subheading,
+    fontSize: 17,
+    color: COLORS.text,
+    marginBottom: 12,
+  },
+  weightPillsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  weightPill: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: COLORS.borderLight,
+    alignItems: 'center',
+    ...SHADOWS.sm,
+  },
+  weightPillSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.accentPurple,
+    ...SHADOWS.md,
+  },
+  weightPillLabel: {
+    ...TYPOGRAPHY.bodyBold,
+    fontSize: 18,
+    color: COLORS.text,
+    marginBottom: 2,
+  },
+  weightPillLabelSelected: {
+    color: COLORS.primary,
+  },
+  weightPillSub: {
+    ...TYPOGRAPHY.tiny,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
+  weightPillSubSelected: {
+    color: COLORS.primary,
+    opacity: 0.8,
+  },
   footer: {
     backgroundColor: '#FFFFFF',
     padding: SPACING.lg,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
+  },
+  floatingFooter: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    zIndex: 1000,
+  },
+  footerGlass: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    padding: 16,
+    paddingHorizontal: 20,
+    borderRadius: 24,
     ...SHADOWS.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
   },
   priceContainer: {
     flex: 1,

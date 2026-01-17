@@ -20,6 +20,8 @@ import { useAuthStore, useUIStore } from '../../store';
 import { trackPixelEvent } from '../../utils/pixel';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandLoader } from '../../components/BrandLoader';
+import { AnimatedButton } from '../../components/AnimatedButton';
+import { MotiView } from 'moti';
 
 export const OTPScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -43,6 +45,18 @@ export const OTPScreen: React.FC = () => {
     useRef<TextInput>(null),
   ];
 
+  // Ref for the hidden input (Web/Auto-fill support)
+  const hiddenInputRef = useRef<TextInput>(null);
+
+  // Focus the hidden input on mount
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      hiddenInputRef.current?.focus();
+    } else {
+      inputRefs[0].current?.focus();
+    }
+  }, []);
+
   useEffect(() => {
     if (resendCountdown > 0) {
       const timer = setTimeout(() => {
@@ -63,28 +77,26 @@ export const OTPScreen: React.FC = () => {
     }
   }, [otp]);
 
-  const handleOtpChange = (text: string, index: number) => {
-    if (text.length > 1) {
-      // Handle paste
-      const pastedOtp = text.slice(0, 6).split('');
-      const newOtp = [...otp];
-      pastedOtp.forEach((char, i) => {
-        if (index + i < 6) {
-          newOtp[index + i] = char;
-        }
-      });
-      setOtp(newOtp);
-      const lastFilledIndex = Math.min(index + pastedOtp.length - 1, 5);
+  const handleHiddenInputChange = (text: string) => {
+    // Sanitize input (digits only)
+    const sanitized = text.replace(/[^0-9]/g, '');
+    const code = sanitized.slice(0, 6).split('');
+    const newOtp = [...otp];
+    for (let i = 0; i < 6; i++) {
+      newOtp[i] = code[i] || '';
+    }
+    setOtp(newOtp);
+    setError('');
 
-      // If all 6 digits pasted, dismiss keyboard
-      if (newOtp.every(d => d !== '')) {
-        setTimeout(() => {
-          inputRefs[lastFilledIndex].current?.blur();
-          Keyboard.dismiss();
-        }, 100);
-      } else {
-        inputRefs[lastFilledIndex].current?.focus();
-      }
+    if (sanitized.length === 6) {
+      Keyboard.dismiss();
+    }
+  };
+
+  const handleOtpChange = (text: string, index: number) => {
+    // Only used for manual typing on specific boxes if hidden input fails
+    if (text.length > 1) {
+      handleHiddenInputChange(text);
       return;
     }
 
@@ -94,14 +106,9 @@ export const OTPScreen: React.FC = () => {
     setError('');
 
     if (text && index < 5) {
-      // Move to next input
       inputRefs[index + 1].current?.focus();
     } else if (text && index === 5) {
-      // Last digit entered - dismiss keyboard
-      setTimeout(() => {
-        inputRefs[index].current?.blur();
-        Keyboard.dismiss();
-      }, 100);
+      Keyboard.dismiss();
     }
   };
 
@@ -221,11 +228,16 @@ export const OTPScreen: React.FC = () => {
             </TouchableOpacity>
 
             {/* Illustration */}
-            <View style={styles.illustrationContainer}>
+            <MotiView
+              from={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 200, type: 'timing', duration: 800 }}
+              style={styles.illustrationContainer}
+            >
               <View style={styles.iconCircle}>
                 <Ionicons name="lock-closed" size={64} color={COLORS.primary} />
               </View>
-            </View>
+            </MotiView>
 
             <Text style={styles.heading}>Verify OTP</Text>
             <Text style={styles.subtitle}>
@@ -234,32 +246,34 @@ export const OTPScreen: React.FC = () => {
             </Text>
 
             <View style={styles.otpContainer}>
+              {/* Hidden Input for Auto-fill (Web & Mobile) */}
+              <TextInput
+                ref={hiddenInputRef}
+                style={styles.hiddenInput}
+                value={otp.join('')}
+                onChangeText={handleHiddenInputChange}
+                keyboardType="number-pad"
+                maxLength={6}
+                textContentType="oneTimeCode"
+                autoComplete="one-time-code"
+                caretHidden={true}
+                autoFocus={true} // Auto-focus on mount
+              />
+
               {otp.map((digit, index) => (
-                <TextInput
+                <TouchableOpacity
+                  activeOpacity={1}
                   key={index}
-                  ref={inputRefs[index]}
+                  onPress={() => hiddenInputRef.current?.focus()}
                   style={[
                     styles.otpInput,
                     error && styles.otpInputError,
                     digit && styles.otpInputFilled,
                     isOtpComplete && styles.otpInputComplete,
                   ]}
-                  value={digit}
-                  onChangeText={(text) => handleOtpChange(text, index)}
-                  onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index)}
-                  keyboardType="number-pad"
-                  maxLength={1}
-                  selectTextOnFocus
-                  returnKeyType={index === 5 ? 'done' : 'next'}
-                  onSubmitEditing={() => {
-                    if (index < 5) {
-                      inputRefs[index + 1].current?.focus();
-                    } else {
-                      Keyboard.dismiss();
-                    }
-                  }}
-                  blurOnSubmit={index === 5}
-                />
+                >
+                  <Text style={styles.otpDigit}>{digit}</Text>
+                </TouchableOpacity>
               ))}
             </View>
 
@@ -289,11 +303,10 @@ export const OTPScreen: React.FC = () => {
               )}
             </View>
 
-            <TouchableOpacity
+            <AnimatedButton
               onPress={handleVerify}
               disabled={!isOtpComplete || loading}
               style={styles.verifyButton}
-              activeOpacity={0.8}
             >
               <LinearGradient
                 colors={isOtpComplete ? [COLORS.gradientStart, COLORS.gradientEnd] : [COLORS.disabled, COLORS.disabled]}
@@ -304,7 +317,7 @@ export const OTPScreen: React.FC = () => {
                 <Text style={styles.verifyButtonText}>Verify</Text>
                 <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" style={styles.verifyIcon} />
               </LinearGradient>
-            </TouchableOpacity>
+            </AnimatedButton>
 
             {resendAttempts >= 3 && (
               <TouchableOpacity style={styles.supportButton}>
@@ -482,5 +495,19 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     marginLeft: SPACING.xs,
     fontWeight: '600',
+  },
+  hiddenInput: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    opacity: 0,
+    zIndex: 10,
+  },
+  otpDigit: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: COLORS.text,
+    textAlign: 'center',
+    lineHeight: 60,
   },
 });

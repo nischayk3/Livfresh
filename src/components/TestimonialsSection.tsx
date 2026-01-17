@@ -47,7 +47,7 @@ const TESTIMONIALS = [
     {
         id: '6',
         name: 'Vikram Singh',
-        location: 'Electronic City, Bangalore',
+        location: 'Tavarekere, Bangalore',
         rating: 4.5,
         text: "Quick pickup and delivery. Essential service for bachelors!",
         service: 'Wash & Fold'
@@ -59,7 +59,7 @@ export const TestimonialsSection: React.FC = () => {
         <View style={styles.container}>
             <View style={styles.header}>
                 <Text style={styles.title}>What our customers say</Text>
-                <Text style={styles.subtitle}>Trusted by 5,000+ happy families</Text>
+                <Text style={styles.subtitle}>Trusted by 2000+ happy families</Text>
             </View>
 
             <ScrollView
@@ -67,7 +67,7 @@ export const TestimonialsSection: React.FC = () => {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
                 decelerationRate="fast"
-                snapToInterval={300 + 16} // width + margin
+                snapToInterval={Dimensions.get('window').width * 0.65 + 12} // Updated for new width
             >
                 {TESTIMONIALS.map((item) => (
                     <View key={item.id} style={styles.card}>
@@ -92,7 +92,7 @@ export const TestimonialsSection: React.FC = () => {
                             ))}
                         </View>
 
-                        <Text style={styles.reviewText} numberOfLines={3}>"{item.text}"</Text>
+                        <Text style={styles.reviewText} numberOfLines={2}>"{item.text}"</Text>
 
                         <View style={styles.footer}>
                             <View style={styles.verifiedBadge}>
@@ -102,15 +102,17 @@ export const TestimonialsSection: React.FC = () => {
                             <Text style={styles.serviceTag}>{item.service}</Text>
                         </View>
                     </View>
-                ))}
-            </ScrollView>
-        </View>
+                ))
+                }
+            </ScrollView >
+        </View >
     );
 };
 
 const styles = StyleSheet.create({
     container: {
-        marginVertical: SPACING.lg,
+        marginTop: SPACING.sm,
+        marginBottom: SPACING.xl, // Add spacing before FAQ
     },
     header: {
         paddingHorizontal: SPACING.md,
@@ -132,7 +134,7 @@ const styles = StyleSheet.create({
         paddingBottom: SPACING.sm, // space for shadow
     },
     card: {
-        width: Dimensions.get('window').width * 0.75, // 75% of screen width
+        width: Dimensions.get('window').width * 0.65, // Compact cards, 65% of screen
         backgroundColor: COLORS.white,
         borderRadius: RADIUS.lg,
         padding: SPACING.md,
@@ -147,18 +149,18 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     avatarPlaceholder: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: '#F3F4F6',
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: COLORS.primaryLight,
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 10,
+        marginRight: 12,
     },
     avatarText: {
         fontSize: 16,
         fontWeight: '700',
-        color: COLORS.primary,
+        color: '#FFFFFF',
     },
     userInfo: {
         flex: 1,

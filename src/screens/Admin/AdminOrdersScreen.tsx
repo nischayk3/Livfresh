@@ -409,7 +409,7 @@ export const AdminOrdersScreen: React.FC = () => {
     setEditOrderModalVisible(true);
   };
 
-  const handleSaveEditedOrder = async (updatedItems: any[], newTotal: number) => {
+  const handleSaveEditedOrder = async (updatedItems: any[], itemTotal: number, discount: number, grandTotal: number) => {
     if (!selectedOrder) return;
 
     setProcessing(true);
@@ -421,12 +421,12 @@ export const AdminOrdersScreen: React.FC = () => {
         {
           additionalData: {
             items: updatedItems,
-            totalAmount: newTotal,
+            totalAmount: grandTotal,
             billDetails: {
-              // Update bill details structure if it exists, roughly
               ...(selectedOrder.billDetails || {}),
-              total: newTotal,
-              subtotal: newTotal // assuming no tax split for now or simplified
+              itemTotal: itemTotal,
+              discount: discount,
+              total: grandTotal
             }
           }
         }
@@ -1258,13 +1258,18 @@ export const AdminOrdersScreen: React.FC = () => {
 
 const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) => {
   const [items, setItems] = useState<any[]>([]);
-  const [totalAmount, setTotalAmount] = useState(0);
+  const [itemTotal, setItemTotal] = useState(0);
+  const [discount, setDiscount] = useState(0);
+  const [grandTotal, setGrandTotal] = useState(0);
 
   useEffect(() => {
     if (order && order.items) {
       // Deep copy items to avoid direct mutation
       setItems(JSON.parse(JSON.stringify(order.items)));
-      setTotalAmount(order.billDetails?.total || order.totalAmount || 0);
+      setDiscount(order.billDetails?.discount || 0);
+      const initialItemTotal = order.billDetails?.itemTotal || order.totalAmount || 0;
+      setItemTotal(initialItemTotal);
+      setGrandTotal(order.billDetails?.total || order.totalAmount || 0);
     }
   }, [order]);
 
@@ -1308,9 +1313,10 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
 
   useEffect(() => {
     // Recalculate total whenever items change
-    const newTotal = items.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
-    setTotalAmount(newTotal);
-  }, [items]);
+    const newItemTotal = items.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
+    setItemTotal(newItemTotal);
+    setGrandTotal(newItemTotal - discount);
+  }, [items, discount]);
 
   const updateItem = (index: number, updates: any) => {
     const newItems = [...items];
@@ -1577,13 +1583,25 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
           padding: 16, backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: COLORS.borderLight,
           ...SHADOWS.lg
         }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <Text style={TYPOGRAPHY.subheading}>Updated Total</Text>
-            <Text style={{ ...TYPOGRAPHY.heading, color: COLORS.primary }}>₹{totalAmount}</Text>
+          <View style={{ gap: 4, marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={TYPOGRAPHY.bodySmall}>Item Total</Text>
+              <Text style={TYPOGRAPHY.bodySmall}>₹{itemTotal}</Text>
+            </View>
+            {discount > 0 && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={[TYPOGRAPHY.bodySmall, { color: COLORS.success }]}>Applied Discount</Text>
+                <Text style={[TYPOGRAPHY.bodySmall, { color: COLORS.success }]}>-₹{discount}</Text>
+              </View>
+            )}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, paddingTop: 4, borderTopWidth: 1, borderTopColor: COLORS.borderLight }}>
+              <Text style={TYPOGRAPHY.subheading}>Updated Total</Text>
+              <Text style={{ ...TYPOGRAPHY.heading, color: COLORS.primary }}>₹{grandTotal}</Text>
+            </View>
           </View>
           <TouchableOpacity
             style={{ backgroundColor: COLORS.primary, padding: 16, borderRadius: 12, alignItems: 'center' }}
-            onPress={() => onSave(items, totalAmount)}
+            onPress={() => onSave(items, itemTotal, discount, grandTotal)}
             disabled={processing}
           >
             {processing ? <ActivityIndicator color="#FFF" /> : <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>Save Changes</Text>}

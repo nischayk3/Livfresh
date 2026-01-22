@@ -34,6 +34,7 @@ import { TestimonialsSection } from '../../components/TestimonialsSection';
 import { HowItWorks } from '../../components/HowItWorks';
 import { GlassCard } from '../../components/GlassCard';
 import { AnimatedButton } from '../../components/AnimatedButton';
+import { ProcessVideoSection } from '../../components/ProcessVideoSection';
 
 const HOME_FAQS = [
   { question: "How does SpinZo's service work?", answer: "We pick up your clothes within 30 minutes, wash and fold them, and deliver them back within 6 hours. Simple, fast, and hassle-free." },
@@ -287,7 +288,7 @@ export const HomeScreen: React.FC = () => {
     setHeaderHeight(event.nativeEvent.layout.height);
   };
 
-  const STICKY_HEADER_HEIGHT = insets.top + 60; // Estimated height for sticky bar
+  const STICKY_HEADER_HEIGHT = insets.top + 80; // Increased height for address pill
 
   return (
     <View style={styles.container}>
@@ -526,6 +527,9 @@ export const HomeScreen: React.FC = () => {
         {/* How It Works */}
         <HowItWorks />
 
+        {/* Brand Video Process */}
+        <ProcessVideoSection />
+
         {/* Testimonials */}
         <TestimonialsSection />
 
@@ -591,7 +595,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20, // Reduced from 24
+    // marginBottom: 20, // Removed to let fixed height handle spacing
   },
   addressPill: {
     flexDirection: 'row',

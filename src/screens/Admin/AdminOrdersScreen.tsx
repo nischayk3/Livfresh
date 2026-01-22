@@ -763,7 +763,7 @@ export const AdminOrdersScreen: React.FC = () => {
               <Text style={styles.slotText}>
                 Pickup: {item.pickupDetails.scheduledDate || 'Today'} • {
                   (item.pickupDetails.type === 'instant' || item.pickupDetails.isInstant)
-                    ? (() => {
+                    ? (item.pickupDetails.scheduledTime || (() => {
                       const createdAt = item.createdAt;
                       let date: Date | null = null;
                       if (createdAt?.toDate) date = createdAt.toDate();
@@ -771,7 +771,7 @@ export const AdminOrdersScreen: React.FC = () => {
                       else if (createdAt instanceof Date) date = createdAt;
 
                       return date ? getSlotFromDate(date) : 'Anytime';
-                    })()
+                    })())
                     : (item.pickupDetails.scheduledTime || 'Anytime')
                 }
               </Text>

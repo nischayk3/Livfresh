@@ -315,33 +315,27 @@ export const CartScreen: React.FC = () => {
             // Items in cart already contain valid persistent Firebase URLs.
             const itemsWithPhotoUrls = items;
 
-            // Pre-calculate slot for Instant Pickup for better data consistency
             let instantSlot = null;
             if (pickupType === 'instant') {
                 const now = new Date();
-                const bufferTime = addMinutes(now, MIN_BUFFER_MINS);
 
-                // Find the first slot that starts STRICTLY after the buffer time.
-                // If buffer is 4:30, we want the slot starting at 4:30 (4:30-5:00) or later.
-                const firstAvailable = timeSlots.find(slot => {
+                // STRICT NEXT SLOT LOGIC:
+                // Find the first slot where the Start Time is strictly after ANY current time.
+                // e.g. 13:01 -> Next slot starting at 13:30.
+                // e.g. 13:29 -> Next slot starting at 13:30.
+                // e.g. 13:30 -> Next slot starting at 14:00.
+                const nextSlot = timeSlots.find(slot => {
                     const [startStr] = slot.split(' - ');
                     const [h, m] = startStr.split(':').map(Number);
                     const slotStartTime = new Date();
                     slotStartTime.setHours(h, m, 0, 0);
 
-                    // Logic: The slot must be valid if it starts >= bufferTime.
-                    // e.g. Buffer 16:30. Slot 16:30. 16:30 >= 16:30 -> True.
-                    // e.g. Buffer 16:31. Slot 16:30. 16:30 >= 16:31 -> False.
-                    return isAfter(slotStartTime, bufferTime) || slotStartTime.getTime() === bufferTime.getTime();
+                    return isAfter(slotStartTime, now);
                 });
 
-                // Fallback logic specific for Instant:
-                // If NO slot is found (e.g. it's 7:20 PM, buffer 7:40 PM, last slot 8:00 PM is too late?),
-                // we should probably check if we can squeeze it in or show a better error.
-                // For now, if instant is requested but undefined, fallback to the *very next* physical slot 
-                // regardless of buffer if it's within operational hours, OR fail gracefully.
-
-                instantSlot = firstAvailable || timeSlots[timeSlots.length - 1];
+                // Fail-safe: if too late (e.g. 8:50 PM), take the last slot or let backend handle/reject.
+                // For MVP we just default to last slot if nothing found, but operational checks should prevent this earlier.
+                instantSlot = nextSlot || timeSlots[timeSlots.length - 1];
             }
 
             const orderData = {

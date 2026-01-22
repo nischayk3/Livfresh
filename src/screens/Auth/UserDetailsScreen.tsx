@@ -31,6 +31,7 @@ export const UserDetailsScreen: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [gender, setGender] = useState<GenderOption | ''>('');
+  const [referralCode, setReferralCode] = useState('');
   const [loading, setLoading] = useState(false);
 
   const genderOptions: { value: GenderOption; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
@@ -70,7 +71,7 @@ export const UserDetailsScreen: React.FC = () => {
 
       // 1. Create user in Firestore
       const { createUser } = await import('../../services/firestore');
-      await createUser(currentUid, currentPhone, name, email || undefined, gender || undefined);
+      await createUser(currentUid, currentPhone, name, email || undefined, gender || undefined, referralCode.trim());
 
       // 2. Update local store - this will trigger RootNavigator to show Main
       useAuthStore.getState().setUser({
@@ -78,6 +79,7 @@ export const UserDetailsScreen: React.FC = () => {
         phone: currentPhone,
         name,
         email: email || '',
+        referralCode: referralCode.trim(),
         subscriptionStatus: 'inactive',
       } as any);
 
@@ -201,6 +203,27 @@ export const UserDetailsScreen: React.FC = () => {
                   </TouchableOpacity>
                 ))}
               </View>
+            </View>
+
+            {/* Referral Code */}
+            <View style={styles.inputWrapper}>
+              <Text style={styles.label}>Referral Code (Optional)</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="ticket-outline" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter referral code"
+                  value={referralCode}
+                  onChangeText={(text) => setReferralCode(text.toUpperCase())}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  maxLength={10}
+                  placeholderTextColor={COLORS.textLight}
+                />
+              </View>
+              <Text style={[TYPOGRAPHY.caption, { color: COLORS.textSecondary, marginTop: 4, marginLeft: 2 }]}>
+                Have a code from our pamphlets? Enter it here.
+              </Text>
             </View>
           </View>
 

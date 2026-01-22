@@ -160,6 +160,8 @@ export const AdminDashboardScreen: React.FC = () => {
         'Pickup Date',
         'Delivery Date',
         'Amount Paid',
+        'Frequency',
+        'Referral Code',
         'Payment Status',
         'Order Status',
       ];
@@ -169,19 +171,21 @@ export const AdminDashboardScreen: React.FC = () => {
           ? order.createdAt.toDate().toLocaleDateString('en-IN')
           : new Date(order.createdAt).toLocaleDateString('en-IN');
 
-        const address = order.address
-          ? `${order.address.addressLine || ''}, ${order.address.city || ''} - ${order.address.pincode || ''}`
-          : 'N/A';
+        // Robust Date retrieval
+        const pickupDate = order.pickupDate || order.pickupDetails?.scheduledDate || 'N/A';
+        const deliveryDate = order.deliveryDate || order.deliveryDetails?.scheduledDate || 'N/A';
 
         return [
           orderDate,
           order.customerName || 'N/A',
           order.customerPhone || 'N/A',
-          address,
+          order.formattedAddress || 'N/A',
           order.items?.map((i: any) => i.serviceName || i.name).join(', ') || 'N/A',
-          order.pickupDate || 'N/A',
-          order.deliveryDate || 'N/A',
-          order.totalAmount || 0,
+          pickupDate,
+          deliveryDate,
+          order.calculatedAmount || order.totalAmount || 0,
+          order.orderFrequency || 'N/A',
+          order.referralCode || '',
           order.paymentStatus || 'pending',
           order.status || 'N/A',
         ];

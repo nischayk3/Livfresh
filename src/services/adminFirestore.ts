@@ -466,37 +466,97 @@ export const getRevenue = async (startDate: Date, endDate: Date): Promise<{
     const ordersSnap = await getDocs(ordersQuery);
     const seenOrderIds = new Set<string>();
 
-    ordersSnap.docs.forEach((orderDoc) => {
+    // Mapping for frequency calculation
+    const userToOrders: Record<string, any[]> = {};
+    const userProfiles: Record<string, any> = {};
+
+    // First pass: Group all orders by user to calculate frequency later
+    ordersSnap.docs.forEach((doc) => {
+      const order = doc.data();
+      const userId = order.userId || doc.ref.parent.parent?.id;
+      if (!userId) return;
+
+      if (!userToOrders[userId]) userToOrders[userId] = [];
+      userToOrders[userId].push({
+        id: doc.id,
+        createdAt: getTime(order.createdAt || order.created_at),
+        ...order
+      });
+    });
+
+    // Sort user orders by date to determine sequence
+    Object.keys(userToOrders).forEach(uid => {
+      userToOrders[uid].sort((a, b) => a.createdAt - b.createdAt);
+    });
+
+    // Second pass: Filter orders in range and enrich
+    for (const orderDoc of ordersSnap.docs) {
       const orderId = orderDoc.id;
-      if (seenOrderIds.has(orderId)) return;
+      if (seenOrderIds.has(orderId)) continue;
 
       const order = orderDoc.data();
       const orderCreatedAt = order.createdAt || order.created_at;
-      if (!orderCreatedAt) return;
+      if (!orderCreatedAt) continue;
 
       const orderTime = getTime(orderCreatedAt);
 
       if (orderTime >= startTime && orderTime <= endTime) {
         const status = order.status || 'pending';
-
-        // Exclude cancelled orders from revenue calculations
-        if (status === 'cancelled') return;
+        if (status === 'cancelled') continue;
 
         seenOrderIds.add(orderId);
-        // Robust amount check: order.billDetails.total is preferred for new orders
+        const userId = order.userId || orderDoc.ref.parent.parent?.id;
+
+        // Fetch user profile if not cached
+        if (userId && !userProfiles[userId]) {
+          try {
+            const userSnap = await getDoc(doc(db, 'users', userId));
+            if (userSnap.exists()) {
+              userProfiles[userId] = userSnap.data();
+            }
+          } catch (e) {
+            console.warn(`[Revenue] Failed to fetch user ${userId}`);
+          }
+        }
+
+        const user = userProfiles[userId] || {};
         const amount = order.billDetails?.total || order.totalAmount || order.total || 0;
+
+        // Calculate frequency
+        const userOrders = userToOrders[userId] || [];
+        const sequence = userOrders.findIndex(o => o.id === orderId) + 1;
+        const frequency = sequence === 1 ? 'First time user' : `${sequence}${getOrdinalSuffix(sequence)} user`;
+
         orderRevenue += amount;
         orderCount++;
 
         orders.push({
           id: orderDoc.id,
-          userId: order.userId || orderDoc.ref.parent.parent?.id,
-          customerName: order.customerName || 'Unknown',
-          ...order,
-          calculatedAmount: amount
+          userId: userId,
+          customerName: user.name || order.customerName || 'Unknown',
+          customerPhone: user.phone || order.customerPhone || 'N/A',
+          referralCode: user.referralCode || order.referralCode || '',
+          orderFrequency: frequency,
+          calculatedAmount: amount,
+          // Robust address parsing
+          formattedAddress: order.address
+            ? (typeof order.address === 'string'
+              ? order.address
+              : `${order.address.houseNo || ''} ${order.address.addressLine || ''}, ${order.address.area || order.address.landmark || ''}, ${order.address.city || ''} - ${order.address.pincode || ''}`.replace(/,\s*,/g, ',').trim())
+            : 'N/A',
+          ...order
         });
       }
-    });
+    }
+
+    // Helper for ordinals
+    function getOrdinalSuffix(i: number) {
+      const j = i % 10, k = i % 100;
+      if (j === 1 && k !== 11) return "st";
+      if (j === 2 && k !== 12) return "nd";
+      if (j === 3 && k !== 13) return "rd";
+      return "th";
+    }
 
     // 2. Calculate Subscription Revenue (Collection Group)
     const subsQuery = query(collectionGroup(db, 'subscriptions'));

@@ -135,7 +135,8 @@ export const createUser = async (
   phone: string,
   name: string,
   email?: string,
-  gender?: string
+  gender?: string,
+  referralCode?: string
 ) => {
   try {
     const userRef = doc(db, 'users', userId);
@@ -144,6 +145,7 @@ export const createUser = async (
       name,
       email: email || '',
       gender: gender || '',
+      referralCode: referralCode || '',
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     });

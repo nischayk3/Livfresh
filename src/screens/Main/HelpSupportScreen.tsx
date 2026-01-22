@@ -1,18 +1,35 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Linking, TextInput, Alert, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Linking, TextInput, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, RADIUS, TYPOGRAPHY } from '../../utils/constants';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS, SPACING, RADIUS, TYPOGRAPHY, SHADOWS } from '../../utils/constants';
 import { useUIStore } from '../../store';
+import { BrandHeader } from '../../components/BrandHeader';
 
 export const HelpSupportScreen: React.FC = () => {
     const navigation = useNavigation();
+    const insets = useSafeAreaInsets();
     const { showAlert } = useUIStore();
     const SUPPORT_PHONE = '+91 7676878832';
     const [message, setMessage] = useState('');
 
     const handleCallSupport = () => {
         Linking.openURL(`tel:${SUPPORT_PHONE.replace(/\s/g, '')}`);
+    };
+
+    const handleWhatsAppSupport = () => {
+        const whatsappUrl = `whatsapp://send?phone=${SUPPORT_PHONE.replace(/\D/g, '')}&text=${encodeURIComponent('Hi Spinit Team, I need help with...')}`;
+        const webUrl = `https://wa.me/${SUPPORT_PHONE.replace(/\D/g, '')}?text=${encodeURIComponent('Hi Spinit Team, I need help with...')}`;
+
+        Linking.canOpenURL(whatsappUrl).then(supported => {
+            if (supported) {
+                Linking.openURL(whatsappUrl);
+            } else {
+                Linking.openURL(webUrl);
+            }
+        });
     };
 
     const handleSendMessage = () => {
@@ -25,7 +42,6 @@ export const HelpSupportScreen: React.FC = () => {
             return;
         }
 
-        // Mock sending message
         showAlert({
             title: 'Message Sent',
             message: 'We have received your query. Our support team will contact you shortly.',
@@ -36,55 +52,86 @@ export const HelpSupportScreen: React.FC = () => {
 
     return (
         <View style={styles.container}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Help & Support</Text>
-            </View>
+            <LinearGradient
+                colors={[COLORS.pageBg, '#FFFFFF']}
+                style={StyleSheet.absoluteFill}
+            />
+
+            <BrandHeader title="Help & Support" />
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 style={{ flex: 1 }}
             >
-                <ScrollView contentContainerStyle={styles.content}>
+                <ScrollView
+                    contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
+                    showsVerticalScrollIndicator={false}
+                >
+                    <View style={styles.introSection}>
+                        <Text style={styles.introTitle}>How can we help today?</Text>
+                        <Text style={styles.introSubtitle}>Our team is here to ensure your experience is flawless.</Text>
+                    </View>
 
-                    {/* Call Card */}
-                    <View style={styles.card}>
-                        <View style={styles.iconContainer}>
-                            <Ionicons name="call" size={24} color={COLORS.primary} />
-                        </View>
-                        <View style={styles.cardText}>
-                            <Text style={styles.cardTitle}>Call Us Directly</Text>
-                            <Text style={styles.cardSubtitle}>Get immediate assistance</Text>
-                            <Text style={styles.phoneNumber}>{SUPPORT_PHONE}</Text>
-                        </View>
-                        <TouchableOpacity style={styles.callButton} onPress={handleCallSupport}>
-                            <Text style={styles.callButtonText}>Call Now</Text>
+                    <View style={styles.contactContainer}>
+                        {/* Call Card */}
+                        <TouchableOpacity
+                            style={styles.contactCard}
+                            onPress={handleCallSupport}
+                            activeOpacity={0.9}
+                        >
+                            <View style={[styles.iconWrapper, { backgroundColor: COLORS.primaryLight }]}>
+                                <Ionicons name="call" size={20} color={COLORS.primary} />
+                            </View>
+                            <View style={styles.contactInfo}>
+                                <Text style={styles.contactTitle}>Call Us Directly</Text>
+                                <Text style={styles.contactValue}>{SUPPORT_PHONE}</Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={20} color={COLORS.textLight} />
+                        </TouchableOpacity>
+
+                        {/* WhatsApp Card */}
+                        <TouchableOpacity
+                            style={styles.contactCard}
+                            onPress={handleWhatsAppSupport}
+                            activeOpacity={0.9}
+                        >
+                            <View style={[styles.iconWrapper, { backgroundColor: '#E8F5E9' }]}>
+                                <Ionicons name="logo-whatsapp" size={20} color="#2E7D32" />
+                            </View>
+                            <View style={styles.contactInfo}>
+                                <Text style={styles.contactTitle}>Chat on WhatsApp</Text>
+                                <Text style={styles.contactValue}>Fast response time</Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={20} color={COLORS.textLight} />
                         </TouchableOpacity>
                     </View>
 
-                    <Text style={styles.sectionDivider}>OR</Text>
+                    <View style={styles.messageSection}>
+                        <Text style={styles.formLabel}>Drop us a message</Text>
+                        <View style={styles.inputWrapper}>
+                            <TextInput
+                                style={styles.textInput}
+                                multiline
+                                placeholder="Tell us what's on your mind..."
+                                placeholderTextColor={COLORS.textLight}
+                                value={message}
+                                onChangeText={setMessage}
+                                textAlignVertical="top"
+                            />
+                        </View>
 
-                    {/* Message Input */}
-                    <Text style={styles.formLabel}>Send us a message</Text>
-                    <View style={styles.inputContainer}>
-                        <TextInput
-                            style={styles.textInput}
-                            multiline
-                            placeholder="Describe your issue or query..."
-                            placeholderTextColor={COLORS.textLight}
-                            value={message}
-                            onChangeText={setMessage}
-                            textAlignVertical="top"
-                        />
+                        <TouchableOpacity onPress={handleSendMessage}>
+                            <LinearGradient
+                                colors={['#1A1A1A', '#333333']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={styles.sendButton}
+                            >
+                                <Text style={styles.sendButtonText}>Send Inquiry</Text>
+                                <Ionicons name="send" size={16} color="#FFF" />
+                            </LinearGradient>
+                        </TouchableOpacity>
                     </View>
-
-                    <TouchableOpacity style={styles.sendButton} onPress={handleSendMessage}>
-                        <Text style={styles.sendButtonText}>Send Message</Text>
-                        <Ionicons name="send" size={16} color="#FFF" />
-                    </TouchableOpacity>
-
                 </ScrollView>
             </KeyboardAvoidingView>
         </View>
@@ -94,112 +141,104 @@ export const HelpSupportScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.background,
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingTop: 60,
-        paddingHorizontal: SPACING.md,
-        paddingBottom: SPACING.md,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.borderLight,
-    },
-    backButton: {
-        marginRight: SPACING.md,
-    },
-    headerTitle: {
-        ...TYPOGRAPHY.subheading,
-        fontWeight: '700',
+        backgroundColor: COLORS.pageBg,
     },
     content: {
         padding: SPACING.lg,
     },
-    card: {
-        backgroundColor: COLORS.cardBg,
-        borderRadius: RADIUS.lg,
-        padding: SPACING.lg,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: COLORS.borderLight,
+    introSection: {
+        marginTop: SPACING.md,
         marginBottom: SPACING.xl,
     },
-    iconContainer: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        backgroundColor: COLORS.primaryLight,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: SPACING.md,
-    },
-    cardText: {
-        alignItems: 'center',
-        marginBottom: SPACING.lg,
-    },
-    cardTitle: {
-        ...TYPOGRAPHY.bodyBold,
-        fontSize: 16,
-        marginBottom: 4,
-    },
-    cardSubtitle: {
-        color: COLORS.textSecondary,
-        fontSize: 14,
+    introTitle: {
+        fontSize: 24,
+        fontWeight: '800',
+        fontFamily: 'Outfit_800ExtraBold',
+        color: COLORS.text,
         marginBottom: 8,
     },
-    phoneNumber: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: COLORS.text,
+    introSubtitle: {
+        fontSize: 15,
+        color: COLORS.textSecondary,
+        fontFamily: 'Outfit_400Regular',
+        lineHeight: 22,
     },
-    callButton: {
-        backgroundColor: COLORS.primary,
-        paddingHorizontal: 24,
-        paddingVertical: 10,
-        borderRadius: RADIUS.xl,
-        width: '100%',
+    contactContainer: {
+        gap: 16,
+        marginBottom: SPACING.xxl,
+    },
+    contactCard: {
+        flexDirection: 'row',
         alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        padding: 16,
+        ...SHADOWS.md,
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
     },
-    callButtonText: {
-        color: '#FFF',
-        fontWeight: '600',
+    iconWrapper: {
+        width: 44,
+        height: 44,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 16,
     },
-    sectionDivider: {
-        textAlign: 'center',
-        color: COLORS.textLight,
+    contactInfo: {
+        flex: 1,
+    },
+    contactTitle: {
+        fontSize: 13,
+        color: COLORS.textSecondary,
+        fontFamily: 'Outfit_500Medium',
+        marginBottom: 2,
+    },
+    contactValue: {
+        fontSize: 16,
+        color: COLORS.text,
+        fontFamily: 'Outfit_700Bold',
         fontWeight: '700',
-        marginVertical: SPACING.md,
+    },
+    messageSection: {
+        marginTop: SPACING.lg,
     },
     formLabel: {
-        ...TYPOGRAPHY.bodyBold,
-        marginBottom: SPACING.sm,
+        fontSize: 16,
+        fontWeight: '700',
+        color: COLORS.text,
+        fontFamily: 'Outfit_700Bold',
+        marginBottom: 12,
     },
-    inputContainer: {
-        backgroundColor: COLORS.background,
+    inputWrapper: {
+        backgroundColor: '#FFFFFF',
         borderWidth: 1,
-        borderColor: COLORS.borderLight,
-        borderRadius: RADIUS.md,
-        padding: SPACING.md,
-        minHeight: 120,
-        marginBottom: SPACING.lg,
+        borderColor: '#F1F5F9',
+        borderRadius: 20,
+        padding: 16,
+        minHeight: 160,
+        marginBottom: 20,
+        ...SHADOWS.sm,
     },
     textInput: {
         flex: 1,
-        fontSize: 16,
+        fontSize: 15,
         color: COLORS.text,
+        fontFamily: 'Outfit_400Regular',
     },
     sendButton: {
-        backgroundColor: COLORS.text, // Dark button for contrast
-        paddingVertical: 16,
-        borderRadius: RADIUS.xl,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
+        paddingVertical: 16,
+        borderRadius: 20,
+        gap: 10,
+        ...SHADOWS.md,
     },
     sendButtonText: {
         color: '#FFF',
-        fontWeight: '700',
+        fontWeight: '800',
         fontSize: 16,
+        fontFamily: 'Outfit_800ExtraBold',
     },
 });

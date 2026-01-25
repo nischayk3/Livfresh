@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -59,6 +59,13 @@ const BLANKET_WASH_FAQS = [
   { question: "What types of blankets do you accept?", answer: "We accept single and double blankets of all materials." },
   { question: "How long does Blanket Wash take?", answer: "Most blanket wash orders are delivered within 6-12 hours." },
   { question: "Do you clean heavy duvets / quilts?", answer: "Yes, but pricing may vary depending on thickness." },
+];
+
+const IRONING_FAQS = [
+  { question: "What is the minimum order for Ironing?", answer: "We require a minimum of 20 pieces for a standalone Steam Ironing service." },
+  { question: "What is the price per cloth?", answer: "Steam Ironing is priced at ₹15 per piece." },
+  { question: "Is there a delivery fee?", answer: "For standalone Ironing orders, a ₹50 pickup and delivery fee is charged. This is waived if combined with other services." },
+  { question: "How long does it take?", answer: "Ironing orders are usually delivered within 24-48 hours." },
 ];
 
 // Helper for Cross-Platform Image Compression & Resizing
@@ -115,6 +122,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       let serviceName = 'Service';
       if (serviceId === 'wash_fold') serviceName = 'Wash & Fold';
       else if (serviceId === 'wash_iron') serviceName = 'Wash & Iron';
+      else if (serviceId === 'ironing') serviceName = 'Steam Iron';
       else if (serviceId === 'blanket_wash') serviceName = 'Blanket Wash';
 
       trackPixelEvent('ViewContent', {
@@ -138,6 +146,9 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   // Blanket Wash state - Separated
   const [singleBlanketCount, setSingleBlanketCount] = useState(0);
   const [doubleBlanketCount, setDoubleBlanketCount] = useState(0);
+
+  // Ironing state
+  const [ironingCount, setIroningCount] = useState(20); // Min 20 as requested
 
   // Shoe Cleaning state
   const [shoeSelections, setShoeSelections] = useState<Record<string, number>>({
@@ -176,6 +187,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       const defaultServices: Record<string, any> = {
         'wash_fold': { id: 'wash_fold', name: 'Wash & Fold', description: 'Regular wash and fold service' },
         'wash_iron': { id: 'wash_iron', name: 'Wash & Iron', description: 'Wash, dry, and iron service' },
+        'ironing': { id: 'ironing', name: 'Steam Iron', description: 'Professional steam ironing for your clothes' },
         'blanket_wash': { id: 'blanket_wash', name: 'Blanket Wash', description: 'Professional blanket cleaning' },
         'shoe_clean': { id: 'shoe_clean', name: 'Shoe Cleaning', description: 'Professional shoe cleaning service' },
         'dry_clean': { id: 'dry_clean', name: 'Dry Cleaning', description: 'Premium dry cleaning service' },
@@ -202,6 +214,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   const SERVICE_IMAGES: Record<string, any> = {
     'wash_fold': require('../../../assets/services/wash_fold.png'),
     'wash_iron': require('../../../assets/services/wash_iron.png'),
+    'ironing': require('../../../assets/services/ironing.png'),
     'blanket_wash': require('../../../assets/services/blanket_wash.png'),
     // Fallbacks or future services can use existing assets or default
     'default': require('../../../assets/laundry_illustration.png'),
@@ -479,6 +492,10 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       return singlePrice + doublePrice;
     }
 
+    if (serviceId === 'ironing') {
+      return ironingCount * 15;
+    }
+
     // ... (Shoe/Dry Clean Logic remains same)
 
     return 0;
@@ -557,6 +574,17 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       }
     }
 
+    if (serviceId === 'ironing') {
+      if (ironingCount < 20) {
+        showAlert({
+          title: 'Minimum Required',
+          message: 'Minimum 20 pieces required for Steam Ironing',
+          type: 'warning'
+        });
+        return;
+      }
+    }
+
     const cartItem: CartItem = {
       id: '',
       vendorId: vendorId || 'default',
@@ -596,6 +624,13 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       cartItem.description = parts.join(', ');
       cartItem.singleBlanketCount = singleBlanketCount;
       cartItem.doubleBlanketCount = doubleBlanketCount;
+    }
+
+    if (serviceId === 'ironing') {
+      cartItem.ironingEnabled = true;
+      cartItem.ironingCount = ironingCount;
+      cartItem.ironingPrice = ironingCount * 15;
+      cartItem.clothesCount = ironingCount;
     }
 
     if (serviceId === 'premium_laundry') {
@@ -815,6 +850,80 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       </View>
     );
   };
+
+  const renderIroning = () => (
+    <View>
+      <View style={styles.section}>
+        <ServiceStats rating={4.9} reviewCount={1200} />
+
+        <GlassCard style={styles.premiumSelectorContainer}>
+          <Text style={styles.premiumSelectorTitle}>Select Quantity</Text>
+          <Text style={styles.premiumSelectorSubtitle}>Min 20 - Max 50 pieces</Text>
+
+          <View style={styles.counterWrapper}>
+            <TouchableOpacity
+              style={[styles.countBtn, ironingCount <= 20 && styles.countBtnDisabled]}
+              onPress={() => setIroningCount(Math.max(20, ironingCount - 1))}
+              disabled={ironingCount <= 20}
+              activeOpacity={0.6}
+            >
+              <MaterialCommunityIcons name="minus" size={24} color={ironingCount <= 20 ? '#CBD5E1' : '#7C3AED'} />
+            </TouchableOpacity>
+
+            <View style={styles.countDisplay}>
+              <Text style={styles.countText}>{ironingCount}</Text>
+              <Text style={styles.countLabel}>Pieces</Text>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.countBtn, ironingCount >= 50 && styles.countBtnDisabled]}
+              onPress={() => setIroningCount(Math.min(50, ironingCount + 1))}
+              disabled={ironingCount >= 50}
+              activeOpacity={0.6}
+            >
+              <MaterialCommunityIcons name="plus" size={24} color={ironingCount >= 50 ? '#CBD5E1' : '#7C3AED'} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.priceTag}>
+            <Text style={styles.priceTagText}>₹15 per piece</Text>
+          </View>
+        </GlassCard>
+
+        <View style={[styles.infoBox, { marginTop: SPACING.lg, backgroundColor: '#F5F3FF', borderColor: '#DDD6FE' }]}>
+          <MaterialCommunityIcons name="information" size={20} color="#7C3AED" style={{ marginRight: 8 }} />
+          <Text style={[styles.infoBoxText, { color: '#6D28D9' }]}>
+            Standalone ironing orders have a ₹50 pickup & delivery fee. Waived if combined with other services!
+          </Text>
+        </View>
+      </View>
+
+      {/* Special Instructions */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Special Instructions (optional)</Text>
+        <TextInput
+          style={styles.instructionsInput}
+          placeholder="Add any notes..."
+          placeholderTextColor={COLORS.textLight}
+          multiline
+          numberOfLines={4}
+          value={specialInstructions}
+          onChangeText={setSpecialInstructions}
+        />
+        {renderMediaButtons()}
+        {renderPhotoGallery()}
+      </View>
+
+      {/* Service Info */}
+      <ServiceInfo serviceId="ironing" />
+
+      {/* FAQs */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>FAQs</Text>
+        <FaqAccordion items={IRONING_FAQS} />
+      </View>
+    </View>
+  );
 
   const renderBlanketWash = () => (
     <View>
@@ -1110,6 +1219,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       <>
         {serviceId === 'wash_fold' && renderWashFold()}
         {serviceId === 'wash_iron' && renderWashIron()}
+        {serviceId === 'ironing' && renderIroning()}
         {serviceId === 'blanket_wash' && renderBlanketWash()}
         {serviceId === 'shoe_clean' && renderShoeCleaning()}
         {serviceId === 'dry_clean' && renderDryCleaning()}
@@ -1229,8 +1339,9 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
               {serviceId === 'wash_fold' && renderWashFold()}
               {serviceId === 'wash_iron' && renderWashIron()}
+              {serviceId === 'ironing' && renderIroning()}
               {serviceId === 'blanket_wash' && renderBlanketWash()}
-              {serviceId === 'premium_laundry' && renderWashFold()}
+              {serviceId === 'premium_laundry' && renderPremiumLaundry()}
               {serviceId === 'shoe_clean' && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Shoe Cleaning Options</Text>
@@ -1388,6 +1499,93 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748B',
     marginBottom: SPACING.sm,
+    fontFamily: 'Outfit_500Medium',
+  },
+  premiumSelectorContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: RADIUS.xl,
+    padding: SPACING.xl,
+    marginTop: SPACING.md,
+    alignItems: 'center',
+    ...SHADOWS.md,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  premiumSelectorTitle: {
+    fontSize: 18,
+    fontFamily: 'Outfit_700Bold',
+    color: '#1E293B',
+    marginBottom: 4,
+  },
+  premiumSelectorSubtitle: {
+    fontSize: 14,
+    fontFamily: 'Outfit_500Medium',
+    color: '#64748B',
+    marginBottom: SPACING.xl,
+  },
+  counterWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 32,
+  },
+  countBtn: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#F5F3FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+  },
+  countBtnDisabled: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#F1F5F9',
+  },
+  countDisplay: {
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  countText: {
+    fontSize: 48,
+    fontFamily: 'Outfit_700Bold',
+    color: '#7C3AED',
+  },
+  countLabel: {
+    fontSize: 12,
+    fontFamily: 'Outfit_600SemiBold',
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginTop: -4,
+  },
+  priceTag: {
+    marginTop: SPACING.xl,
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+  },
+  priceTagText: {
+    fontSize: 14,
+    fontFamily: 'Outfit_600SemiBold',
+    color: '#166534',
+  },
+  infoBox: {
+    flexDirection: 'row',
+    backgroundColor: '#F0F9FF',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  infoBoxText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#0369A1',
+    lineHeight: 18,
     fontFamily: 'Outfit_500Medium',
   },
   weightOption: {

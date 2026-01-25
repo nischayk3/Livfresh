@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
   useAnimatedScrollHandler,
@@ -102,6 +102,14 @@ const SERVICES = [
     icon: 'shirt-sharp',
     color: '#7C3AED',
     gradient: ['#EDE9FE', '#DDD6FE'],
+  },
+  {
+    id: 'ironing',
+    name: 'Steam Iron',
+    icon: 'iron',
+    iconFamily: 'MaterialCommunityIcons',
+    color: '#7C3AED',
+    gradient: ['#F5F3FF', '#EDE9FE'],
   },
   {
     id: 'blanket_wash',
@@ -454,7 +462,11 @@ export const HomeScreen: React.FC = () => {
                       style={styles.serviceOverlay}
                     />
                     <View style={styles.serviceIconContainer}>
-                      <Ionicons name={service.icon as any} size={28} color={service.color} />
+                      {(service as any).iconFamily === 'MaterialCommunityIcons' ? (
+                        <MaterialCommunityIcons name={(service as any).icon as any} size={28} color={service.color} />
+                      ) : (
+                        <Ionicons name={service.icon as any} size={28} color={service.color} />
+                      )}
                     </View>
                     <Text style={styles.serviceName}>{service.name}</Text>
                   </AnimatedButton>
@@ -462,35 +474,36 @@ export const HomeScreen: React.FC = () => {
               ))}
             </View>
 
-            {/* Row 2: Full Width Immersive */}
-            <MotiView
-              from={{ opacity: 0, translateY: 20 }}
-              animate={{ opacity: 1, translateY: 0 }}
-              transition={{ delay: 400 }}
-              style={styles.bentoRowFull}
-            >
-              <AnimatedButton
-                onPress={() => handleServicePress(SERVICES[2].id)}
-                style={styles.bentoCardRectangle}
-              >
-                <LinearGradient
-                  colors={SERVICES[2].gradient as [string, string]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.serviceOverlay}
-                />
-                <View style={styles.bentoContentRow}>
-                  <View style={styles.serviceIconContainer}>
-                    <Ionicons name={SERVICES[2].icon as any} size={32} color={SERVICES[2].color} />
-                  </View>
-                  <View style={styles.bentoTextContent}>
-                    <Text style={styles.bentoTitle}>{SERVICES[2].name}</Text>
-                    <Text style={styles.bentoSubtitle}>Professional care for large loads</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={COLORS.textLight} />
-                </View>
-              </AnimatedButton>
-            </MotiView>
+            {/* Row 2: 50/50 split for Ironing and Blanket Wash */}
+            <View style={styles.bentoRow}>
+              {[SERVICES[2], SERVICES[3]].map((service, index) => (
+                <MotiView
+                  key={service.id}
+                  from={{ opacity: 0, translateY: 20 }}
+                  animate={{ opacity: 1, translateY: 0 }}
+                  transition={{ delay: 400 + index * 100 }}
+                  style={{ width: '48.5%' }}
+                >
+                  <AnimatedButton
+                    onPress={() => handleServicePress(service.id)}
+                    style={styles.bentoCardSquare}
+                  >
+                    <LinearGradient
+                      colors={service.gradient as [string, string]}
+                      style={styles.serviceOverlay}
+                    />
+                    <View style={styles.serviceIconContainer}>
+                      {(service as any).iconFamily === 'MaterialCommunityIcons' ? (
+                        <MaterialCommunityIcons name={(service as any).icon as any} size={28} color={service.color} />
+                      ) : (
+                        <Ionicons name={service.icon as any} size={28} color={service.color} />
+                      )}
+                    </View>
+                    <Text style={styles.serviceName}>{service.name}</Text>
+                  </AnimatedButton>
+                </MotiView>
+              ))}
+            </View>
 
             {/* Row 3: Subscribe Feature Card */}
             <MotiView

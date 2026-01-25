@@ -11,8 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
-import { db } from '../../services/firebase';
+import { collection, query, orderBy, limit, getDocs, db } from '../../services/firebase';
 import { BrandHeader } from '../../components/BrandHeader';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 

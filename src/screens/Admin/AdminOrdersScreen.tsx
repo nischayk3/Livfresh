@@ -738,11 +738,13 @@ export const AdminOrdersScreen: React.FC = () => {
                         ? `${srv.shoeQuantity || srv.quantity || 0} pairs`
                         : srv.serviceType === 'dry_clean'
                           ? (srv.weight ? `${srv.weight}kg` : `${srv.items?.length || srv.quantity || 0} units`)
-                          : (
-                            // Combined logic for wash_fold, wash_iron, premium, etc.
-                            (srv.weight ? `${srv.weight}kg` : `${srv.quantity || 1} units`) +
-                            ((srv.ironingCount || srv.ironingEnabled) ? ` + ${srv.ironingCount || 0} Ironing` : '')
-                          )
+                          : srv.serviceType === 'ironing'
+                            ? `${srv.ironingCount || srv.clothesCount || srv.quantity || 0} Clothes`
+                            : (
+                              // Combined logic for wash_fold, wash_iron, premium, etc.
+                              (srv.weight ? `${srv.weight}kg` : `${srv.quantity || 1} units`) +
+                              ((srv.ironingCount || srv.ironingEnabled) ? ` + ${srv.ironingCount || 0} Ironing` : '')
+                            )
                   }
                 </Text>
                 {srv.specialInstructions ? (

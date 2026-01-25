@@ -1,6 +1,5 @@
 import { create } from 'zustand';
-import { signOut } from 'firebase/auth';
-import { auth } from '../services/firebase';
+import { auth, signOut } from '../services/firebase';
 import { useAddressStore } from './addressStore';
 
 // Session timeout: 12 hours in milliseconds

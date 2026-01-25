@@ -94,12 +94,27 @@ const SERVICE_DATA: Record<string, ServiceData> = {
             "Sole scrubbing",
             "Lace washing",
             "Deodorizing",
-            "Shape restoration" // 'Form restoration' might be better?
+            "Shape restoration"
         ],
         process: [
             { title: 'Pickup', icon: 'bicycle' },
-            { title: 'Scrub', icon: 'hand-left' }, // scrubbing icon approximation
+            { title: 'Scrub', icon: 'hand-left' },
             { title: 'Dry', icon: 'sunny' },
+            { title: 'Deliver', icon: 'gift' },
+        ]
+    },
+    ironing: {
+        inclusions: [
+            "High-pressure steam press",
+            "Temperature-controlled ironing",
+            "Collar & cuff stiffening",
+            "Premium anti-wrinkle spray",
+            "Hanger/Folding options"
+        ],
+        process: [
+            { title: 'Pickup', icon: 'bicycle' },
+            { title: 'Inspect', icon: 'search' },
+            { title: 'Press', icon: 'shirt' },
             { title: 'Deliver', icon: 'gift' },
         ]
     }

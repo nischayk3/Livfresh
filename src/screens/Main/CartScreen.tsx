@@ -13,7 +13,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp } from '../../services/firebase';
 import { format, isAfter, addMinutes, isSameDay, parse, addDays, startOfToday, getHours } from 'date-fns';
 
 import { useCartStore, useAuthStore, useAddressStore, useUIStore, useSubscriptionStore } from '../../store';
@@ -54,8 +54,10 @@ export const CartScreen: React.FC = () => {
     const OPERATIONAL_END_HOUR = 21; // 9:00 PM
 
     const subtotal = getTotalAmount();
+    const onlyIroningInCart = items.length > 0 && items.every(item => item.serviceType === 'ironing');
+    const DELIVERY_FEE = onlyIroningInCart ? 50 : 0;
     const gstAmount = Math.round(subtotal * GST_PERCENTAGE);
-    const totalAmount = subtotal + PLATFORM_FEE + gstAmount - discountAmount;
+    const totalAmount = subtotal + PLATFORM_FEE + DELIVERY_FEE + gstAmount - discountAmount;
 
     // Generate next 7 days dates
     const generateDates = () => {
@@ -85,6 +87,19 @@ export const CartScreen: React.FC = () => {
     };
 
     const dates = generateDates();
+
+    // Effect to revoke coupon if cart becomes standalone ironing
+    useEffect(() => {
+        if (isDiscountApplied && onlyIroningInCart) {
+            setIsDiscountApplied(false);
+            setDiscountAmount(0);
+            showAlert({
+                title: 'Coupon Removed',
+                message: 'The discount is not applicable for standalone ironing orders.',
+                type: 'info'
+            });
+        }
+    }, [items, onlyIroningInCart, isDiscountApplied]);
 
     // Check if store is currently open (9 AM - 7:30 PM)
     const checkInstantAvailability = () => {
@@ -344,6 +359,7 @@ export const CartScreen: React.FC = () => {
                 billDetails: {
                     itemTotal: subtotal,
                     platformFee: PLATFORM_FEE,
+                    deliveryFee: DELIVERY_FEE,
                     gst: gstAmount,
                     discount: discountAmount,
                     total: totalAmount,
@@ -474,12 +490,18 @@ export const CartScreen: React.FC = () => {
         <View>
             <View style={styles.billRow}>
                 <Text style={styles.billLabel}>Item Total</Text>
-                <Text style={styles.billValue}>₹{totalAmount - PLATFORM_FEE - gstAmount + discountAmount}</Text>
+                <Text style={styles.billValue}>₹{subtotal}</Text>
             </View>
             {PLATFORM_FEE > 0 && (
                 <View style={styles.billRow}>
                     <Text style={styles.billLabel}>Platform Fee</Text>
                     <Text style={styles.billValue}>₹{PLATFORM_FEE}</Text>
+                </View>
+            )}
+            {DELIVERY_FEE > 0 && (
+                <View style={styles.billRow}>
+                    <Text style={styles.billLabel}>Pick up and Delivery Fee</Text>
+                    <Text style={styles.billValue}>₹{DELIVERY_FEE}</Text>
                 </View>
             )}
             {gstAmount > 0 && (
@@ -522,7 +544,13 @@ export const CartScreen: React.FC = () => {
                 <Text style={styles.emptySubtext}>Add some services to get started.</Text>
                 <TouchableOpacity
                     style={styles.browseButton}
-                    onPress={() => navigation.goBack()}
+                    onPress={() => {
+                        if (navigation.canGoBack()) {
+                            navigation.goBack();
+                        } else {
+                            navigation.navigate('Main' as any);
+                        }
+                    }}
                 >
                     <Text style={styles.browseButtonText}>Browse Services</Text>
                 </TouchableOpacity>
@@ -537,7 +565,16 @@ export const CartScreen: React.FC = () => {
     return (
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                <TouchableOpacity
+                    onPress={() => {
+                        if (navigation.canGoBack()) {
+                            navigation.goBack();
+                        } else {
+                            navigation.navigate('Main' as any);
+                        }
+                    }}
+                    style={styles.backButton}
+                >
                     <Ionicons name="arrow-back" size={24} color={COLORS.text} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>My Cart</Text>
@@ -559,7 +596,7 @@ export const CartScreen: React.FC = () => {
                     </View>
 
                     {/* Coupon Section */}
-                    {orderCount < 3 && (
+                    {orderCount < 3 && !onlyIroningInCart && (
                         <View style={styles.section}>
                             <Text style={styles.sectionTitle}>Offers & Benefits</Text>
                             <TouchableOpacity
@@ -569,6 +606,14 @@ export const CartScreen: React.FC = () => {
                                         setIsDiscountApplied(false);
                                         setDiscountAmount(0);
                                     } else {
+                                        if (onlyIroningInCart) {
+                                            showAlert({
+                                                title: 'Coupon Not Applicable',
+                                                message: 'The FIRST100 discount is not available for standalone ironing orders. Add another service to use this offer!',
+                                                type: 'info'
+                                            });
+                                            return;
+                                        }
                                         setIsDiscountApplied(true);
                                         setDiscountAmount(FIRST_ORDER_DISCOUNT);
                                         showAlert({

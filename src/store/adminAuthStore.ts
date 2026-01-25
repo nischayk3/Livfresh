@@ -1,7 +1,12 @@
 import { create } from 'zustand';
-import { signInWithPhoneNumber, RecaptchaVerifier, ConfirmationResult, signOut } from 'firebase/auth';
+import {
+  signInWithPhoneNumber,
+  signOut,
+  adminAuth as auth
+} from '../services/firebase';
 import { Platform } from 'react-native';
-import { adminAuth as auth } from '../services/firebase';
+// ConfirmationResult is a type-only import for cross-platform
+import type { ConfirmationResult } from 'firebase/auth';
 import { isAdminPhone } from '../services/adminFirestore';
 
 // Store OTP confirmation result during admin verification flow
@@ -15,6 +20,7 @@ const getVerifier = () => {
   // @ts-ignore - RecaptchaVerifier isn't typed on window clearly
   if (!(window as any).adminRecaptchaVerifier) {
     try {
+      const { RecaptchaVerifier } = require('firebase/auth');
       (window as any).adminRecaptchaVerifier = new RecaptchaVerifier(auth, 'admin-recaptcha-container', {
         size: 'invisible',
         callback: () => console.log('Admin Recaptcha verified')

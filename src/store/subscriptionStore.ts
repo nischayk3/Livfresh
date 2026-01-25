@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import {
+  db,
   collection,
   doc,
   getDoc,
@@ -10,9 +11,8 @@ import {
   Timestamp,
   onSnapshot,
   addDoc,
-  updateDoc,
-} from 'firebase/firestore';
-import { db } from '../services/firebase';
+  updateDoc
+} from '../services/firebase';
 
 export interface Subscription {
   id: string;
@@ -49,7 +49,7 @@ interface SubscriptionState {
   creditUsage: CreditUsage[];
   loading: boolean;
   error: string | null;
-  
+
   // Actions
   fetchSubscriptions: (userId: string) => Promise<void>;
   createSubscription: (
@@ -79,11 +79,11 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
     try {
       // Fetch active subscription
       const subscriptionsRef = collection(db, 'users', userId, 'subscriptions');
-      
+
       // Get all subscriptions and filter client-side to avoid index issues
       let activeSub: Subscription | undefined;
       let activeSubId: string | undefined;
-      
+
       try {
         const activeQuery = query(
           subscriptionsRef,
@@ -107,7 +107,7 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
           activeSubId = found.id;
         }
       }
-      
+
       if (activeSub && activeSubId) {
         activeSub.id = activeSubId;
         set({ activeSubscription: activeSub });
@@ -144,7 +144,7 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
             id: doc.id,
             ...doc.data(),
           }))
-          .filter((sub: any) => 
+          .filter((sub: any) =>
             sub.status === 'completed' || sub.status === 'expired'
           ) as Subscription[];
 
@@ -191,7 +191,7 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
 
     try {
       const subscriptionsRef = collection(db, 'users', userId, 'subscriptions');
-      
+
       const subscriptionData: Omit<Subscription, 'id'> = {
         userId,
         planType,
@@ -283,8 +283,8 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       // Update subscription
       const newCreditsUsed = activeSubscription.creditsUsed + 1;
       const newCreditsRemaining = activeSubscription.creditsRemaining - 1;
-      const newCurrentCreditIndex = newCreditsRemaining > 0 
-        ? creditToUse + 1 
+      const newCurrentCreditIndex = newCreditsRemaining > 0
+        ? creditToUse + 1
         : creditToUse;
       const newStatus = newCreditsRemaining === 0 ? 'completed' : 'active';
 

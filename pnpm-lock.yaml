@@ -153,6 +153,12 @@ importers:
         specifier: ^5.0.9
         version: 5.0.9(@types/react@19.1.17)(react@19.1.0)(use-sync-external-store@1.6.0(react@19.1.0))
     devDependencies:
+      '@expo/config-plugins':
+        specifier: ^54.0.4
+        version: 54.0.4
+      '@sentry/cli':
+        specifier: ^2.55.0
+        version: 2.55.0
       '@types/react':
         specifier: ~19.1.0
         version: 19.1.17

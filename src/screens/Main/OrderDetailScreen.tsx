@@ -301,6 +301,12 @@ export const OrderDetailScreen: React.FC = () => {
                             <Text style={styles.billValue}>₹{order.billDetails?.platformFee}</Text>
                         </View>
                     )}
+                    {(order.billDetails?.deliveryFee > 0) && (
+                        <View style={styles.billRow}>
+                            <Text style={styles.billLabel}>Pick up and Delivery Fee</Text>
+                            <Text style={styles.billValue}>₹{order.billDetails?.deliveryFee}</Text>
+                        </View>
+                    )}
                     {(order.billDetails?.gst > 0) && (
                         <View style={styles.billRow}>
                             <Text style={styles.billLabel}>GST</Text>

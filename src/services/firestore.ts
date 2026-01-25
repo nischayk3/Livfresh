@@ -12,7 +12,7 @@ import {
   where,
   onSnapshot,
   runTransaction,
-} from 'firebase/firestore';
+} from './firebase';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from './firebase';
 import { generateOTP } from '../utils/otpHelpers';

@@ -1,8 +1,7 @@
 // Vendor seed data for BTM and JP Nagar, Bangalore
 // Based on real laundry services found in these areas
 
-import { collection, doc, setDoc, Timestamp } from 'firebase/firestore';
-import { db } from './firebase';
+import { collection, doc, setDoc, Timestamp, db } from './firebase';
 
 export interface VendorData {
   id: string;
@@ -575,7 +574,7 @@ export const VENDOR_SEED_DATA: VendorData[] = [
 export const seedVendors = async () => {
   try {
     console.log('🌱 Starting vendor seed...');
-    
+
     for (const vendor of VENDOR_SEED_DATA) {
       // Create vendor document
       const vendorRef = doc(db, 'vendors', vendor.id);

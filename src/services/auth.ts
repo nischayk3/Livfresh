@@ -1,11 +1,16 @@
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from './firebase';
-import { Platform } from 'react-native';
 import {
+  auth,
+  db,
+  doc,
+  setDoc,
+  getDoc,
+  serverTimestamp,
   signInWithPhoneNumber,
-  RecaptchaVerifier,
-  ConfirmationResult
-} from 'firebase/auth';
+} from './firebase';
+import { Platform } from 'react-native';
+// Recaptcha and ConfirmationResult are type-only or platform-specific
+// We'll import them only for Web if possible, or use any
+import type { ConfirmationResult } from 'firebase/auth';
 
 declare global {
   interface Window {
@@ -36,6 +41,7 @@ const getVerifier = () => {
   if (!window.recaptchaVerifier) {
     try {
       console.log("Initializing RecaptchaVerifier...");
+      const { RecaptchaVerifier } = require('firebase/auth');
       window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
         size: 'invisible',
         callback: () => console.log('Recaptcha verified')
@@ -77,7 +83,32 @@ export const verifyOTP = async (code: string): Promise<any> => {
     // 1. Confirm OTP with Firebase Auth
     const userCredential = await currentConfirmationResult.confirm(code);
     const user = userCredential.user;
+
+    if (!user) throw new Error('User confirmation failed');
+
     console.log(`✅ Phone Authenticated. UID: ${user.uid}`);
+
+    // 2. Create/Update User in Firestore (Hydration logic from native)
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+
+    const userData = {
+      phone: currentPhoneNumber,
+      authUid: user.uid,
+      name: currentUserData.name || '',
+      email: currentUserData.email || '',
+      gender: currentUserData.gender || '',
+      updatedAt: serverTimestamp(),
+    };
+
+    if (!userSnap.exists()) {
+      await setDoc(userRef, {
+        ...userData,
+        createdAt: serverTimestamp(),
+      });
+    } else {
+      await setDoc(userRef, userData, { merge: true });
+    }
 
     // Cleanup session data
     const phone = currentPhoneNumber;

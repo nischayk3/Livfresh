@@ -12,7 +12,7 @@ import {
   writeBatch,
   collectionGroup,
   onSnapshot,
-} from 'firebase/firestore';
+} from './firebase';
 import { adminDb as db } from './firebase';
 import { generateOTP } from '../utils/otpHelpers';
 

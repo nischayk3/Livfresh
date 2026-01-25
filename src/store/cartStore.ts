@@ -6,7 +6,7 @@ export interface CartItem {
   vendorName: string;
   serviceId: string;
   serviceName: string;
-  serviceType: 'wash_fold' | 'wash_iron' | 'blanket_wash' | 'shoe_clean' | 'dry_clean' | 'premium_laundry';
+  serviceType: 'wash_fold' | 'wash_iron' | 'ironing' | 'blanket_wash' | 'shoe_clean' | 'dry_clean' | 'premium_laundry';
 
   // Service-specific data
   weight?: number; // For wash services (kg)

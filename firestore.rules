@@ -13,18 +13,13 @@ service cloud.firestore {
     
     // Helper function to check if user is admin
     function isAdmin() {
-      let phone = request.auth.token.phone_number;
-      let phoneNumber = request.auth.token.phoneNumber;
-      
-      // List of authorized admin numbers (last 10 digits)
-      let authorized = phone.matches('.*(9661802634|9852030638|9108558715)$') ||
-                       phoneNumber.matches('.*(9661802634|9852030638|9108558715)$');
-      
-      return isAuthenticated() && authorized;
+      return isAuthenticated() && (
+        ('phone_number' in request.auth.token && request.auth.token.phone_number.matches('.*(9661802634|9852030638|9108558715)$')) ||
+        ('phoneNumber' in request.auth.token && request.auth.token.phoneNumber.matches('.*(9661802634|9852030638|9108558715)$'))
+      );
     }
 
     // --- Collection Group Rules ---
-    // Required for collectionGroup queries used in admin dashboard
     
     match /{path=**}/orders/{orderId} {
       allow read: if isAdmin() || (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid));
@@ -32,59 +27,45 @@ service cloud.firestore {
     }
     
     match /{path=**}/subscriptions/{subscriptionId} {
-      allow read: if isAdmin() || (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid));
+      allow read: if isAdmin() || isAuthenticated(); 
       allow write: if isAdmin();
     }
 
     // --- Regular Collection Rules ---
     
-    // Config collection
     match /config/{configId} {
-      // Allow guest read for adminPhones to check access before login
       allow read: if configId == 'adminPhones' || isAuthenticated();
       allow write: if isAdmin();
     }
     
-    // Users collection
     match /users/{userId} {
       allow create: if isAuthenticated() && request.auth.uid == userId;
-      allow read: if isAdmin() || isOwner(userId);
-      allow update: if isAdmin() || isOwner(userId);
+      allow read, update: if isAdmin() || isOwner(userId);
       
       match /addresses/{addressId} {
         allow read, write: if isAdmin() || isOwner(userId);
       }
       
       match /orders/{orderId} {
-        allow read: if isAdmin() || isOwner(userId);
-        allow write: if isAdmin() || isOwner(userId);
+        allow read, write: if isAdmin() || isOwner(userId);
       }
 
       match /subscriptions/{subscriptionId} {
-        allow read: if isAdmin() || isOwner(userId);
-        // Allow users to create their own subscriptions and admins to do anything
-        allow create: if isAdmin() || isOwner(userId);
-        allow update: if isAdmin() || isOwner(userId);
+        allow read, create, update: if isAdmin() || isOwner(userId);
         allow delete: if isAdmin();
         
         match /creditUsage/{usageId} {
-          allow read: if isAdmin() || isOwner(userId);
-          // Allow users to record their own credit usage
-          allow create: if isAdmin() || isOwner(userId);
-          allow update: if isAdmin() || isOwner(userId);
+          allow read, create, update: if isAdmin() || isOwner(userId);
           allow delete: if isAdmin();
         }
       }
     }
     
-    // Unserviceable Requests (Demand Logging)
     match /unserviceable_requests/{requestId} {
       allow create: if isAuthenticated();
-      allow read: if isAdmin();
-      allow delete: if isAdmin();
+      allow read, delete: if isAdmin();
     }
 
-    // Vendors collection
     match /vendors/{vendorId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
@@ -100,10 +81,8 @@ service cloud.firestore {
       }
     }
 
-    // Daily Schedules (Single Rider Slot System)
     match /daily_schedules/{date} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow read, write: if isAuthenticated();
     }
   }
 }

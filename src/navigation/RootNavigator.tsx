@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore, useSubscriptionStore, useAdminAuthStore } from '../store';
 import { getCart, saveCart, getUserAddresses, getUser } from '../services/firestore';
-import { auth, adminAuth } from '../services/firebase';
+import { auth, adminAuth, onAuthStateChanged } from '../services/firebase';
 import { useCartStore, useAddressStore } from '../store';
 import { COLORS, TYPOGRAPHY, SHADOWS } from '../utils/constants';
 import { BrandLoader } from '../components/BrandLoader';
@@ -216,7 +216,7 @@ export const RootNavigator: React.FC = () => {
   // 1. Listen to Auth State & Hydrate User Profile
   React.useEffect(() => {
     // Listen to USER App Auth
-    const unsubscribeUser = auth.onAuthStateChanged(async (firebaseUser) => {
+    const unsubscribeUser = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         const authStore = useAuthStore.getState();
         if (authStore.isSessionExpired()) {
@@ -260,7 +260,7 @@ export const RootNavigator: React.FC = () => {
     });
 
     // Listen to ADMIN App Auth
-    const unsubscribeAdmin = adminAuth.onAuthStateChanged((adminUser) => {
+    const unsubscribeAdmin = onAuthStateChanged(adminAuth, (adminUser) => {
       if (adminUser) {
         console.log('✅ Admin session detected on load:', adminUser.phoneNumber);
         useAdminAuthStore.setState({

@@ -137,8 +137,10 @@ export const OTPScreen: React.FC = () => {
 
       // Diagnostic: Check if user exists in Firestore AFTER successful verification
       // This is now allowed because the user is AUTHENTICATED.
+      console.log('🔍 Diagnostic: Fetching user profile for UID:', firebaseUser.uid);
       const { getUser } = await import('../../services/firestore');
       const userData = await getUser(firebaseUser.uid);
+      console.log('🔍 Diagnostic: Firestore result:', userData ? 'User Found' : 'User NOT Found');
 
       if (userData) {
         // EXISTING USER: Set store and navigation is handled by RootNavigator

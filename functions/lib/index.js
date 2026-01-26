@@ -40,18 +40,19 @@ exports.verifyRazorpayPayment = exports.createRazorpayOrder = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const razorpay_1 = __importDefault(require("razorpay"));
+const params_1 = require("firebase-functions/params");
 admin.initializeApp();
-// Initialize Razorpay with key credentials
-// TODO: Use Firebase Secrets for production!
-const razorpay = new razorpay_1.default({
-    key_id: "rzp_test_S8DEqUtK5X23Bm", // Provided by user
-    key_secret: "rEgaYnJ72J0GZsCoiMoyh0B8" // Provided by user
-});
-exports.createRazorpayOrder = functions.https.onCall(async (data, context) => {
+const razorpayKeyId = (0, params_1.defineSecret)("RAZORPAY_LIVE_KEY_ID");
+const razorpayKeySecret = (0, params_1.defineSecret)("RAZORPAY_LIVE_KEY_SECRET");
+exports.createRazorpayOrder = functions.runWith({ secrets: [razorpayKeyId, razorpayKeySecret] }).https.onCall(async (data, context) => {
     // Ensure the user is authenticated
     if (!context.auth) {
         throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
     }
+    const razorpay = new razorpay_1.default({
+        key_id: razorpayKeyId.value(),
+        key_secret: razorpayKeySecret.value()
+    });
     const { amount, currency = "INR" } = data;
     if (!amount || amount <= 0) {
         throw new functions.https.HttpsError("invalid-argument", "Amount must be greater than 0.");
@@ -68,7 +69,7 @@ exports.createRazorpayOrder = functions.https.onCall(async (data, context) => {
             orderId: order.id,
             currency: order.currency,
             amount: order.amount,
-            keyId: "rzp_test_S8DEqUtK5X23Bm" // Send Key ID to frontend for init
+            keyId: razorpayKeyId.value() // Send Key ID to frontend for init
         };
     }
     catch (error) {
@@ -76,7 +77,7 @@ exports.createRazorpayOrder = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError("internal", error.message || "Failed to create order");
     }
 });
-exports.verifyRazorpayPayment = functions.https.onCall(async (data, context) => {
+exports.verifyRazorpayPayment = functions.runWith({ secrets: [razorpayKeyId, razorpayKeySecret] }).https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
     }
@@ -88,7 +89,7 @@ exports.verifyRazorpayPayment = functions.https.onCall(async (data, context) => 
     // Verify Signature
     const crypto = require("crypto");
     const generatedSignature = crypto
-        .createHmac("sha256", "rEgaYnJ72J0GZsCoiMoyh0B8") // Secret
+        .createHmac("sha256", razorpayKeySecret.value()) // Secret
         .update(orderId + "|" + paymentId)
         .digest("hex");
     if (generatedSignature !== signature) {

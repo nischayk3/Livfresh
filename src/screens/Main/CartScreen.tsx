@@ -88,16 +88,28 @@ export const CartScreen: React.FC = () => {
 
     const dates = generateDates();
 
-    // Effect to revoke coupon if cart becomes standalone ironing
+    // Effect to revoke coupon if cart becomes standalone ironing OR if subscription credit is applied
     useEffect(() => {
-        if (isDiscountApplied && onlyIroningInCart) {
-            setIsDiscountApplied(false);
-            setDiscountAmount(0);
-            showAlert({
-                title: 'Coupon Removed',
-                message: 'The discount is not applicable for standalone ironing orders.',
-                type: 'info'
-            });
+        const isCreditApplied = items.some(item => item.isCreditItem);
+
+        if (isDiscountApplied) {
+            if (onlyIroningInCart) {
+                setIsDiscountApplied(false);
+                setDiscountAmount(0);
+                showAlert({
+                    title: 'Coupon Removed',
+                    message: 'The discount is not applicable for standalone ironing orders.',
+                    type: 'info'
+                });
+            } else if (isCreditApplied) {
+                setIsDiscountApplied(false);
+                setDiscountAmount(0);
+                showAlert({
+                    title: 'Coupon Removed',
+                    message: 'Offers cannot be combined with Subscription Credits.',
+                    type: 'info'
+                });
+            }
         }
     }, [items, onlyIroningInCart, isDiscountApplied]);
 
@@ -595,8 +607,8 @@ export const CartScreen: React.FC = () => {
                         {items.map(renderCartItem)}
                     </View>
 
-                    {/* Coupon Section */}
-                    {orderCount < 3 && !onlyIroningInCart && (
+                    {/* Coupon Section - Hide if subscription credit is applied */}
+                    {orderCount < 3 && !onlyIroningInCart && !items.some(item => item.isCreditItem) && (
                         <View style={styles.section}>
                             <Text style={styles.sectionTitle}>Offers & Benefits</Text>
                             <TouchableOpacity

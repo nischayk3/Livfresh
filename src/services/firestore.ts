@@ -148,7 +148,7 @@ export const createUser = async (
       referralCode: referralCode || '',
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
-    });
+    }, { merge: true });
     console.log(`✅ User created: ${userId}`);
   } catch (error: any) {
     console.error('Error creating user:', error);

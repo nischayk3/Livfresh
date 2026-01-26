@@ -227,6 +227,7 @@ export const RootNavigator: React.FC = () => {
 
         try {
           const userData = await getUser(firebaseUser.uid);
+          console.log('🔍 RootNav: Fetched user data:', JSON.stringify(userData, null, 2));
           if (userData) {
             useAuthStore.getState().setUser({
               uid: firebaseUser.uid,
@@ -247,6 +248,7 @@ export const RootNavigator: React.FC = () => {
               uid: firebaseUser.uid,
               phone: firebaseUser.phoneNumber || '',
               name: '',
+              email: '',
             });
             useAuthStore.getState().setLoginTimestamp(Date.now());
           }
@@ -459,11 +461,12 @@ export const RootNavigator: React.FC = () => {
             </>
           ) : (
             <>
-              {/* New User Registration - accessible when logged in but profile incomplete */}
-              {!user?.name ? (
+              {/* New User Registration - accessible when logged in but profile incomplete
+                  Logic updated: If user has saved addresses or credits, they are existing users even if name is missing (legacy/bug fix) */}
+              {(!user?.name && !user?.savedAddresses?.length && !user?.credits) ? (
                 <Stack.Screen name="UserDetails" component={UserDetailsScreen} />
               ) : (
-                /* Main app routes - accessible when logged in and profile complete */
+                /* Main app routes - accessible when logged in and profile complete or existing user */
                 <Stack.Screen name="Main" component={MainStack} />
               )}
             </>

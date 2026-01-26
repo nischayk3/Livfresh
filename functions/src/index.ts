@@ -2,25 +2,34 @@ import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import Razorpay from "razorpay";
 
+import { defineSecret } from "firebase-functions/params";
+
 admin.initializeApp();
 
-// Initialize Razorpay with key credentials
-// TODO: Use Firebase Secrets for production!
-const razorpay = new Razorpay({
-    key_id: "rzp_test_S8DEqUtK5X23Bm", // Provided by user
-    key_secret: "rEgaYnJ72J0GZsCoiMoyh0B8" // Provided by user
-});
+const razorpayKeyId = defineSecret("RAZORPAY_LIVE_KEY_ID");
+const razorpayKeySecret = defineSecret("RAZORPAY_LIVE_KEY_SECRET");
+
+// Initialize Razorpay with key credentials from secrets
+// Note: Razorpay instance is creating inside the function to access secrets at runtime
+// or use a factory if needed, but secrets are only available during execution.
+// Actually, global scope secrets might not be resolved immediately. 
+// Best practice: Access .value() inside the function.
 
 interface CreateOrderRequest {
     amount: number; // in paise
     currency?: string;
 }
 
-export const createRazorpayOrder = functions.https.onCall(async (data: CreateOrderRequest, context) => {
+export const createRazorpayOrder = functions.runWith({ secrets: [razorpayKeyId, razorpayKeySecret] }).https.onCall(async (data: CreateOrderRequest, context) => {
     // Ensure the user is authenticated
     if (!context.auth) {
         throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
     }
+
+    const razorpay = new Razorpay({
+        key_id: razorpayKeyId.value(),
+        key_secret: razorpayKeySecret.value()
+    });
 
     const { amount, currency = "INR" } = data;
 
@@ -42,7 +51,7 @@ export const createRazorpayOrder = functions.https.onCall(async (data: CreateOrd
             orderId: order.id,
             currency: order.currency,
             amount: order.amount,
-            keyId: "rzp_test_S8DEqUtK5X23Bm" // Send Key ID to frontend for init
+            keyId: razorpayKeyId.value() // Send Key ID to frontend for init
         };
 
     } catch (error: any) {
@@ -61,7 +70,7 @@ interface VerifyPaymentRequest {
     };
 }
 
-export const verifyRazorpayPayment = functions.https.onCall(async (data: VerifyPaymentRequest, context) => {
+export const verifyRazorpayPayment = functions.runWith({ secrets: [razorpayKeyId, razorpayKeySecret] }).https.onCall(async (data: VerifyPaymentRequest, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
     }
@@ -76,7 +85,7 @@ export const verifyRazorpayPayment = functions.https.onCall(async (data: VerifyP
     // Verify Signature
     const crypto = require("crypto");
     const generatedSignature = crypto
-        .createHmac("sha256", "rEgaYnJ72J0GZsCoiMoyh0B8") // Secret
+        .createHmac("sha256", razorpayKeySecret.value()) // Secret
         .update(orderId + "|" + paymentId)
         .digest("hex");
 

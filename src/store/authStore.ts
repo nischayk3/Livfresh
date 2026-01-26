@@ -9,6 +9,7 @@ interface User {
   uid: string;
   phone: string;
   name: string;
+  email: string | null;
   subscriptionStatus?: 'active' | 'inactive';
   credits?: number;
   subscriptionType?: 'schedule' | 'credits';

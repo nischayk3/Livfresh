@@ -9,6 +9,7 @@ import {
   signInWithPhoneNumber,
   signOut
 } from 'firebase/auth';
+import { getFunctions } from 'firebase/functions'; // Import getFunctions from sdk
 import {
   getFirestore,
   collection,
@@ -56,6 +57,7 @@ export const adminAuth = initializeAuth(adminApp, {
 // Initialize Firestore
 export const db = getFirestore(app);
 export const adminDb = getFirestore(adminApp);
+export const functions = getFunctions(app); // Initialize Functions
 
 // Export modular-style functions
 export {

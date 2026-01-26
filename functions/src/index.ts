@@ -1,0 +1,139 @@
+import * as functions from "firebase-functions/v1";
+import * as admin from "firebase-admin";
+import Razorpay from "razorpay";
+
+admin.initializeApp();
+
+// Initialize Razorpay with key credentials
+// TODO: Use Firebase Secrets for production!
+const razorpay = new Razorpay({
+    key_id: "rzp_test_S8DEqUtK5X23Bm", // Provided by user
+    key_secret: "rEgaYnJ72J0GZsCoiMoyh0B8" // Provided by user
+});
+
+interface CreateOrderRequest {
+    amount: number; // in paise
+    currency?: string;
+}
+
+export const createRazorpayOrder = functions.https.onCall(async (data: CreateOrderRequest, context) => {
+    // Ensure the user is authenticated
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
+    }
+
+    const { amount, currency = "INR" } = data;
+
+    if (!amount || amount <= 0) {
+        throw new functions.https.HttpsError("invalid-argument", "Amount must be greater than 0.");
+    }
+
+    try {
+        const options = {
+            amount: amount,
+            currency: currency,
+            receipt: `receipt_${Date.now()}_${context.auth.uid.substring(0, 5)}`,
+            payment_capture: 1, // Auto capture
+        };
+
+        const order = await razorpay.orders.create(options);
+
+        return {
+            orderId: order.id,
+            currency: order.currency,
+            amount: order.amount,
+            keyId: "rzp_test_S8DEqUtK5X23Bm" // Send Key ID to frontend for init
+        };
+
+    } catch (error: any) {
+        console.error("Error creating Razorpay order:", error);
+        throw new functions.https.HttpsError("internal", error.message || "Failed to create order");
+    }
+});
+
+interface VerifyPaymentRequest {
+    orderId: string;
+    paymentId: string;
+    signature: string;
+    planDetails: {
+        type: 'single' | 'couple' | 'credits';
+        credits?: number; // For credit packs
+    };
+}
+
+export const verifyRazorpayPayment = functions.https.onCall(async (data: VerifyPaymentRequest, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
+    }
+
+    const { orderId, paymentId, signature, planDetails } = data;
+    const userId = context.auth.uid;
+
+    if (!orderId || !paymentId || !signature) {
+        throw new functions.https.HttpsError("invalid-argument", "Missing payment details.");
+    }
+
+    // Verify Signature
+    const crypto = require("crypto");
+    const generatedSignature = crypto
+        .createHmac("sha256", "rEgaYnJ72J0GZsCoiMoyh0B8") // Secret
+        .update(orderId + "|" + paymentId)
+        .digest("hex");
+
+    if (generatedSignature !== signature) {
+        throw new functions.https.HttpsError("permission-denied", "Invalid payment signature.");
+    }
+
+    // Payment Verified - Update Firestore
+    const db = admin.firestore();
+
+    try {
+        const batch = db.batch();
+
+        // 1. Log Payment
+        const paymentRef = db.collection("users").doc(userId).collection("payments").doc(paymentId);
+        batch.set(paymentRef, {
+            orderId,
+            paymentId,
+            amount: 0, // Ideally fetch from Razorpay API or pass safely, but relying on orderId association
+            planDetails,
+            status: "success",
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // 2. Create Subscription / Add Credits
+        if (planDetails.type === 'credits' && planDetails.credits) {
+            // Update user credits
+            const userRef = db.collection("users").doc(userId);
+            // We use increment to be safe against concurrent updates
+            batch.update(userRef, {
+                credits: admin.firestore.FieldValue.increment(planDetails.credits),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            // Create active subscription/credit pack log
+            const subRef = db.collection("users").doc(userId).collection("subscriptions").doc();
+            batch.set(subRef, {
+                planType: 'credits',
+                totalCredits: planDetails.credits,
+                creditsUsed: 0,
+                creditsRemaining: planDetails.credits,
+                status: 'active',
+                paymentId: paymentId,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                expiresAt: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)), // 30 days
+                isActive: true
+            });
+        } else {
+            // Handle monthly subscriptions if implemented later
+        }
+
+        await batch.commit();
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("Error verifying payment/updating DB:", error);
+        throw new functions.https.HttpsError("internal", "Payment verified but failed to update record.");
+    }
+});

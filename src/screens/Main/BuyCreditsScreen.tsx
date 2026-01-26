@@ -6,9 +6,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Linking,
   Platform,
 } from 'react-native';
+// @ts-ignore
+import RazorpayCheckout from 'react-native-razorpay';
+import { createRazorpayOrder, verifyRazorpayPayment } from '../../services/functions';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -52,10 +54,31 @@ export const BuyCreditsScreen: React.FC = () => {
   const [planType, setPlanType] = useState<PlanType>('single');
   const [creditCount, setCreditCount] = useState(2);
   const [purchasing, setPurchasing] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   const pricePerCredit = planType === 'single' ? 399 : 798;
   const kgPerCredit = planType === 'single' ? 7 : 14;
   const totalAmount = creditCount * pricePerCredit;
+
+  // Helper to load Razorpay script for Web
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      if (typeof window === 'undefined') {
+        resolve(false);
+        return;
+      }
+      if ((window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
 
   const handlePurchase = async () => {
     if (!user?.uid) {
@@ -76,46 +99,125 @@ export const BuyCreditsScreen: React.FC = () => {
       return;
     }
 
-    // Construct WhatsApp Message
-    const planName = planType.charAt(0).toUpperCase() + planType.slice(1);
-    const message = `Hi Spinzo 👋\nI want to subscribe to the ${planName} plan.\nNumber of credits: ${creditCount}\nTotal amount: ₹${totalAmount}\nPlease share payment details.`;
-
-    // WhatsApp URL (using the provided number 9661802634)
-    const phoneNumber = '917676878832';
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `whatsapp://send?phone=${phoneNumber}&text=${encodedMessage}`;
-    const webWhatsappUrl = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
-
     try {
-      if (Platform.OS === 'web') {
-        window.open(webWhatsappUrl, '_blank');
-      } else {
-        const canOpen = await Linking.canOpenURL(whatsappUrl);
-        if (canOpen) {
-          await Linking.openURL(whatsappUrl);
-        } else {
-          // Fallback for mobile if app not installed (rare but possible) or simulator
-          await Linking.openURL(webWhatsappUrl);
+      setPurchasing(true);
+
+      setPurchasing(true);
+
+      // 1. Create Order on Backend
+      const order = await createRazorpayOrder(totalAmount * 100); // Amount in paise
+
+      const options: any = {
+        description: `${planType === 'single' ? 'Single' : 'Couple'} Plan - ${creditCount} Credits`,
+        image: 'https://i.imgur.com/3g7nmJC.png', // Or your app logo URL
+        currency: order.currency,
+        key: order.keyId,
+        amount: order.amount,
+        name: 'SpinZo',
+        order_id: order.orderId,
+        prefill: {
+          email: user.email || '',
+          contact: user.phone || '',
+          name: user.name || ''
+        },
+        theme: { color: COLORS.primary }
+      };
+
+      const handleSuccess = async (data: any) => {
+        try {
+          setPurchasing(false); // Close Razorpay loading
+          setVerifying(true);   // Start App verification loading
+
+          await verifyRazorpayPayment({
+            orderId: data.razorpay_order_id,
+            paymentId: data.razorpay_payment_id,
+            signature: data.razorpay_signature,
+            planDetails: {
+              type: 'credits',
+              credits: creditCount
+            }
+          });
+
+          // Poll for subscription update to ensure consistency
+          // Sometimes Firestore takes a split second to propagate even after write confirmation
+          let retries = 3;
+          while (retries > 0) {
+            await fetchSubscriptions(user.uid);
+            const { activeSubscription } = useSubscriptionStore.getState();
+            if (activeSubscription && activeSubscription.status === 'active') {
+              break;
+            }
+            await new Promise(r => setTimeout(r, 1000));
+            retries--;
+          }
+
+          setVerifying(false);
+
+          showAlert({
+            title: 'Payment Successful!',
+            message: `${creditCount} Credits have been added to your wallet.`,
+            type: 'success'
+          });
+
+          navigation.goBack();
+
+        } catch (verifyError) {
+          console.error("Verification Error: ", verifyError);
+          setVerifying(false);
+          showAlert({
+            title: 'Verification Failed',
+            message: 'Payment successful but verification failed locally. Please contact support with Order ID: ' + order.orderId,
+            type: 'error'
+          });
         }
+      };
+
+      const handleFailure = (error: any) => {
+        console.log("Payment Error: ", error);
+        setPurchasing(false);
+        showAlert({
+          title: 'Payment Failed',
+          message: error.description || 'Payment was cancelled or failed.',
+          type: 'error'
+        });
+      };
+
+      if (Platform.OS === 'web') {
+        const res = await loadRazorpayScript();
+        if (!res) {
+          showAlert({ title: 'Error', message: 'Razorpay SDK failed to load', type: 'error' });
+          setPurchasing(false);
+          return;
+        }
+
+        options.handler = function (response: any) {
+          handleSuccess(response);
+        };
+        options.modal = {
+          ondismiss: function () {
+            setPurchasing(false);
+          }
+        };
+
+        const rzp1 = new (window as any).Razorpay(options);
+        rzp1.on('payment.failed', function (response: any) {
+          handleFailure(response.error);
+        });
+        rzp1.open();
+      } else {
+        RazorpayCheckout.open(options).then((data: any) => {
+          handleSuccess(data);
+        }).catch((error: any) => {
+          handleFailure(error);
+        });
       }
 
-      // Optional: Track 'Lead' or 'Contact' event instead of 'Subscribe' since purchase isn't complete?
-      // Keeping 'Subscribe' might be misleading if they don't pay. 
-      // User said "We want to see if the user is genuinely interested". 
-      // Let's track it as 'InitiateCheckout' or keep existing 'Subscribe' but maybe rename? 
-      // I'll stick to not tracking 'Subscribe' here because it's not a confirmed purchase yet. 
-      // Maybe track 'Lead'?
-      trackPixelEvent('Lead', {
-        value: totalAmount,
-        currency: 'INR',
-        content_name: `${planName} Plan Subscription Request`
-      });
-
     } catch (error) {
-      console.error("Error opening WhatsApp:", error);
+      console.error("Error initiating purchase:", error);
+      setPurchasing(false);
       showAlert({
         title: 'Error',
-        message: 'Could not open WhatsApp. Please contact support manually.',
+        message: 'Could not initiate purchase. Please try again.',
         type: 'error'
       });
     }
@@ -345,16 +447,27 @@ export const BuyCreditsScreen: React.FC = () => {
                 end={{ x: 1, y: 0 }}
                 style={StyleSheet.absoluteFill}
               />
-              <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Ionicons name="card-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
               <Text style={styles.purchaseButtonText}>
                 {activeSubscription
                   ? 'Active Subscription Exists'
-                  : `Request via WhatsApp • ₹${totalAmount}`}
+                  : `Pay ₹${totalAmount}`}
               </Text>
             </>
           )}
         </AnimatedButton>
       </View>
+
+      {/* Loading Overlay */}
+      {verifying && (
+        <View style={[StyleSheet.absoluteFill, styles.loadingOverlay]}>
+          <GlassCard intensity="high" style={styles.loadingCard}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.loadingText}>Verifying Payment...</Text>
+            <Text style={styles.loadingSubText}>Please do not close the app</Text>
+          </GlassCard>
+        </View>
+      )}
     </View>
   );
 };
@@ -651,6 +764,29 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.bodyBold,
     color: '#FFFFFF',
     fontSize: 16,
+  },
+  loadingOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingCard: {
+    padding: SPACING.xl,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    gap: SPACING.md,
+    borderRadius: RADIUS.xl,
+    minWidth: 200,
+  },
+  loadingText: {
+    ...TYPOGRAPHY.subheading,
+    color: COLORS.text,
+    fontWeight: '600',
+  },
+  loadingSubText: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
   },
 });
 

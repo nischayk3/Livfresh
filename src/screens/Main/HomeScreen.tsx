@@ -53,6 +53,13 @@ const promoOffer = require('../../../assets/banner_offer_3d.png');
 const promoDelivery = require('../../../assets/banner_delivery_3d.png');
 const promoRelax = require('../../../assets/banner_relax_3d.png');
 const promoPickup = require('../../../assets/onboarding_pickup_v2.png');
+
+// Service Images
+const serviceWashFold = require('../../../assets/services/wash_fold.png');
+const serviceWashIron = require('../../../assets/onboarding_screen_2.png'); // Updated as per user request
+const serviceIroning = require('../../../assets/services/ironing.png');
+const serviceBlanket = require('../../../assets/services/blanket_wash.png');
+
 const PROMOS = [
   {
     id: '1',
@@ -92,31 +99,23 @@ const SERVICES = [
   {
     id: 'wash_fold',
     name: 'Wash & Fold',
-    icon: 'layers-sharp',
-    color: '#8B5CF6',
-    gradient: ['#F5F3FF', '#EDE9FE'],
+    image: serviceWashFold,
+    // Keep identifiers if needed later
   },
   {
     id: 'wash_iron',
     name: 'Wash & Iron',
-    icon: 'shirt-sharp',
-    color: '#7C3AED',
-    gradient: ['#EDE9FE', '#DDD6FE'],
+    image: serviceWashIron,
   },
   {
     id: 'ironing',
     name: 'Steam Iron',
-    icon: 'iron',
-    iconFamily: 'MaterialCommunityIcons',
-    color: '#7C3AED',
-    gradient: ['#F5F3FF', '#EDE9FE'],
+    image: serviceIroning,
   },
   {
     id: 'blanket_wash',
     name: 'Blanket Wash',
-    icon: 'bed-sharp',
-    color: '#6366F1',
-    gradient: ['#EEF2FF', '#E0E7FF'],
+    image: serviceBlanket,
   },
   {
     id: 'subscription',
@@ -457,18 +456,20 @@ export const HomeScreen: React.FC = () => {
                     onPress={() => handleServicePress(service.id)}
                     style={styles.bentoCardSquare}
                   >
-                    <LinearGradient
-                      colors={service.gradient as [string, string]}
-                      style={styles.serviceOverlay}
+                    <Image
+                      source={(service as any).image}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="cover"
+                      transition={300}
                     />
-                    <View style={styles.serviceIconContainer}>
-                      {(service as any).iconFamily === 'MaterialCommunityIcons' ? (
-                        <MaterialCommunityIcons name={(service as any).icon as any} size={28} color={service.color} />
-                      ) : (
-                        <Ionicons name={service.icon as any} size={28} color={service.color} />
-                      )}
+                    <LinearGradient
+                      colors={['transparent', 'rgba(0,0,0,0.85)']}
+                      style={StyleSheet.absoluteFill}
+                      locations={[0.4, 1.0]}
+                    />
+                    <View style={styles.serviceTextContainerOverlay}>
+                      <Text style={styles.serviceNameOverlay}>{service.name}</Text>
                     </View>
-                    <Text style={styles.serviceName}>{service.name}</Text>
                   </AnimatedButton>
                 </MotiView>
               ))}
@@ -488,24 +489,26 @@ export const HomeScreen: React.FC = () => {
                     onPress={() => handleServicePress(service.id)}
                     style={styles.bentoCardSquare}
                   >
-                    <LinearGradient
-                      colors={service.gradient as [string, string]}
-                      style={styles.serviceOverlay}
+                    <Image
+                      source={(service as any).image}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="cover"
+                      transition={300}
                     />
-                    <View style={styles.serviceIconContainer}>
-                      {(service as any).iconFamily === 'MaterialCommunityIcons' ? (
-                        <MaterialCommunityIcons name={(service as any).icon as any} size={28} color={service.color} />
-                      ) : (
-                        <Ionicons name={service.icon as any} size={28} color={service.color} />
-                      )}
+                    <LinearGradient
+                      colors={['transparent', 'rgba(0,0,0,0.85)']}
+                      style={StyleSheet.absoluteFill}
+                      locations={[0.4, 1.0]}
+                    />
+                    <View style={styles.serviceTextContainerOverlay}>
+                      <Text style={styles.serviceNameOverlay}>{service.name}</Text>
                     </View>
-                    <Text style={styles.serviceName}>{service.name}</Text>
                   </AnimatedButton>
                 </MotiView>
               ))}
             </View>
 
-            {/* Row 3: Subscribe Feature Card */}
+            {/* Row 3: Subscribe Feature Card (Kept as is/dark gradient) */}
             <MotiView
               from={{ opacity: 0, translateY: 20 }}
               animate={{ opacity: 1, translateY: 0 }}
@@ -791,6 +794,20 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.bodySmall,
     color: COLORS.primary,
     fontFamily: 'Outfit_600SemiBold',
+  },
+  serviceTextContainerOverlay: {
+    padding: 12,
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  serviceNameOverlay: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontFamily: 'Outfit_700Bold',
+    lineHeight: 20,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   bentoGrid: {
     gap: 12,

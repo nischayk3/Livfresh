@@ -123,3 +123,5 @@ The project uses:
 ## 📄 License
 
 Private Project - All rights reserved.
+
+npx expo export --platform web

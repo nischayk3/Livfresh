@@ -134,7 +134,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
   // Wash & Fold / Wash & Iron state
   // Wash & Fold
-  const [washFoldWeight, setWashFoldWeight] = useState<'small' | 'large' | null>(null);
+  const [washFoldWeight, setWashFoldWeight] = useState<'small' | 'medium' | 'large' | null>(null);
   const [washFoldIroningEnabled, setWashFoldIroningEnabled] = useState(false);
   const [washFoldIroningCount, setWashFoldIroningCount] = useState(4); // Default to 4
 
@@ -473,6 +473,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     if (serviceId === 'wash_fold') {
       let basePrice = 0;
       if (washFoldWeight === 'small') basePrice = 479; // ~7kg
+      if (washFoldWeight === 'medium') basePrice = 849; // ~10kg
       if (washFoldWeight === 'large') basePrice = 958; // ~14kg
 
       const ironingPrice = washFoldIroningEnabled ? washFoldIroningCount * 15 : 0;
@@ -480,9 +481,9 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     }
 
     if (serviceId === 'wash_iron') {
-      if (washIronWeight === 'small') return 360; // 3kg
-      if (washIronWeight === 'medium') return 600; // 5kg
-      if (washIronWeight === 'large') return 840; // 7kg
+      if (washIronWeight === 'small') return 499; // 5kg
+      if (washIronWeight === 'medium') return 699; // 7kg
+      if (washIronWeight === 'large') return 899; // 10kg
       return 0;
     }
 
@@ -515,7 +516,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
         return;
       }
 
-      const maxPieces = washFoldWeight === 'small' ? 25 : 50;
+      const maxPieces = washFoldWeight === 'small' ? 25 : (washFoldWeight === 'medium' ? 35 : 50);
 
       if (washFoldIroningEnabled) {
         if (washFoldIroningCount < 4) {
@@ -599,7 +600,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     };
 
     if (serviceId === 'wash_fold') {
-      cartItem.weight = washFoldWeight === 'small' ? 7 : 14;
+      cartItem.weight = washFoldWeight === 'small' ? 7 : (washFoldWeight === 'medium' ? 10 : 14);
       cartItem.clothesCount = 0;
       cartItem.ironingEnabled = washFoldIroningEnabled;
       cartItem.ironingCount = washFoldIroningEnabled ? washFoldIroningCount : 0;
@@ -608,11 +609,11 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
     if (serviceId === 'wash_iron') {
       // Map small/medium/large to weight
-      cartItem.weight = washIronWeight === 'small' ? 3 : (washIronWeight === 'medium' ? 5 : 7);
+      cartItem.weight = washIronWeight === 'small' ? 5 : (washIronWeight === 'medium' ? 7 : 10);
       // Wash & Iron strictly implies ironing included, but Cart structure typically expects standard flags
       cartItem.ironingEnabled = true;
       // Approximation of clothes count based on weight for reference
-      cartItem.clothesCount = washIronWeight === 'small' ? 10 : (washIronWeight === 'medium' ? 18 : 25);
+      cartItem.clothesCount = washIronWeight === 'small' ? 15 : (washIronWeight === 'medium' ? 25 : 35);
     }
 
     if (serviceId === 'blanket_wash') {
@@ -671,24 +672,48 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
         </View>
 
         {/* Improved Weight Selection */}
-        <View style={styles.premiumSection}>
-          <Text style={styles.premiumSectionTitle}>Select Estimated Weight</Text>
-          <View style={styles.weightPillsContainer}>
-            <TouchableOpacity
-              style={[styles.weightPill, washFoldWeight === 'small' && styles.weightPillSelected]}
-              onPress={() => setWashFoldWeight('small')}
-            >
-              <Text style={[styles.weightPillLabel, washFoldWeight === 'small' && styles.weightPillLabelSelected]}>~7kg</Text>
-              <Text style={[styles.weightPillSub, washFoldWeight === 'small' && styles.weightPillSubSelected]}>Max 25 pcs • ₹479</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.weightPill, washFoldWeight === 'large' && styles.weightPillSelected]}
-              onPress={() => setWashFoldWeight('large')}
-            >
-              <Text style={[styles.weightPillLabel, washFoldWeight === 'large' && styles.weightPillLabelSelected]}>~14kg</Text>
-              <Text style={[styles.weightPillSub, washFoldWeight === 'large' && styles.weightPillSubSelected]}>Max 50 pcs • ₹958</Text>
-            </TouchableOpacity>
-          </View>
+        {/* Improved Weight Selection - Consistent with Wash & Iron */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Select Estimated Weight</Text>
+
+          <TouchableOpacity
+            style={[styles.weightOption, washFoldWeight === 'small' && styles.weightOptionSelected]}
+            onPress={() => setWashFoldWeight('small')}
+          >
+            <View style={styles.weightOptionContent}>
+              <View style={styles.radioButton}>
+                {washFoldWeight === 'small' && <View style={styles.radioButtonInner} />}
+              </View>
+              <Text style={styles.weightOptionText}>~7kg • ~25 clothes</Text>
+              <Text style={styles.weightPrice}>₹479</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.weightOption, washFoldWeight === 'medium' && styles.weightOptionSelected]}
+            onPress={() => setWashFoldWeight('medium')}
+          >
+            <View style={styles.weightOptionContent}>
+              <View style={styles.radioButton}>
+                {washFoldWeight === 'medium' && <View style={styles.radioButtonInner} />}
+              </View>
+              <Text style={styles.weightOptionText}>~10kg • ~35 clothes</Text>
+              <Text style={styles.weightPrice}>₹849</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.weightOption, washFoldWeight === 'large' && styles.weightOptionSelected]}
+            onPress={() => setWashFoldWeight('large')}
+          >
+            <View style={styles.weightOptionContent}>
+              <View style={styles.radioButton}>
+                {washFoldWeight === 'large' && <View style={styles.radioButtonInner} />}
+              </View>
+              <Text style={styles.weightOptionText}>~14kg • ~50 clothes</Text>
+              <Text style={styles.weightPrice}>₹958</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Ironing Add-on */}
@@ -781,6 +806,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
           <Text style={styles.sectionTitle}>Select Estimated Weight</Text>
 
           {/* 3kg Slot */}
+          {/* 5kg Slot */}
           <TouchableOpacity
             style={[styles.weightOption, washIronWeight === 'small' && styles.weightOptionSelected]}
             onPress={() => setWashIronWeight('small')}
@@ -789,12 +815,12 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
               <View style={styles.radioButton}>
                 {washIronWeight === 'small' && <View style={styles.radioButtonInner} />}
               </View>
-              <Text style={styles.weightOptionText}>~3kg • ~10 clothes</Text>
-              <Text style={styles.weightPrice}>₹360</Text>
+              <Text style={styles.weightOptionText}>~5kg • ~15 clothes</Text>
+              <Text style={styles.weightPrice}>₹499</Text>
             </View>
           </TouchableOpacity>
 
-          {/* 5kg Slot */}
+          {/* 7kg Slot */}
           <TouchableOpacity
             style={[styles.weightOption, washIronWeight === 'medium' && styles.weightOptionSelected]}
             onPress={() => setWashIronWeight('medium')}
@@ -803,12 +829,12 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
               <View style={styles.radioButton}>
                 {washIronWeight === 'medium' && <View style={styles.radioButtonInner} />}
               </View>
-              <Text style={styles.weightOptionText}>~5kg • ~18 clothes</Text>
-              <Text style={styles.weightPrice}>₹600</Text>
+              <Text style={styles.weightOptionText}>~7kg • ~25 clothes</Text>
+              <Text style={styles.weightPrice}>₹699</Text>
             </View>
           </TouchableOpacity>
 
-          {/* 7kg Slot */}
+          {/* 10kg Slot */}
           <TouchableOpacity
             style={[styles.weightOption, washIronWeight === 'large' && styles.weightOptionSelected]}
             onPress={() => setWashIronWeight('large')}
@@ -817,8 +843,8 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
               <View style={styles.radioButton}>
                 {washIronWeight === 'large' && <View style={styles.radioButtonInner} />}
               </View>
-              <Text style={styles.weightOptionText}>~7kg • ~25 clothes</Text>
-              <Text style={styles.weightPrice}>₹840</Text>
+              <Text style={styles.weightOptionText}>~10kg • ~35 clothes</Text>
+              <Text style={styles.weightPrice}>₹899</Text>
             </View>
           </TouchableOpacity>
         </View>

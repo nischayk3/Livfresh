@@ -121,7 +121,7 @@ export const AdminSubscriptionsScreen: React.FC = () => {
       <View style={styles.subscriberDetails}>
         <View style={styles.detailItem}>
           <Text style={styles.detailLabel}>Plan Type</Text>
-          <Text style={styles.detailValue}>{item.plan_type === 'single' ? '7kg Plan' : '14kg Plan'}</Text>
+          <Text style={styles.detailValue}>{item.plan_type === 'couple' ? '14kg Plan' : '7kg Plan'}</Text>
         </View>
         <View style={styles.detailItem}>
           <Text style={styles.detailLabel}>Credits Used</Text>

@@ -184,7 +184,9 @@ export const SubscriptionScreen: React.FC = () => {
                         deliveryTime,
                     }
                 } : {
-                    creditAmount: credits
+                    creditAmount: credits,
+                    planType: 'single', // Hardcoded for now as per plan
+                    kgPerCredit: 7      // Hardcoded for now as per plan
                 })
             };
 

@@ -212,26 +212,52 @@ export const SubscriptionsScreen: React.FC = () => {
         {/* Included / Not Included */}
         <View style={styles.includedGrid}>
           <View style={styles.includedCard}>
-            <View style={styles.includedHeader}>
-              <Ionicons name="checkmark-circle" size={16} color={COLORS.primary} />
-              <Text style={styles.includedTitle}>Included</Text>
-            </View>
+            <Text style={styles.includedTitle}>Included</Text>
             <View style={styles.includedList}>
-              <Text style={styles.includedItem}>
-                • Wash & Fold up to {activeSubscription.kgPerCredit} kg
-              </Text>
-              <Text style={styles.includedItem}>• Pickup included</Text>
-              <Text style={styles.includedItem}>• Delivery included</Text>
+              <View style={styles.includedRow}>
+                <View style={styles.iconBg}>
+                  <Ionicons name="checkmark" size={12} color={COLORS.success} />
+                </View>
+                <Text style={styles.includedItem}>
+                  Wash & Fold up to {activeSubscription.kgPerCredit || 7} kg
+                </Text>
+              </View>
+              <View style={styles.includedRow}>
+                <View style={styles.iconBg}>
+                  <Ionicons name="checkmark" size={12} color={COLORS.success} />
+                </View>
+                <Text style={styles.includedItem}>Free Pickup & Delivery</Text>
+              </View>
+              <View style={styles.includedRow}>
+                <View style={styles.iconBg}>
+                  <Ionicons name="checkmark" size={12} color={COLORS.success} />
+                </View>
+                <Text style={styles.includedItem}>Premium Detergent</Text>
+              </View>
             </View>
           </View>
+
           <View style={styles.includedCard}>
-            <View style={styles.includedHeader}>
-              <Text style={styles.notIncludedIcon}>✕</Text>
-              <Text style={styles.includedTitle}>Not Included</Text>
-            </View>
+            <Text style={styles.includedTitle}>Not Included</Text>
             <View style={styles.includedList}>
-              <Text style={styles.includedItem}>• Ironing</Text>
-              <Text style={styles.includedItem}>• Dry cleaning</Text>
+              <View style={styles.includedRow}>
+                <View style={[styles.iconBg, { backgroundColor: '#FEE2E2' }]}>
+                  <Ionicons name="close" size={12} color={COLORS.error} />
+                </View>
+                <Text style={styles.includedItem}>Ironing Service</Text>
+              </View>
+              <View style={styles.includedRow}>
+                <View style={[styles.iconBg, { backgroundColor: '#FEE2E2' }]}>
+                  <Ionicons name="close" size={12} color={COLORS.error} />
+                </View>
+                <Text style={styles.includedItem}>Dry Cleaning</Text>
+              </View>
+              <View style={styles.includedRow}>
+                <View style={[styles.iconBg, { backgroundColor: '#FEE2E2' }]}>
+                  <Ionicons name="close" size={12} color={COLORS.error} />
+                </View>
+                <Text style={styles.includedItem}>Stain Removal</Text>
+              </View>
             </View>
           </View>
         </View>
@@ -567,40 +593,45 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   includedGrid: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
+    gap: SPACING.md,
     marginTop: SPACING.md,
   },
   includedCard: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    borderRadius: RADIUS.md,
+    backgroundColor: '#FFFFFF',
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
-  },
-  includedHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    marginBottom: SPACING.sm,
+    borderColor: '#F1F5F9', // Light border
+    ...SHADOWS.sm,
   },
   includedTitle: {
-    ...TYPOGRAPHY.bodyBold,
-    color: COLORS.text,
-    fontSize: 12,
-  },
-  notIncludedIcon: {
-    fontSize: 16,
-    color: COLORS.error,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginBottom: SPACING.md,
+    fontFamily: 'Outfit_700Bold',
   },
   includedList: {
-    gap: SPACING.xs,
+    gap: 12,
+  },
+  includedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconBg: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#DCFCE7', // Light green
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
   },
   includedItem: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-    fontSize: 11,
+    fontSize: 13,
+    color: '#475569', // Slate 600
+    fontFamily: 'Outfit_400Regular',
+    flex: 1,
   },
   pastCard: {
     backgroundColor: COLORS.background,

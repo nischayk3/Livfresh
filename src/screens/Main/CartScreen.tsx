@@ -47,17 +47,34 @@ export const CartScreen: React.FC = () => {
     // Constants
     const PLATFORM_FEE = 0;
     const GST_PERCENTAGE = 0;
-    const FIRST_ORDER_DISCOUNT = 100;
     const MIN_BUFFER_MINS = 20;
     const OPERATIONAL_START_HOUR = 9; // 9:00 AM
     const LAST_INSTANT_ORDER_TIME = 19.5; // 7:30 PM in decimal hours
     const OPERATIONAL_END_HOUR = 21; // 9:00 PM
 
+    // Coupon Logic
+    const isFirstOrder = orderCount === 0;
+    const isNextTwoOrders = orderCount === 1 || orderCount === 2;
+    const MIN_CART_VALUE = 500;
+    const STANDARD_DISCOUNT = 100;
+
     const subtotal = getTotalAmount();
     const onlyIroningInCart = items.length > 0 && items.every(item => item.serviceType === 'ironing');
     const DELIVERY_FEE = onlyIroningInCart ? 50 : 0;
     const gstAmount = Math.round(subtotal * GST_PERCENTAGE);
-    const totalAmount = subtotal + PLATFORM_FEE + DELIVERY_FEE + gstAmount - discountAmount;
+
+    // Calculate potential discount based on rules
+    const getPotentialDiscount = () => {
+        if (isFirstOrder) {
+            // Flat ₹100 off, but strictly not more than subtotal
+            return Math.min(subtotal, STANDARD_DISCOUNT);
+        }
+        if (isNextTwoOrders && subtotal >= MIN_CART_VALUE) return STANDARD_DISCOUNT;
+        return 0;
+    };
+
+    const actualDiscount = isDiscountApplied ? getPotentialDiscount() : 0;
+    const totalAmount = Math.max(0, subtotal + PLATFORM_FEE + DELIVERY_FEE + gstAmount - actualDiscount);
 
     // Generate next 7 days dates
     const generateDates = () => {
@@ -88,7 +105,7 @@ export const CartScreen: React.FC = () => {
 
     const dates = generateDates();
 
-    // Effect to revoke coupon if cart becomes standalone ironing OR if subscription credit is applied
+    // Effect to revoke coupon if conditions change
     useEffect(() => {
         const isCreditApplied = items.some(item => item.isCreditItem);
 
@@ -109,9 +126,24 @@ export const CartScreen: React.FC = () => {
                     message: 'Offers cannot be combined with Subscription Credits.',
                     type: 'info'
                 });
+            } else if (isNextTwoOrders && subtotal < MIN_CART_VALUE) {
+                setIsDiscountApplied(false);
+                setDiscountAmount(0);
+                showAlert({
+                    title: 'Coupon Removed',
+                    message: `Discount removed because cart value is less than ₹${MIN_CART_VALUE}.`,
+                    type: 'info'
+                });
+            } else {
+                // Update discount amount dynamically if cart total changes (weird edge case for 1st order where it matches subtotal)
+                // or if it was applied but subtotal changed.
+                const newDiscount = getPotentialDiscount();
+                if (discountAmount !== newDiscount) {
+                    setDiscountAmount(newDiscount);
+                }
             }
         }
-    }, [items, onlyIroningInCart, isDiscountApplied]);
+    }, [items, onlyIroningInCart, isDiscountApplied, subtotal, orderCount]);
 
     // Check if store is currently open (9 AM - 7:30 PM)
     const checkInstantAvailability = () => {
@@ -167,7 +199,9 @@ export const CartScreen: React.FC = () => {
             if (user?.uid) {
                 try {
                     const orders = await getUserOrders(user.uid);
-                    setOrderCount(orders.length);
+                    // Filter out cancelled orders for the count
+                    const validOrders = orders.filter((o: any) => o.status !== 'cancelled');
+                    setOrderCount(validOrders.length);
                 } catch (error) {
                     console.error("Error fetching order count:", error);
                 }
@@ -405,6 +439,10 @@ export const CartScreen: React.FC = () => {
             clearCart();
             await clearCartInFirestore(user.uid);
 
+            // Reset coupon state for next time (though unmounting handles most, store persists?)
+            // Local state resets on unmount anyway.
+
+
             // Consume subscription credit if applicable
             const creditItem = items.find(item => item.isCreditItem);
             if (creditItem && creditItem.creditSubscriptionId) {
@@ -574,6 +612,8 @@ export const CartScreen: React.FC = () => {
 
     // ... (render)
 
+
+
     return (
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
             <View style={styles.header}>
@@ -608,7 +648,7 @@ export const CartScreen: React.FC = () => {
                     </View>
 
                     {/* Coupon Section - Hide if subscription credit is applied */}
-                    {orderCount < 3 && !onlyIroningInCart && !items.some(item => item.isCreditItem) && (
+                    {orderCount < 3 && !items.some(item => item.isCreditItem) && (
                         <View style={styles.section}>
                             <Text style={styles.sectionTitle}>Offers & Benefits</Text>
                             <TouchableOpacity
@@ -626,11 +666,23 @@ export const CartScreen: React.FC = () => {
                                             });
                                             return;
                                         }
+
+                                        if (isNextTwoOrders && subtotal < MIN_CART_VALUE) {
+                                            showAlert({
+                                                title: 'Cart Value Too Low',
+                                                message: `Add items worth ₹${MIN_CART_VALUE - subtotal} more to apply this coupon!`,
+                                                type: 'warning'
+                                            });
+                                            return;
+                                        }
+
+                                        const discount = getPotentialDiscount();
                                         setIsDiscountApplied(true);
-                                        setDiscountAmount(FIRST_ORDER_DISCOUNT);
+                                        setDiscountAmount(discount);
+
                                         showAlert({
                                             title: 'Coupon Applied!',
-                                            message: `₹${FIRST_ORDER_DISCOUNT} discount has been added to your order.`,
+                                            message: `₹${discount} discount has been added to your order.`,
                                             type: 'success'
                                         });
                                     }
@@ -644,7 +696,12 @@ export const CartScreen: React.FC = () => {
                                         {isDiscountApplied ? 'FIRST100 Applied' : 'Apply FIRST100'}
                                     </Text>
                                     <Text style={[styles.couponSub, isDiscountApplied && styles.couponTextApplied]}>
-                                        {isDiscountApplied ? `Saved ₹${FIRST_ORDER_DISCOUNT} on this order` : `Get ₹${FIRST_ORDER_DISCOUNT} off on your first 3 orders`}
+                                        {isDiscountApplied
+                                            ? `Saved ₹${discountAmount} on this order`
+                                            : (isFirstOrder
+                                                ? 'Get flat ₹100 OFF on your 1st order'
+                                                : `Get ₹${STANDARD_DISCOUNT} off over ₹${MIN_CART_VALUE}`)
+                                        }
                                     </Text>
                                 </View>
                                 <View style={[styles.applyBadge, isDiscountApplied && styles.applyBadgeApplied]}>
@@ -796,7 +853,7 @@ export const CartScreen: React.FC = () => {
                     <CartTrust />
 
                 </ScrollView>
-            </View>
+            </View >
 
             {/* Floating Premium Footer */}
             <View style={styles.footer}>
@@ -804,18 +861,19 @@ export const CartScreen: React.FC = () => {
                     <View>
                         <Text style={styles.footerLabel}>Total to Pay</Text>
                         <Text style={styles.footerTotal}>₹{totalAmount}</Text>
+                        <Text style={styles.payOnDeliveryText}>Pay on delivery</Text>
                     </View>
                     <AnimatedButton
                         style={styles.placeOrderBtn}
                         onPress={handlePlaceOrder}
                         disabled={loading}
                     >
-                        <Text style={styles.placeOrderText}>Book Now</Text>
+                        <Text style={styles.placeOrderText}>Cash On Delivery</Text>
                         <Ionicons name="arrow-forward" size={18} color="#FFF" />
                     </AnimatedButton>
                 </GlassCard>
             </View>
-        </SafeAreaView>
+        </SafeAreaView >
     );
 };
 
@@ -1224,6 +1282,12 @@ const styles = StyleSheet.create({
         ...TYPOGRAPHY.heading,
         fontSize: 24,
         color: COLORS.text,
+    },
+    payOnDeliveryText: {
+        fontSize: 10,
+        color: COLORS.textSecondary,
+        marginTop: 2,
+        fontWeight: '500',
     },
     placeOrderBtn: {
         flex: 1,

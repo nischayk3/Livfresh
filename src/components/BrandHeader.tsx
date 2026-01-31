@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS, SPACING, RADIUS, TYPOGRAPHY } from '../utils/constants';
 
@@ -18,6 +19,7 @@ export const BrandHeader: React.FC<BrandHeaderProps> = ({
     rightElement
 }) => {
     const navigation = useNavigation();
+    const insets = useSafeAreaInsets();
 
     const handleBack = () => {
         if (onBackPress) {
@@ -28,7 +30,15 @@ export const BrandHeader: React.FC<BrandHeaderProps> = ({
     };
 
     return (
-        <View style={styles.header}>
+        <View style={[
+            styles.header,
+            {
+                paddingTop: insets.top + SPACING.md,
+                // On Android, we might not want double padding if the status bar is translucent, 
+                // but usually insets.top is correct. 
+                // If standard padding is SPACING.md, we add insets.top to it.
+            }
+        ]}>
             <View style={styles.leftContainer}>
                 {showBack && (
                     <TouchableOpacity onPress={handleBack} style={styles.backButton} activeOpacity={0.7}>
@@ -50,7 +60,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: SPACING.lg,
-        paddingVertical: SPACING.md,
+        paddingBottom: SPACING.md, // Changed from paddingVertical to explicit bottom
         backgroundColor: COLORS.background,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.borderLight,

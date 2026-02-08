@@ -1,6 +1,7 @@
 {
     "cli": {
-        "version": ">= 3.0.0"
+        "version": ">= 3.0.0",
+        "appVersionSource": "remote"
     },
     "build": {
         "development": {
@@ -14,12 +15,19 @@
             "distribution": "internal"
         },
         "production": {
+            "autoIncrement": true,
             "android": {
                 "buildType": "app-bundle"
             }
         }
     },
     "submit": {
-        "production": {}
+        "production": {
+            "ios": {
+                "ascApiKeyId": "72C9C4NYBY",
+                "ascApiKeyIssuerId": "91ba14ef-5b8a-42af-9d33-56417d6b53f6",
+                "ascApiKeyPath": "./AuthKey_72C9C4NYBY.p8"
+            }
+        }
     }
 }

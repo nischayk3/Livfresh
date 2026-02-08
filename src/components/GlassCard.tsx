@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, ViewStyle, StyleSheet, Platform } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { COLORS, RADIUS, SHADOWS } from '../utils/constants';
 
 interface GlassCardProps {
@@ -11,7 +12,7 @@ interface GlassCardProps {
 
 /**
  * A reusable premium card component with Glassmorphism 2.0 effects.
- * Uses semi-transparent backgrounds, subtle borders, and soft shadows.
+ * Uses BlurView for native platforms and backdrop-filter for web.
  */
 export const GlassCard: React.FC<GlassCardProps> = ({
     children,
@@ -19,33 +20,44 @@ export const GlassCard: React.FC<GlassCardProps> = ({
     intensity = 'medium',
     cornerRadius = 'xl',
 }) => {
-    const getGlassStyles = () => {
-        let opacity = 0.7;
-        let blur = 10;
-
-        if (intensity === 'low') {
-            opacity = 0.85;
-            blur = 5;
-        } else if (intensity === 'high') {
-            opacity = 0.5;
-            blur = 20;
-        }
-
-        return {
-            backgroundColor: `rgba(255, 255, 255, ${opacity})`,
-            ...(Platform.OS === 'web' ? { backdropFilter: `blur(${blur}px)` } : {}),
-        };
+    const getIntensityValue = () => {
+        if (intensity === 'low') return 30;
+        if (intensity === 'high') return 80;
+        return 50;
     };
 
+    const getBgOpacity = () => {
+        if (intensity === 'low') return 0.5;
+        if (intensity === 'high') return 0.15;
+        return 0.3;
+    };
+
+    const cardStyles = [
+        styles.card,
+        {
+            borderRadius: RADIUS[cornerRadius],
+            backgroundColor: `rgba(255, 255, 255, ${getBgOpacity()})`,
+        },
+        style,
+    ];
+
+    if (Platform.OS === 'web') {
+        return (
+            <View style={[...cardStyles, { backdropFilter: `blur(${getIntensityValue() / 5}px)` } as any]}>
+                {children}
+            </View>
+        );
+    }
+
     return (
-        <View style={[
-            styles.card,
-            getGlassStyles(),
-            { borderRadius: RADIUS[cornerRadius] },
-            style,
-        ]}>
+        <BlurView
+            intensity={getIntensityValue()}
+            tint="light"
+            experimentalBlurMethod="dimezisBlurView"
+            style={cardStyles}
+        >
             {children}
-        </View>
+        </BlurView>
     );
 };
 
@@ -53,7 +65,6 @@ const styles = StyleSheet.create({
     card: {
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.3)',
-        ...SHADOWS.md,
         overflow: 'hidden',
     },
 });

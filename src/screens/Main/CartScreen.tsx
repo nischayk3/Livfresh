@@ -858,7 +858,7 @@ export const CartScreen: React.FC = () => {
             {/* Floating Premium Footer */}
             <View style={styles.footer}>
                 <GlassCard intensity="high" style={styles.footerGlass}>
-                    <View>
+                    <View style={styles.footerAmountContainer}>
                         <Text style={styles.footerLabel}>Total to Pay</Text>
                         <Text style={styles.footerTotal}>₹{totalAmount}</Text>
                         <Text style={styles.payOnDeliveryText}>Pay on delivery</Text>
@@ -880,7 +880,7 @@ export const CartScreen: React.FC = () => {
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: COLORS.background,
+        backgroundColor: '#F9FAFB',
         ...(Platform.OS === 'web' ? {
             height: '100vh',
             display: 'flex',
@@ -895,7 +895,7 @@ const styles = StyleSheet.create({
         paddingVertical: SPACING.md,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.borderLight,
-        backgroundColor: COLORS.background,
+        backgroundColor: '#FFFFFF',
         ...(Platform.OS === 'web' ? {
             flexShrink: 0,
         } : {}),
@@ -938,7 +938,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: SPACING.lg,
         paddingVertical: SPACING.md,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.borderLight,
+        borderBottomColor: 'rgba(255, 255, 255, 0.2)',
     },
     sectionTitle: {
         ...TYPOGRAPHY.bodyBold,
@@ -1051,7 +1051,7 @@ const styles = StyleSheet.create({
         marginTop: 8,
         paddingTop: 8,
         borderTopWidth: 1,
-        borderTopColor: COLORS.borderLight,
+        borderTopColor: 'rgba(255, 255, 255, 0.2)',
     },
     totalLabel: {
         ...TYPOGRAPHY.bodyBold,
@@ -1269,7 +1269,6 @@ const styles = StyleSheet.create({
         padding: 16,
         paddingHorizontal: 20,
         borderRadius: 24,
-        ...SHADOWS.xl,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.5)',
     },
@@ -1306,6 +1305,14 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontSize: 15,
     },
+    footerAmountContainer: {
+        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.3)',
+    },
     billGlassCard: {
         marginHorizontal: 16,
         marginVertical: 12,
@@ -1313,7 +1320,6 @@ const styles = StyleSheet.create({
         borderRadius: 24,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.5)',
-        ...SHADOWS.sm,
     },
     emptyContainer: {
         flex: 1,
@@ -1378,7 +1384,7 @@ const styles = StyleSheet.create({
         gap: 6,
         paddingTop: 12,
         borderTopWidth: 1,
-        borderTopColor: COLORS.borderLight,
+        borderTopColor: 'rgba(255, 255, 255, 0.2)',
     },
     guaranteeText: {
         fontSize: 12,

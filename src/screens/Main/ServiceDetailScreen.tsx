@@ -916,7 +916,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
           </View>
         </GlassCard>
 
-        <View style={[styles.infoBox, { marginTop: SPACING.lg, backgroundColor: '#F5F3FF', borderColor: '#DDD6FE' }]}>
+        <View style={[styles.infoBox, { marginTop: SPACING.lg, backgroundColor: 'rgba(124, 58, 237, 0.1)', borderColor: 'rgba(124, 58, 237, 0.2)' }]}>
           <MaterialCommunityIcons name="information" size={20} color="#7C3AED" style={{ marginRight: 8 }} />
           <Text style={[styles.infoBoxText, { color: '#6D28D9' }]}>
             Standalone ironing orders have a ₹50 pickup & delivery fee. Waived if combined with other services!
@@ -1459,10 +1459,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: 'rgba(255,255,255,0.3)',
     alignItems: 'center',
     justifyContent: 'center',
-    ...SHADOWS.sm,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.3)',
   },
@@ -1528,14 +1527,13 @@ const styles = StyleSheet.create({
     fontFamily: 'Outfit_500Medium',
   },
   premiumSelectorContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: RADIUS.xl,
-    padding: SPACING.xl,
+    padding: 20,
+    borderRadius: 24,
+    marginBottom: 30,
     marginTop: SPACING.md,
     alignItems: 'center',
-    ...SHADOWS.md,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   premiumSelectorTitle: {
     fontSize: 18,
@@ -1558,11 +1556,11 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#F5F3FF',
+    backgroundColor: 'rgba(124, 58, 237, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#DDD6FE',
+    borderColor: 'rgba(124, 58, 237, 0.2)',
   },
   countBtnDisabled: {
     backgroundColor: '#F8FAFC',
@@ -1587,12 +1585,12 @@ const styles = StyleSheet.create({
   },
   priceTag: {
     marginTop: SPACING.xl,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#DCFCE7',
+    borderColor: 'rgba(16, 185, 129, 0.2)',
   },
   priceTagText: {
     fontSize: 14,
@@ -1664,12 +1662,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
     padding: SPACING.md,
     borderRadius: RADIUS.lg,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
-    ...SHADOWS.sm,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   toggleLabel: {
     fontSize: 16,
@@ -1699,15 +1696,14 @@ const styles = StyleSheet.create({
   },
   quantitySelector: {
     marginTop: SPACING.md,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
     padding: SPACING.md,
     borderRadius: RADIUS.lg,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#F1F5F9',
-    ...SHADOWS.sm,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   quantityLabel: {
     fontSize: 14,
@@ -1756,17 +1752,16 @@ const styles = StyleSheet.create({
     fontFamily: 'Outfit_800ExtraBold',
   },
   instructionsInput: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
     borderRadius: RADIUS.lg,
     padding: SPACING.md,
     fontSize: 15,
     color: '#1A1A1A',
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     minHeight: 100,
     textAlignVertical: 'top',
     fontFamily: 'Outfit_400Regular',
-    ...SHADOWS.sm,
   },
   mediaButtonsContainer: {
     flexDirection: 'row',
@@ -1775,13 +1770,12 @@ const styles = StyleSheet.create({
   },
   mediaButton: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
     padding: 10,
     borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#F1F5F9',
-    ...SHADOWS.sm,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   mediaIconCircle: {
     width: 40,
@@ -1885,13 +1879,12 @@ const styles = StyleSheet.create({
   },
   weightPill: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
     borderRadius: 20,
     padding: 16,
     borderWidth: 1.5,
-    borderColor: COLORS.borderLight,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     alignItems: 'center',
-    ...SHADOWS.sm,
   },
   weightPillSelected: {
     borderColor: COLORS.primary,
@@ -1935,7 +1928,6 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingHorizontal: 20,
     borderRadius: 24,
-    ...SHADOWS.xl,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.5)',
   },
@@ -1993,13 +1985,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
     padding: SPACING.md,
     borderRadius: RADIUS.lg,
     marginBottom: SPACING.sm,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
-    ...SHADOWS.sm,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   blanketInfo: {
     flex: 1,
@@ -2017,13 +2008,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Outfit_700Bold',
   },
   shoeCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
     borderRadius: RADIUS.lg,
     padding: SPACING.md,
     marginBottom: SPACING.md,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
-    ...SHADOWS.sm,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   shoeCardContent: {
     flexDirection: 'row',
@@ -2112,7 +2102,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     marginVertical: SPACING.md,
   },
 });

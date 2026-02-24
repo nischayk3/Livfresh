@@ -152,7 +152,7 @@ export const SubscriptionsScreen: React.FC = () => {
                 {activeSubscription.totalCredits} Credits Pack
               </Text>
               <Text style={styles.planSubtitle}>
-                {activeSubscription.kgPerCredit} kg per credit
+                {activeSubscription.kgPerCredit || (activeSubscription.planType === 'couple' ? 14 : 7)} kg per credit
               </Text>
             </View>
             <View style={styles.planMeta}>
@@ -219,7 +219,7 @@ export const SubscriptionsScreen: React.FC = () => {
                   <Ionicons name="checkmark" size={12} color={COLORS.success} />
                 </View>
                 <Text style={styles.includedItem}>
-                  Wash & Fold up to {activeSubscription.kgPerCredit || 7} kg
+                  Wash & Fold up to {activeSubscription.kgPerCredit || (activeSubscription.planType === 'couple' ? 14 : 7)} kg
                 </Text>
               </View>
               <View style={styles.includedRow}>
@@ -323,6 +323,29 @@ export const SubscriptionsScreen: React.FC = () => {
       </View>
     );
   };
+
+  if (!user) {
+    return (
+      <View style={styles.container}>
+        <BrandHeader title="Subscriptions" />
+        <View style={[styles.emptyContainer, { flex: 1 }]}>
+          <View style={styles.emptyIconContainer}>
+            <Ionicons name="card-outline" size={64} color={COLORS.primaryLight} />
+          </View>
+          <Text style={[styles.emptyTitle, { marginBottom: 8 }]}>Sign in to view plans</Text>
+          <Text style={styles.emptySubtitle}>
+            Buy credits to enjoy convenient laundry service with savings
+          </Text>
+          <TouchableOpacity
+            style={styles.browseButton}
+            onPress={() => (navigation as any).navigate('PhoneLogin', { returnTo: 'Credits' })}
+          >
+            <Text style={styles.browseButtonText}>Sign In</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -705,6 +728,18 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.bodyBold,
     color: COLORS.primary,
     fontSize: 15,
+  },
+  browseButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    borderRadius: RADIUS.lg,
+    marginTop: SPACING.md,
+  },
+  browseButtonText: {
+    ...TYPOGRAPHY.bodyBold,
+    color: '#FFFFFF',
+    fontSize: 16,
   },
 });
 

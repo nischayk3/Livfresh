@@ -15,7 +15,7 @@ import {
   Dimensions
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { requestOTP, initializeRecaptcha } from '../../services/auth';
@@ -29,6 +29,7 @@ const { width } = Dimensions.get('window');
 
 export const PhoneLoginScreen: React.FC = () => {
   const navigation = useNavigation();
+  const route = useRoute();
   const insets = useSafeAreaInsets();
   const { setLoading, setError } = useAuthStore();
   const { showAlert } = useUIStore();
@@ -87,7 +88,7 @@ export const PhoneLoginScreen: React.FC = () => {
       setOTPData(formattedPhone, '');
 
       // Navigate directly to OTP. We check if user exists AFTER verification.
-      navigation.navigate('OTP' as never);
+      (navigation as any).navigate('OTP', route.params);
     } catch (error: any) {
       console.error('Phone auth error:', error);
       showAlert({

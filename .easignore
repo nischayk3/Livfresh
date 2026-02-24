@@ -1,10 +1,28 @@
+# Dependencies
 node_modules/
+**/node_modules/
+
+# Expo
 .expo/
 dist/
 web-build/
+
+# Native
 ios/
 android/
+**/android/app/build/
+**/ios/Pods/
 *.apk
 *.aab
+*.ipa
+
+# Functions
+functions/lib/
+functions/node_modules/
+
+# OS
 .DS_Store
 .git/
+
+# AI context
+.gemini/

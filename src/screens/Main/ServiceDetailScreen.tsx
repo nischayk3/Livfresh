@@ -28,7 +28,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { COLORS, SPACING, SHADOWS, RADIUS, TYPOGRAPHY } from '../../utils/constants';
-import { useCartStore, useUIStore } from '../../store';
+import { useCartStore, useUIStore, useAuthStore } from '../../store';
 import { uploadServicePhotos } from '../../services/firestore';
 import { CartItem } from '../../store/cartStore';
 import { trackPixelEvent } from '../../utils/pixel';
@@ -641,6 +641,16 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       cartItem.ironingPrice = premiumIroningEnabled ? premiumIroningCount * 20 : 0;
     }
 
+    const { isLoggedIn } = useAuthStore.getState();
+
+    if (!isLoggedIn) {
+      const { setPendingItem } = useCartStore.getState();
+      setPendingItem(cartItem);
+      onClose();
+      (navigation as any).navigate('PhoneLogin', { returnTo: 'Cart' });
+      return;
+    }
+
     addItem(cartItem);
 
     // Track AddToCart
@@ -882,7 +892,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       <View style={styles.section}>
         <ServiceStats rating={4.9} reviewCount={1200} />
 
-        <GlassCard style={styles.premiumSelectorContainer}>
+        <View style={styles.premiumSelectorContainer}>
           <Text style={styles.premiumSelectorTitle}>Select Quantity</Text>
           <Text style={styles.premiumSelectorSubtitle}>Min 20 - Max 50 pieces</Text>
 
@@ -914,7 +924,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
           <View style={styles.priceTag}>
             <Text style={styles.priceTagText}>₹15 per piece</Text>
           </View>
-        </GlassCard>
+        </View>
 
         <View style={[styles.infoBox, { marginTop: SPACING.lg, backgroundColor: 'rgba(124, 58, 237, 0.1)', borderColor: 'rgba(124, 58, 237, 0.2)' }]}>
           <MaterialCommunityIcons name="information" size={20} color="#7C3AED" style={{ marginRight: 8 }} />
@@ -1327,9 +1337,9 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
               onPress={onClose}
               activeOpacity={0.7}
             >
-              <GlassCard cornerRadius="full" style={styles.closeIconBg}>
+              <View style={styles.closeIconBg}>
                 <Ionicons name="close" size={22} color={COLORS.text} />
-              </GlassCard>
+              </View>
             </TouchableOpacity>
 
             <Animated.ScrollView
@@ -1379,7 +1389,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
             {/* Floating Premium Footer */}
             <View style={[styles.floatingFooter, { bottom: insets.bottom + 16 }]}>
-              <GlassCard intensity="high" style={styles.footerGlass}>
+              <View style={styles.footerGlass}>
                 <View style={styles.priceContainer}>
                   <Text style={styles.priceLabel}>Estimated Total</Text>
                   <Text style={styles.totalPrice}>₹{calculateTotal()}</Text>
@@ -1402,7 +1412,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
                     <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
                   </LinearGradient>
                 </AnimatedButton>
-              </GlassCard>
+              </View>
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -1532,8 +1542,8 @@ const styles = StyleSheet.create({
     marginBottom: 30,
     marginTop: SPACING.md,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: '#FFFFFF',
+    ...SHADOWS.sm,
   },
   premiumSelectorTitle: {
     fontSize: 18,
@@ -1785,6 +1795,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 4,
   },
+
   mediaButtonText: {
     fontSize: 11,
     fontWeight: '700',
@@ -1925,11 +1936,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
     paddingHorizontal: 20,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
+    paddingTop: 16,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: RADIUS.xl,
+    borderTopRightRadius: RADIUS.xl,
+    ...SHADOWS.md,
   },
   priceContainer: {
     flex: 1,

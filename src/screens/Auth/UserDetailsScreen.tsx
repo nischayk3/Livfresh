@@ -24,11 +24,11 @@ type GenderOption = 'male' | 'female' | 'other' | 'prefer_not_to_say';
 export const UserDetailsScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { phone } = (route.params as any) || {};
+  const { phone, initialName } = (route.params as any) || {};
   const { setOTPData } = useAuthStore();
   const { showAlert } = useUIStore();
 
-  const [name, setName] = useState('');
+  const [name, setName] = useState(initialName || '');
   const [email, setEmail] = useState('');
   const [gender, setGender] = useState<GenderOption | ''>('');
   const [referralCode, setReferralCode] = useState('');
@@ -84,6 +84,7 @@ export const UserDetailsScreen: React.FC = () => {
       } as any);
 
       console.log('✅ User registration complete');
+      (navigation as any).navigate('LocationPermission', route.params);
     } catch (error: any) {
       console.error('Registration error:', error);
       showAlert({

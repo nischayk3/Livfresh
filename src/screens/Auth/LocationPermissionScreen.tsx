@@ -136,7 +136,8 @@ export const LocationPermissionScreen: React.FC = () => {
 
         (navigation as any).navigate('AddressMap', {
           initialLat: location.coords.latitude,
-          initialLng: location.coords.longitude
+          initialLng: location.coords.longitude,
+          returnTo: params?.returnTo
         });
       } else {
         showAlert({
@@ -146,7 +147,8 @@ export const LocationPermissionScreen: React.FC = () => {
         });
         (navigation as any).navigate('AddressMap', {
           initialLat: location.coords.latitude,
-          initialLng: location.coords.longitude
+          initialLng: location.coords.longitude,
+          returnTo: params?.returnTo
         });
       }
     } catch (error: any) {
@@ -169,10 +171,31 @@ export const LocationPermissionScreen: React.FC = () => {
     const { setHasSkippedLocation } = useAddressStore.getState();
     setHasSkippedLocation(true);
 
+    const returnTo = params?.returnTo;
+
+    if (returnTo) {
+      (navigation as any).reset({
+        index: 0,
+        routes: [{
+          name: 'Main',
+          state: {
+            routes: [{ name: 'MainTabs' }, { name: returnTo }]
+          }
+        }]
+      });
+      return;
+    }
+
     if (user) {
-      (navigation as any).navigate('Main', { screen: 'MainTabs', params: { screen: 'Home' } });
+      (navigation as any).reset({
+        index: 0,
+        routes: [{ name: 'Main' }],
+      });
     } else {
-      (navigation as any).navigate('MainTabs', { screen: 'Home' });
+      (navigation as any).reset({
+        index: 0,
+        routes: [{ name: 'MainTabs' }],
+      });
     }
   };
 

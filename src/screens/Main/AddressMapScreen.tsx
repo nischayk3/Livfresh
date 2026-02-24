@@ -124,12 +124,26 @@ export const AddressMapScreen: React.FC = () => {
                         const loc = await Promise.race([locationPromise, timeoutPromise]) as Location.LocationObject;
                         lat = loc.coords.latitude;
                         lng = loc.coords.longitude;
+                    } else {
+                        // Permission denied — show a helpful alert instead of crashing
+                        showAlert({
+                            title: 'Location Permission Required',
+                            message: 'We need location access to pin your address on the map. You can still drag the map pin to set your location manually.',
+                            type: 'warning',
+                        });
                     }
                 } catch (e) {
-                    console.error('Location permission error:', e);
+                    console.warn('Location error:', e);
+                    // Show a non-blocking warning; map will still work with default coords
+                    showAlert({
+                        title: 'Location Unavailable',
+                        message: 'Could not fetch your current location. You can drag the map pin to select your address manually.',
+                        type: 'info',
+                    });
                 }
             }
 
+            // Always set a valid region so MapView never gets unstable props
             const region = {
                 latitude: lat,
                 longitude: lng,
@@ -140,18 +154,10 @@ export const AddressMapScreen: React.FC = () => {
             setInitialRegion(region);
             currentRegionRef.current = region;
 
-            // If NOT editing, or if we want to confirm the address string for the coords
-            // For editing, we might want to keep the saved string unless they move the map.
-            // Let's fetch to be safe/fresh, unless user strictly wants to keep old text.
-            // Usually, opening map implies re-confirming location.
             if (!editingAddress) {
                 fetchAddress(lat, lng);
             }
         };
-
-        // If editing, parse specific details if available in previous full address string?
-        // Since we stored full string, we can't easily extract houseNo back perfectly without structured storage.
-        // We'll leave houseNo as is or empty.
 
         initLocation();
     }, []);
@@ -234,7 +240,22 @@ export const AddressMapScreen: React.FC = () => {
                     title: 'Success',
                     message: 'Address saved!',
                     type: 'success',
-                    onClose: () => (navigation as any).navigate('MainTabs', { screen: 'Home' })
+                    onClose: () => {
+                        const returnTo = (route.params as any)?.returnTo;
+                        if (returnTo) {
+                            (navigation as any).reset({
+                                index: 0,
+                                routes: [{
+                                    name: 'Main',
+                                    state: {
+                                        routes: [{ name: 'MainTabs' }, { name: returnTo }]
+                                    }
+                                }]
+                            });
+                        } else {
+                            (navigation as any).navigate('MainTabs', { screen: 'Home' });
+                        }
+                    }
                 });
             }
 

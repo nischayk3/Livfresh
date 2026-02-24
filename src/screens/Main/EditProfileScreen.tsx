@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, TYPOGRAPHY } from '../../utils/constants';
 import { useAuthStore, useUIStore } from '../../store';
 import { updateUser } from '../../services/firestore';
 import { BrandLoader } from '../../components/BrandLoader';
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export const EditProfileScreen: React.FC = () => {
     const navigation = useNavigation();
     const { user, setUser } = useAuthStore();
     const { showAlert } = useUIStore();
+    const insets = useSafeAreaInsets();
 
     // Fallback if user object is somehow null, shouldn't happen if navigating from Profile
     const [name, setName] = useState(user?.name || '');
@@ -32,6 +35,16 @@ export const EditProfileScreen: React.FC = () => {
             showAlert({
                 title: 'Error',
                 message: 'Name cannot be empty',
+                type: 'error'
+            });
+            return;
+        }
+
+        // Validate email format (allow empty — it's optional)
+        if (email.trim() && !EMAIL_REGEX.test(email.trim())) {
+            showAlert({
+                title: 'Invalid Email',
+                message: 'Please enter a valid email address (e.g. name@example.com)',
                 type: 'error'
             });
             return;
@@ -141,7 +154,7 @@ export const EditProfileScreen: React.FC = () => {
                 </ScrollView>
             </KeyboardAvoidingView>
 
-            <View style={styles.footer}>
+            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, SPACING.lg) + SPACING.sm }]}>
                 <TouchableOpacity
                     style={[styles.saveButton, loading && styles.saveButtonDisabled]}
                     onPress={handleSave}
@@ -241,7 +254,6 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         padding: SPACING.lg,
-        paddingBottom: Platform.OS === 'ios' ? 34 : SPACING.lg,
         borderTopWidth: 1,
         borderTopColor: COLORS.borderLight,
         backgroundColor: COLORS.background,

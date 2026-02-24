@@ -42,6 +42,8 @@ export interface CartItem {
 
 interface CartState {
   items: CartItem[];
+  pendingItem: Omit<CartItem, 'id'> | null;
+  setPendingItem: (item: Omit<CartItem, 'id'> | null) => void;
   addItem: (item: Omit<CartItem, 'id'>) => void;
   removeItem: (itemId: string) => void;
   updateItem: (itemId: string, updates: Partial<CartItem>) => void;
@@ -53,6 +55,9 @@ interface CartState {
 
 export const useCartStore = create<CartState>((set, get) => ({
   items: [],
+  pendingItem: null,
+
+  setPendingItem: (item) => set({ pendingItem: item }),
 
   addItem: (item) => {
     const newItem = {

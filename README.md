@@ -125,3 +125,4 @@ The project uses:
 Private Project - All rights reserved.
 
 npx expo export --platform web
+pkill -9 node

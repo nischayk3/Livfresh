@@ -135,6 +135,27 @@ export const MyOrdersScreen: React.FC = () => {
         );
     };
 
+    if (!user) {
+        return (
+            <View style={styles.container}>
+                <BrandHeader title="My Orders" />
+                <View style={styles.emptyContainer}>
+                    <View style={styles.emptyIconContainer}>
+                        <Ionicons name="receipt-outline" size={64} color={COLORS.primaryLight} />
+                    </View>
+                    <Text style={styles.emptyText}>Sign in to view orders</Text>
+                    <Text style={styles.emptySubtext}>Track your laundry and view past orders</Text>
+                    <TouchableOpacity
+                        style={styles.browseButton}
+                        onPress={() => (navigation as any).navigate('PhoneLogin', { returnTo: 'MyOrders' })}
+                    >
+                        <Text style={styles.browseButtonText}>Sign In</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    }
+
     if (loading && !refreshing) {
         return <BrandLoader message="Fetching your orders..." />;
     }
@@ -206,6 +227,8 @@ export const MyOrdersScreen: React.FC = () => {
                     </View>
                 }
             />
+
+
         </View>
     );
 };

@@ -372,7 +372,30 @@ export const AddressMapScreen: React.FC = () => {
                     title: 'Success',
                     message: 'Address saved!',
                     type: 'success',
-                    onClose: () => navigation.navigate('MainTabs' as never)
+                    onClose: () => {
+                        const returnTo = (route.params as any)?.returnTo;
+                        if (returnTo) {
+                            (navigation as any).reset({
+                                index: 0,
+                                routes: [
+                                    {
+                                        name: 'Main',
+                                        state: {
+                                            routes: [
+                                                { name: 'MainTabs' },
+                                                { name: returnTo }
+                                            ]
+                                        }
+                                    }
+                                ],
+                            });
+                        } else {
+                            (navigation as any).reset({
+                                index: 0,
+                                routes: [{ name: 'Main' }],
+                            });
+                        }
+                    }
                 });
             }
 

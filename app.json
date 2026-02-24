@@ -7,7 +7,7 @@
       "com.nischayk3.Spinit-ios",
       "app-1-597897149776-ios-bc466d02099d18a135c055"
     ],
-    "version": "1.0.2",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/SpinZo.png",
     "userInterfaceStyle": "light",
@@ -26,15 +26,16 @@
       }
     },
     "android": {
+      "newArchEnabled": true,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/adaptive_foreground_new.png",
+        "backgroundImage": "./assets/ic_launcher_background.png",
+        "backgroundColor": "#994BFF"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.nischayk3.Spinit",
-      "googleServicesFile": "./google-services.json",
-      "versionCode": 3
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/SpinZo.png",
@@ -67,15 +68,7 @@
       "./plugins/withFirebaseModularHeaders",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
-      "expo-font",
-      [
-        "@sentry/react-native/expo",
-        {
-          "url": "https://sentry.io/",
-          "project": "react-native",
-          "organization": "think41-1s"
-        }
-      ]
+      "expo-font"
     ]
   }
 }

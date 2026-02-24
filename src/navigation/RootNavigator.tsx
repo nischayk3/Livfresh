@@ -1,11 +1,11 @@
 import React, { lazy, Suspense } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore, useSubscriptionStore, useAdminAuthStore } from '../store';
+import { useAuthStore, useSubscriptionStore, useAdminAuthStore, useUIStore } from '../store';
 import { getCart, saveCart, getUserAddresses, getUser } from '../services/firestore';
 import { auth, adminAuth, onAuthStateChanged } from '../services/firebase';
 import { useCartStore, useAddressStore } from '../store';
@@ -115,6 +115,9 @@ const AdminNavigator = Platform.OS === 'web'
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
+// Global navigation ref — allows non-component code (RootNavigator effects) to navigate
+export const navigationRef = createNavigationContainerRef<any>();
+
 // Main Tab Navigator
 const MainTabs = () => {
   const insets = useSafeAreaInsets();
@@ -209,6 +212,7 @@ const MainStack = () => (
 
 export const RootNavigator: React.FC = () => {
   const { isLoggedIn, user, isSessionExpired, logout } = useAuthStore();
+  const { hasCompletedOnboarding } = useUIStore();
   const { setItems, items } = useCartStore();
   const [isHydrated, setIsHydrated] = React.useState(false);
   const [isAuthLoading, setIsAuthLoading] = React.useState(true);
@@ -229,16 +233,17 @@ export const RootNavigator: React.FC = () => {
           const userData = await getUser(firebaseUser.uid);
           console.log('🔍 RootNav: Fetched user data:', JSON.stringify(userData, null, 2));
           if (userData) {
-            useAuthStore.getState().setUser({
-              uid: firebaseUser.uid,
-              phone: userData.phone || firebaseUser.phoneNumber || '',
-              name: userData.name || '',
-              email: userData.email || '',
-              subscriptionStatus: userData.subscriptionStatus,
-              credits: userData.credits,
-              subscriptionType: userData.subscriptionType,
-              subscriptionSchedule: userData.subscriptionSchedule,
-            } as any);
+            const currentUID = useAuthStore.getState().user?.uid;
+            // Only update if UID changes OR if it's the first time
+            if (currentUID !== firebaseUser.uid || !authStore.isLoggedIn) {
+              useAuthStore.getState().setUser({
+                uid: firebaseUser.uid,
+                phone: userData.phone || firebaseUser.phoneNumber || '',
+                name: userData.name || '',
+                // ... rest of data
+                ...userData
+              } as any);
+            }
 
             if (!useAuthStore.getState().loginTimestamp) {
               useAuthStore.getState().setLoginTimestamp(Date.now());
@@ -283,14 +288,44 @@ export const RootNavigator: React.FC = () => {
     };
   }, []);
 
-  // 2. Hydrate cart on login (Initial Load)
+  // 2. Hydrate cart on login — merges any guest pendingItem atomically
   React.useEffect(() => {
     const hydrate = async () => {
       if (user?.uid) {
         try {
           const savedItems = await getCart(user.uid);
-          if (savedItems) {
-            setItems(savedItems);
+          // Get pendingItem BEFORE setItems so we can merge it in
+          const { pendingItem, setPendingItem } = useCartStore.getState();
+          const baseItems = savedItems || [];
+
+          if (pendingItem) {
+            // Merge: Firestore cart + pending guest item
+            const mergedItem = {
+              ...pendingItem,
+              id: `${pendingItem.serviceId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            };
+            setItems([...baseItems, mergedItem]);
+            setPendingItem(null);
+
+            // Show success alert with View Cart button
+            const { showAlert } = useUIStore.getState();
+            showAlert({
+              title: 'Added to Cart! 🎉',
+              message: `${pendingItem.serviceName} has been added to your cart.`,
+              type: 'success',
+              buttons: [
+                {
+                  text: 'View Cart',
+                  onPress: () => {
+                    if (navigationRef.isReady()) {
+                      navigationRef.navigate('Main', { screen: 'Cart' } as any);
+                    }
+                  }
+                }
+              ]
+            });
+          } else {
+            setItems(baseItems);
           }
         } catch (error) {
           console.error('Failed to hydrate cart:', error);
@@ -302,7 +337,7 @@ export const RootNavigator: React.FC = () => {
       }
     };
     hydrate();
-  }, [user]);
+  }, [user?.uid]);
 
   // 2. Sync cart to Firestore on change (only after hydration)
   React.useEffect(() => {
@@ -357,9 +392,8 @@ export const RootNavigator: React.FC = () => {
         console.error('Failed to hydrate subscriptions:', error);
       }
     }
-  }, [user]);
-
-  // 4. Force Navigation to Location/Address if no address exists (Post-login flow)
+  }, [user?.uid]);
+  // 6. Force Navigation to Location/Address if no address exists (Post-login flow)
   // note: We use a ref or check to ensure we only do this once per session/login if needed, 
   // but react-navigation 'replace' or 'reset' is better handled inside a specific screen or via this effect carefully.
   // Since we are inside RootNavigator, we can't easily "navigate" because we provide the container.
@@ -380,6 +414,7 @@ export const RootNavigator: React.FC = () => {
 
   return (
     <NavigationContainer
+      ref={navigationRef}
       documentTitle={{
         formatter: () => 'SpinZo',
       }}
@@ -451,26 +486,26 @@ export const RootNavigator: React.FC = () => {
             cardStyle: { flex: 1 }, // Critical for web scrolling
           }}
         >
-          {/* Public routes - accessible when not logged in */}
-          {!isLoggedIn ? (
-            <>
-              <Stack.Screen name="Onboarding" component={OnboardingCarousel} />
-              <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
-              <Stack.Screen name="OTP" component={OTPScreen} />
-              <Stack.Screen name="LocationPermission" component={LocationPermissionScreen} />
-            </>
+          {/* Guest or Public routes */}
+          {!hasCompletedOnboarding ? (
+            <Stack.Screen name="Onboarding" component={OnboardingCarousel} />
           ) : (
             <>
-              {/* New User Registration - accessible when logged in but profile incomplete
-                  Logic updated: If user has saved addresses or credits, they are existing users even if name is missing (legacy/bug fix) */}
-              {(!user?.name && !user?.savedAddresses?.length && !user?.credits) ? (
+              {/* New User Registration - only when logged in but profile incomplete (no name) */}
+              {(isLoggedIn && !user?.name) ? (
                 <Stack.Screen name="UserDetails" component={UserDetailsScreen} />
               ) : (
-                /* Main app routes - accessible when logged in and profile complete or existing user */
+                /* Main app routes - accessible to guests AND logged-in users */
                 <Stack.Screen name="Main" component={MainStack} />
               )}
             </>
           )}
+
+          {/* Fallback Auth Screens directly accessible from anywhere (e.g. from MainStack) */}
+          <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
+          <Stack.Screen name="OTP" component={OTPScreen} />
+          <Stack.Screen name="LocationPermission" component={LocationPermissionScreen} />
+          <Stack.Screen name="AddressMap" component={AddressMapScreen} />
 
           {/* Admin routes - always defined but protected by guards inside components */}
           <Stack.Screen name="AdminLogin" component={AdminLoginScreen} />

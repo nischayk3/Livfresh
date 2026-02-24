@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, CommonActions } from '@react-navigation/native';
 import { Timestamp } from '../../services/firebase';
 import { format, isAfter, addMinutes, isSameDay, parse, addDays, startOfToday, getHours } from 'date-fns';
 
@@ -308,12 +308,11 @@ export const CartScreen: React.FC = () => {
     );
 
     const handlePlaceOrder = async () => {
-        if (!user) {
-            showAlert({
-                title: 'Login Required',
-                message: 'Please login to place an order',
-                type: 'info'
-            });
+        // Get latest user from store to avoid closure issues during retry
+        const { user: latestUser } = useAuthStore.getState();
+
+        if (!latestUser) {
+            (navigation as any).navigate('PhoneLogin', { returnTo: 'Cart' });
             return;
         }
 
@@ -350,7 +349,7 @@ export const CartScreen: React.FC = () => {
 
             if (!serviceable) {
                 // Log the unserviceable attempt
-                logUnserviceableRequest(user.uid, {
+                logUnserviceableRequest(latestUser.uid, {
                     latitude: currentLatitude,
                     longitude: currentLongitude,
                     address: currentAddress
@@ -419,12 +418,14 @@ export const CartScreen: React.FC = () => {
                 address: currentAddress,
                 latitude: currentLatitude,
                 longitude: currentLongitude,
+                userName: latestUser.name || 'Guest User',
+                userPhone: latestUser.phone,
                 status: 'placed',
                 paymentMode: 'cod', // Default to COD for MVP, maybe add card option later?
             };
 
             // Create the order first
-            const orderId = await createOrder(user.uid, orderData);
+            const orderId = await createOrder(latestUser.uid, orderData);
 
             // Track Purchase Event
             trackPixelEvent('Purchase', {
@@ -435,33 +436,39 @@ export const CartScreen: React.FC = () => {
             // Set navigating state to prevent empty cart flash
             setIsNavigating(true);
 
-            // Clear cart
-            clearCart();
-            await clearCartInFirestore(user.uid);
-
-            // Reset coupon state for next time (though unmounting handles most, store persists?)
-            // Local state resets on unmount anyway.
-
-
-            // Consume subscription credit if applicable
+            // --- CONSUME CREDIT FIRST ---
             const creditItem = items.find(item => item.isCreditItem);
+            console.log("[Credit] Checking for credit item in cart. Found:", creditItem ? `Yes (${creditItem.creditSubscriptionId})` : "No");
+
             if (creditItem && creditItem.creditSubscriptionId) {
                 try {
                     const { useCredit } = useSubscriptionStore.getState();
-                    await useCredit(user.uid, creditItem.creditSubscriptionId, orderId);
-                    console.log("[Credit] Subscription credit consumed for order:", orderId);
+                    console.log("[Credit] Initiating useCredit for sub:", creditItem.creditSubscriptionId);
+                    const success = await useCredit(latestUser.uid, creditItem.creditSubscriptionId, orderId);
+
+                    if (success) {
+                        console.log("[Credit] Subscription credit successfully consumed for order:", orderId);
+                    } else {
+                        console.warn("[Credit] Credit utilization failed internally (returned false), but proceeding with order flow to prevent stuck cart.");
+                    }
                 } catch (creditError) {
-                    console.error("[Credit] Failed to consume credit:", creditError);
+                    console.error("[Credit] Critical error during credit consumption:", creditError);
                 }
             }
 
+            // --- CLEAR CART ---
+            clearCart();
+            await clearCartInFirestore(latestUser.uid);
+
             // Navigate to Success screen and reset stack to prevent going back to Cart
-            navigation.reset({
-                index: 0,
-                routes: [
-                    { name: 'OrderSuccess' } as any
-                ],
-            });
+            navigation.dispatch(
+                CommonActions.reset({
+                    index: 0,
+                    routes: [
+                        { name: 'OrderSuccess' }
+                    ],
+                })
+            );
 
         } catch (error) {
             console.error("Order placement failed", error);
@@ -595,11 +602,10 @@ export const CartScreen: React.FC = () => {
                 <TouchableOpacity
                     style={styles.browseButton}
                     onPress={() => {
-                        if (navigation.canGoBack()) {
-                            navigation.goBack();
-                        } else {
-                            navigation.navigate('Main' as any);
-                        }
+                        (navigation as any).reset({
+                            index: 0,
+                            routes: [{ name: 'Main', state: { routes: [{ name: 'MainTabs', state: { routes: [{ name: 'Home' }] } }] } }],
+                        });
                     }}
                 >
                     <Text style={styles.browseButtonText}>Browse Services</Text>
@@ -622,7 +628,7 @@ export const CartScreen: React.FC = () => {
                         if (navigation.canGoBack()) {
                             navigation.goBack();
                         } else {
-                            navigation.navigate('Main' as any);
+                            (navigation as any).navigate('MainTabs');
                         }
                     }}
                     style={styles.backButton}
@@ -856,7 +862,7 @@ export const CartScreen: React.FC = () => {
             </View >
 
             {/* Floating Premium Footer */}
-            <View style={styles.footer}>
+            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) + 4 }]}>
                 <GlassCard intensity="high" style={styles.footerGlass}>
                     <View style={styles.footerAmountContainer}>
                         <Text style={styles.footerLabel}>Total to Pay</Text>
@@ -1260,8 +1266,8 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         paddingHorizontal: 20,
-        paddingBottom: Platform.OS === 'ios' ? 34 : 20,
         paddingTop: 16,
+        // paddingBottom set dynamically via insets.bottom inline
     },
     footerGlass: {
         flexDirection: 'row',

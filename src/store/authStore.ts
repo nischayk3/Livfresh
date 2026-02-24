@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { auth, signOut } from '../services/firebase';
+import { auth, signOut, deleteUser } from '../services/firebase';
+import { deleteUserAccount } from '../services/firestore';
 import { useAddressStore } from './addressStore';
 
 // Session timeout: 12 hours in milliseconds
@@ -41,6 +42,7 @@ interface AuthState {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   logout: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -98,5 +100,44 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       otpName: '',
       loginTimestamp: null
     });
+  },
+  deleteAccount: async () => {
+    try {
+      set({ loading: true, error: null });
+      const user = auth.currentUser;
+
+      if (!user) {
+        throw new Error('No user logged in');
+      }
+
+      // 1. Delete Firestore Data
+      await deleteUserAccount(user.uid);
+
+      // 2. Delete Firebase Auth User
+      // This might throw 'auth/requires-recent-login'
+      await deleteUser(user);
+
+      console.log('✅ Account deleted successfully');
+
+      // 3. Clear Local State (same as logout)
+      useAddressStore.getState().setHasSkippedLocation(false);
+      useAddressStore.getState().clearCurrentAddress();
+
+      set({
+        user: null,
+        isLoggedIn: false,
+        error: null,
+        otpPhone: '',
+        otpName: '',
+        loginTimestamp: null
+      });
+
+    } catch (error: any) {
+      console.error('Delete account error:', error);
+      set({ error: error.message });
+      throw error; // Re-throw to handle UI alerts
+    } finally {
+      set({ loading: false });
+    }
   },
 }));

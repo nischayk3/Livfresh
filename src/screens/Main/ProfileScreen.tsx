@@ -10,10 +10,11 @@ import { BrandHeader } from '../../components/BrandHeader';
 
 export const ProfileScreen: React.FC = () => {
     const navigation = useNavigation();
-    const { user, logout } = useAuthStore();
+    const { user, logout, deleteAccount } = useAuthStore();
     const { showAlert } = useUIStore();
     const insets = useSafeAreaInsets();
     const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const handleLogout = () => {
         showAlert({
@@ -36,6 +37,11 @@ export const ProfileScreen: React.FC = () => {
         try {
             await logout();
             console.log('✅ User logged out successfully');
+            // Navigate to home after logout 
+            (navigation as any).reset({
+                index: 0,
+                routes: [{ name: 'Main', state: { routes: [{ name: 'MainTabs', state: { routes: [{ name: 'Home' }] } }] } }],
+            });
         } catch (error) {
             console.error('Logout error:', error);
         } finally {
@@ -43,12 +49,76 @@ export const ProfileScreen: React.FC = () => {
         }
     };
 
+    const handleDeleteAccount = () => {
+        showAlert({
+            title: 'Delete Account',
+            message: 'Are you sure you want to delete your account? This action is permanent and cannot be undone.',
+            type: 'error',
+            buttons: [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: executeDeleteAccount
+                }
+            ]
+        });
+    };
+
+    const executeDeleteAccount = async () => {
+        setIsDeleting(true);
+        try {
+            await deleteAccount();
+            // Store handles navigation/state clearing
+        } catch (error: any) {
+            console.error('Delete account error:', error);
+            if (error.code === 'auth/requires-recent-login') {
+                showAlert({
+                    title: 'Authentication Required',
+                    message: 'For security, please logout and login again before deleting your account.',
+                    type: 'info',
+                    buttons: [{ text: 'OK', onPress: executeLogout }]
+                });
+            } else {
+                showAlert({
+                    title: 'Error',
+                    message: 'Failed to delete account. Please contact support.',
+                    type: 'error'
+                });
+            }
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     const getInitials = (name: string) => {
         return name ? name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() : 'U';
     };
 
-
-
+    if (!user) {
+        return (
+            <View style={styles.container}>
+                <LinearGradient
+                    colors={[COLORS.pageBg, '#FFFFFF']}
+                    style={StyleSheet.absoluteFill}
+                />
+                <BrandHeader title="Profile" />
+                <View style={[styles.emptyContainer, { flex: 1 }]}>
+                    <View style={styles.emptyIconContainer}>
+                        <Ionicons name="person-outline" size={64} color={COLORS.primaryLight} />
+                    </View>
+                    <Text style={[styles.emptyText, { textAlign: 'center' }]}>Create an Account</Text>
+                    <Text style={[styles.emptySubtext, { textAlign: 'center' }]}>Save addresses and access your order history</Text>
+                    <TouchableOpacity
+                        style={styles.browseButton}
+                        onPress={() => (navigation as any).navigate('PhoneLogin', { returnTo: 'Profile' })}
+                    >
+                        <Text style={styles.browseButtonText}>Sign In</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -142,6 +212,22 @@ export const ProfileScreen: React.FC = () => {
                     </View>
                     <Text style={styles.logoutText}>Logout from SpinZo</Text>
                 </TouchableOpacity>
+
+                {/* Delete Account Button */}
+                <TouchableOpacity
+                    style={[styles.logoutButton, { marginTop: SPACING.sm, opacity: isDeleting ? 0.7 : 1 }]}
+                    onPress={handleDeleteAccount}
+                    disabled={isDeleting}
+                >
+                    <View style={[styles.logoutIconBg, { backgroundColor: '#FEF2F2' }]}>
+                        <Ionicons name="trash-outline" size={20} color={COLORS.error} />
+                    </View>
+                    <Text style={[styles.logoutText, { color: COLORS.error }]}>
+                        {isDeleting ? 'Deleting Account...' : 'Delete Account'}
+                    </Text>
+                </TouchableOpacity>
+
+                <View style={{ height: 40 }} />
 
             </ScrollView>
         </View>
@@ -276,7 +362,6 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#FFE4E6',
         gap: 12,
-        marginBottom: 40,
         ...SHADOWS.sm,
     },
     logoutIconBg: {
@@ -349,5 +434,48 @@ const styles = StyleSheet.create({
     confirmButtonText: {
         ...TYPOGRAPHY.bodyBold,
         color: '#FFFFFF',
+    },
+    emptyContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 60,
+    },
+    emptyIconContainer: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 20,
+        ...SHADOWS.md,
+    },
+    emptyText: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#1A1A1A',
+        fontFamily: 'Outfit_800ExtraBold',
+        marginBottom: 8,
+    },
+    emptySubtext: {
+        fontSize: 14,
+        color: '#64748B',
+        textAlign: 'center',
+        fontFamily: 'Outfit_400Regular',
+        marginBottom: 24,
+        paddingHorizontal: 40,
+    },
+    browseButton: {
+        paddingVertical: 14,
+        paddingHorizontal: 32,
+        backgroundColor: COLORS.primary,
+        borderRadius: 20,
+        ...SHADOWS.primary,
+    },
+    browseButtonText: {
+        fontSize: 15,
+        fontWeight: '800',
+        color: '#FFFFFF',
+        fontFamily: 'Outfit_800ExtraBold',
     },
 });

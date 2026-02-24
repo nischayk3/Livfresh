@@ -1,0 +1,20 @@
+App Store Review Notes - Guideline 5.1.1 Compliance (Guest Mode)
+
+Hello App Store Review Team,
+
+We have updated our application to fully comply with App Store Guideline 5.1.1 (Data Collection and Storage) by implementing a Guest Browsing mode.
+
+Users are no longer required to create an account or sign in to access the core features of the app. 
+Users can now flexibly:
+1. Skip the onboarding process or tap "Get Started" and land directly on the Home Screen as a guest.
+2. Browse through all available laundry services, view pricing, and read FAQs without any authentication.
+3. Configure their service preferences (e.g., weight, add-ons) and add items to their Cart as a guest.
+
+Account creation/login is only deferred and triggered when the user performs a transactional action that inherently requires an account:
+- Tapping "Place Order" in the Cart (in order to link delivery details and process the order).
+- Attempting to access account-specific features such as "My Orders", "Subscriptions", or "Profile" tabs.
+
+In these specific areas, a modal or a prompt is displayed, gently asking the user to sign in to continue with their requested transaction. We use a seamless Phone OTP flow to minimize friction when authentication is eventually required.
+
+Thank you for your time and review.
+SpinZo Team

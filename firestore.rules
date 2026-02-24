@@ -62,27 +62,28 @@ service cloud.firestore {
     }
     
     match /unserviceable_requests/{requestId} {
-      allow create: if isAuthenticated();
+      allow create: if true;
       allow read, delete: if isAdmin();
     }
 
     match /vendors/{vendorId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow write: if isAdmin();
       
       match /services/{serviceId} {
-        allow read: if isAuthenticated();
+        allow read: if true;
         allow write: if isAdmin();
       }
       
       match /orders/{orderId} {
         allow read: if isAdmin() || isAuthenticated();
-        allow write: if isAdmin();
+        allow write: if isAdmin() || isAuthenticated();
       }
     }
 
     match /daily_schedules/{date} {
-      allow read, write: if isAuthenticated();
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
   }
 }

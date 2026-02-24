@@ -4,7 +4,7 @@ const path = require('path');
 
 /**
  * Idempotent Config plugin for Expo SDK 54 + Firebase.
- * Fixes "declaration of RCTBridgeModule must be imported" and modularity issues.
+ * Fixes "declaration of RCTBridgeModule must be imported" and modularity issues for iOS.
  */
 module.exports = function withFirebaseModularHeaders(config) {
     return withDangerousMod(config, [
@@ -18,15 +18,16 @@ module.exports = function withFirebaseModularHeaders(config) {
             const markerStart = '# START: Firebase Modular Headers Fix';
             const markerEnd = '# END: Firebase Modular Headers Fix';
 
+            // Clean up any existing messes or corrupted markers first
+            const markedRegex = new RegExp(`${markerStart}.*?${markerEnd}`, 'gs');
+            podfileContent = podfileContent.replace(markedRegex, '');
+
+            // The specific surgical fix needed for Firebase compatibility in Expo 54
             const surgicalFix = `
     ${markerStart}
     installer.pods_project.targets.each do |target|
       if target.name.start_with?('RNFB') || target.name.start_with?('Firebase')
         target.build_configurations.each do |config|
-          config.build_settings['HEADER_SEARCH_PATHS'] ||= '$(inherited) '
-          config.build_settings['HEADER_SEARCH_PATHS'] << '"$(SRCROOT)/../node_modules/react-native/React" '
-          config.build_settings['HEADER_SEARCH_PATHS'] << '"$(SRCROOT)/../node_modules/react-native/React/Base" '
-          config.build_settings['HEADER_SEARCH_PATHS'] << '"$(SRCROOT)/../node_modules/react-native/Libraries" '
           config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
           config.build_settings['DEFINES_MODULE'] = 'YES'
           if target.name.include?('Firestore')
@@ -38,24 +39,13 @@ module.exports = function withFirebaseModularHeaders(config) {
     end
     ${markerEnd}`;
 
-            // 1. Remove ANY existing version of our fix (with or without markers)
-            // Remove marked version
-            const markedRegex = new RegExp(`${markerStart}.*?${markerEnd}`, 'gs');
-            podfileContent = podfileContent.replace(markedRegex, '');
+            // Inject into the post_install block
+            if (podfileContent.includes('post_install do |installer|')) {
+                // Remove the fix if it was somehow injected without markers (rare)
+                podfileContent = podfileContent.replace(/# START: Firebase Modular Headers Fix[\s\S]*?# END: Firebase Modular Headers Fix/g, '');
 
-            // Remove the old unmarked aggressive version if it leaked in
-            // This is the bit that was likely causing the double 'end'
-            podfileContent = podfileContent.replace(/installer\.pods_project\.targets\.each do \|target\|.*?end\s+end/s, '');
-
-            // 2. Clear out the mess: remove stray 'end' lines if they are redundant
-            // Specifically look for the 'end end' pattern that caused the failure
-            podfileContent = podfileContent.replace(/\n\s*end\n\s*end\n\s*end\n/g, '\n      end\n    end\n');
-
-            // 3. Inject surgically into post_install
-            const postInstallMatch = podfileContent.match(/post_install\s+do\s+\|installer\|/);
-            if (postInstallMatch) {
                 podfileContent = podfileContent.replace(
-                    /post_install\s+do\s+\|installer\|/,
+                    /post_install do \|installer\|/,
                     `post_install do |installer|${surgicalFix}`
                 );
             } else {
@@ -63,7 +53,7 @@ module.exports = function withFirebaseModularHeaders(config) {
             }
 
             fs.writeFileSync(podfilePath, podfileContent);
-            console.log('✅ Applied idempotent surgical header fixes');
+            console.log('✅ Applied clean Firebase modular headers fix');
             return config;
         },
     ]);

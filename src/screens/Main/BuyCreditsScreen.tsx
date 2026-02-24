@@ -133,7 +133,7 @@ export const BuyCreditsScreen: React.FC = () => {
             paymentId: data.razorpay_payment_id,
             signature: data.razorpay_signature,
             planDetails: {
-              type: 'credits',
+              type: planType,
               credits: creditCount
             }
           });
@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: SPACING.md,
-    paddingBottom: SPACING.xl * 3,
+    paddingBottom: 140, // enough to clear fixed bottom CTA + safe area
   },
   planTypeCard: {
     backgroundColor: COLORS.background,

@@ -18,6 +18,8 @@ interface AlertState {
 }
 
 interface UIStore {
+    hasCompletedOnboarding: boolean;
+    setHasCompletedOnboarding: (value: boolean) => void;
     alert: AlertState;
     showAlert: (params: {
         title: string;
@@ -30,6 +32,8 @@ interface UIStore {
 }
 
 export const useUIStore = create<UIStore>((set) => ({
+    hasCompletedOnboarding: false,
+    setHasCompletedOnboarding: (value) => set({ hasCompletedOnboarding: value }),
     alert: {
         visible: false,
         title: '',

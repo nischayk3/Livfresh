@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS, SPACING, TYPOGRAPHY, SHADOWS } from '../../utils/constants';
 import { PWAInstallBanner } from '../../components/PWAInstallBanner';
+import { useUIStore } from '../../store';
 
 // Import images directly or use require
 const IMAGES = {
@@ -88,18 +89,29 @@ export const OnboardingCarousel: React.FC = () => {
     setCurrentIndex(index);
   };
 
+  const { setHasCompletedOnboarding } = useUIStore();
+
   const handleNext = () => {
     if (currentIndex < slides.length - 1) {
       const nextIndex = currentIndex + 1;
       flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
       setCurrentIndex(nextIndex);
     } else {
-      navigation.navigate('PhoneLogin' as never);
+      // Last slide: complete onboarding and go to main app
+      setHasCompletedOnboarding(true);
+      (navigation as any).reset({
+        index: 0,
+        routes: [{ name: 'Main' }],
+      });
     }
   };
 
   const handleSkip = () => {
-    navigation.navigate('PhoneLogin' as never);
+    setHasCompletedOnboarding(true);
+    (navigation as any).reset({
+      index: 0,
+      routes: [{ name: 'Main' }],
+    });
   };
 
   const renderSlide = ({ item }: { item: OnboardingSlide }) => (

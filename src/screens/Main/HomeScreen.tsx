@@ -364,6 +364,7 @@ export const HomeScreen: React.FC = () => {
           <View style={styles.greetingSection}>
             <View>
               <MotiView
+                key={`greeting-${user?.name}`}
                 from={{ opacity: 0, translateX: -10 }}
                 animate={{ opacity: 1, translateX: 0 }}
                 transition={{ type: 'timing', duration: 600 }}
@@ -456,19 +457,16 @@ export const HomeScreen: React.FC = () => {
                     onPress={() => handleServicePress(service.id)}
                     style={styles.bentoCardSquare}
                   >
-                    <Image
-                      source={(service as any).image}
-                      style={StyleSheet.absoluteFill}
-                      contentFit="cover"
-                      transition={300}
-                    />
-                    <LinearGradient
-                      colors={['transparent', 'rgba(0,0,0,0.85)']}
-                      style={StyleSheet.absoluteFill}
-                      locations={[0.4, 1.0]}
-                    />
-                    <View style={styles.serviceTextContainerOverlay}>
-                      <Text style={styles.serviceNameOverlay}>{service.name}</Text>
+                    <View style={styles.serviceImageBox}>
+                      <Image
+                        source={(service as any).image}
+                        style={StyleSheet.absoluteFill}
+                        contentFit="cover"
+                        transition={300}
+                      />
+                    </View>
+                    <View style={styles.serviceNameBar}>
+                      <Text style={styles.serviceNameLabel}>{service.name}</Text>
                     </View>
                   </AnimatedButton>
                 </MotiView>
@@ -489,19 +487,16 @@ export const HomeScreen: React.FC = () => {
                     onPress={() => handleServicePress(service.id)}
                     style={styles.bentoCardSquare}
                   >
-                    <Image
-                      source={(service as any).image}
-                      style={StyleSheet.absoluteFill}
-                      contentFit="cover"
-                      transition={300}
-                    />
-                    <LinearGradient
-                      colors={['transparent', 'rgba(0,0,0,0.85)']}
-                      style={StyleSheet.absoluteFill}
-                      locations={[0.4, 1.0]}
-                    />
-                    <View style={styles.serviceTextContainerOverlay}>
-                      <Text style={styles.serviceNameOverlay}>{service.name}</Text>
+                    <View style={styles.serviceImageBox}>
+                      <Image
+                        source={(service as any).image}
+                        style={StyleSheet.absoluteFill}
+                        contentFit="cover"
+                        transition={300}
+                      />
+                    </View>
+                    <View style={styles.serviceNameBar}>
+                      <Text style={styles.serviceNameLabel}>{service.name}</Text>
                     </View>
                   </AnimatedButton>
                 </MotiView>
@@ -532,8 +527,12 @@ export const HomeScreen: React.FC = () => {
                     </View>
                     <Text style={styles.subscribeTitle}>Smart Care Subscription</Text>
                     <Text style={styles.subscribeSubtitle}>Save 20% on every wash ✨</Text>
+                    <Text style={styles.subscribePricing}>Starting ₹299/mo</Text>
                   </View>
-                  <Ionicons name="sparkles" size={32} color="#FDE047" />
+                  <View style={styles.subscribeIconGroup}>
+                    <Ionicons name="sparkles" size={26} color="#FDE047" />
+                    <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.5)" />
+                  </View>
                 </AnimatedButton>
               </GlassCard>
             </MotiView>
@@ -694,7 +693,7 @@ const styles = StyleSheet.create({
     paddingBottom: 140,
   },
   promoSection: {
-    marginTop: -20,
+    marginTop: -10,
     zIndex: 10,
   },
   promoList: {
@@ -756,8 +755,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Outfit_500Medium',
   },
   promoImage: {
-    width: 130,
-    height: 130,
+    width: 145,
+    height: 145,
     marginRight: -8,
   },
   paginationDots: {
@@ -795,19 +794,25 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontFamily: 'Outfit_600SemiBold',
   },
-  serviceTextContainerOverlay: {
-    padding: 12,
-    flex: 1,
-    justifyContent: 'flex-end',
+  serviceImageBox: {
+    height: 110,
+    backgroundColor: '#EDE9FE',
+    position: 'relative',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  serviceNameOverlay: {
-    fontSize: 16,
-    color: '#FFFFFF',
+  serviceNameBar: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+  },
+  serviceNameLabel: {
+    fontSize: 13,
     fontFamily: 'Outfit_700Bold',
-    lineHeight: 20,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    color: COLORS.text,
+    textAlign: 'center',
   },
   bentoGrid: {
     gap: 12,
@@ -821,15 +826,11 @@ const styles = StyleSheet.create({
   },
   bentoCardSquare: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 20,
-    height: 140,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 20,
+    overflow: 'hidden',
     ...SHADOWS.md,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-    overflow: 'hidden',
+    borderColor: '#F1F5F9',
   },
   bentoCardRectangle: {
     backgroundColor: '#FFFFFF',
@@ -913,6 +914,16 @@ const styles = StyleSheet.create({
   subscribeSubtitle: {
     ...TYPOGRAPHY.bodySmall,
     color: 'rgba(255, 255, 255, 0.8)',
+  },
+  subscribePricing: {
+    fontSize: 11,
+    fontFamily: 'Outfit_500Medium',
+    color: 'rgba(255, 255, 255, 0.55)',
+    marginTop: 3,
+  },
+  subscribeIconGroup: {
+    alignItems: 'center',
+    gap: 6,
   },
   serviceOverlay: {
     ...StyleSheet.absoluteFillObject,

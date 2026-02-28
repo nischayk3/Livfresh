@@ -68,7 +68,19 @@
       "./plugins/withFirebaseModularHeaders",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
-      "expo-font"
+      "expo-font",
+      [
+        "react-native-fbsdk-next",
+        {
+          "appID": "1548776956231117",
+          "clientToken": "e123bd0dc1f62abc525df57d1173fdff2",
+          "displayName": "SpinZo",
+          "advertiserIDCollectionEnabled": false,
+          "autoLogAppEventsEnabled": false,
+          "isAutoInitEnabled": true,
+          "iosUserTrackingPermission": "This identifier will be used to deliver personalized ads to you."
+        }
+      ]
     ]
   }
 }

@@ -487,7 +487,7 @@ export const RootNavigator: React.FC = () => {
           }}
         >
           {/* Guest or Public routes */}
-          {!hasCompletedOnboarding ? (
+          {(!hasCompletedOnboarding && !isLoggedIn) ? (
             <Stack.Screen name="Onboarding" component={OnboardingCarousel} />
           ) : (
             <>

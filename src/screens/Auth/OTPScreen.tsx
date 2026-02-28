@@ -12,7 +12,7 @@ import {
     Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { verifyOTP, getCurrentPhoneNumber } from '../../services/auth';
@@ -25,6 +25,8 @@ import { MotiView } from 'moti';
 
 export const OTPScreen: React.FC = () => {
     const navigation = useNavigation();
+    const route = useRoute<any>();
+    const params = route.params;
     const insets = useSafeAreaInsets();
     const { otpPhone, otpName, setUser, setLoading } = useAuthStore();
     const { showAlert } = useUIStore();

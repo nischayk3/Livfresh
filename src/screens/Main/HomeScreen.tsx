@@ -527,7 +527,6 @@ export const HomeScreen: React.FC = () => {
                     </View>
                     <Text style={styles.subscribeTitle}>Smart Care Subscription</Text>
                     <Text style={styles.subscribeSubtitle}>Save 20% on every wash ✨</Text>
-                    <Text style={styles.subscribePricing}>Starting ₹299/mo</Text>
                   </View>
                   <View style={styles.subscribeIconGroup}>
                     <Ionicons name="sparkles" size={26} color="#FDE047" />

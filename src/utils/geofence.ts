@@ -62,6 +62,12 @@ export const SERVICE_ZONES: ServiceZone[] = [
         center: { latitude: 12.8959262, longitude: 77.6211877 },
         radiusMeters: 2100, // 2000 + 100
     },
+    {
+        id: 'adugodi_surroundings',
+        name: 'Adugodi / Central East',
+        center: { latitude: 12.9432328, longitude: 77.6077182 },
+        radiusMeters: 3100, // 3000 + 100
+    },
 ];
 
 /**

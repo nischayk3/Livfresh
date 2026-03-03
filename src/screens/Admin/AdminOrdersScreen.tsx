@@ -409,7 +409,7 @@ export const AdminOrdersScreen: React.FC = () => {
     setEditOrderModalVisible(true);
   };
 
-  const handleSaveEditedOrder = async (updatedItems: any[], itemTotal: number, discount: number, grandTotal: number) => {
+  const handleSaveEditedOrder = async (updatedItems: any[], itemTotal: number, discount: number, grandTotal: number, deliveryFee: number) => {
     if (!selectedOrder) return;
 
     setProcessing(true);
@@ -426,6 +426,7 @@ export const AdminOrdersScreen: React.FC = () => {
               ...(selectedOrder.billDetails || {}),
               itemTotal: itemTotal,
               discount: discount,
+              deliveryFee: deliveryFee,
               total: grandTotal
             }
           }
@@ -1262,6 +1263,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
   const [items, setItems] = useState<any[]>([]);
   const [itemTotal, setItemTotal] = useState(0);
   const [discount, setDiscount] = useState(0);
+  const [deliveryFee, setDeliveryFee] = useState(0);
   const [grandTotal, setGrandTotal] = useState(0);
 
   useEffect(() => {
@@ -1269,6 +1271,8 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
       // Deep copy items to avoid direct mutation
       setItems(JSON.parse(JSON.stringify(order.items)));
       setDiscount(order.billDetails?.discount || 0);
+      const fee = order.billDetails?.deliveryFee || 0;
+      setDeliveryFee(fee);
       const initialItemTotal = order.billDetails?.itemTotal || order.totalAmount || 0;
       setItemTotal(initialItemTotal);
       setGrandTotal(order.billDetails?.total || order.totalAmount || 0);
@@ -1309,16 +1313,21 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
       return (single * 199) + (double * 299);
     }
 
+    if (item.serviceId === 'ironing') {
+      const count = item.ironingCount || item.clothesCount || 0;
+      return count * 15;
+    }
+
     // Default fallback to existing price if logic unknown
     return item.totalPrice;
   };
 
   useEffect(() => {
-    // Recalculate total whenever items change
+    // Recalculate total whenever items change — preserve deliveryFee and other fees
     const newItemTotal = items.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
     setItemTotal(newItemTotal);
-    setGrandTotal(newItemTotal - discount);
-  }, [items, discount]);
+    setGrandTotal(newItemTotal + deliveryFee - discount);
+  }, [items, discount, deliveryFee]);
 
   const updateItem = (index: number, updates: any) => {
     const newItems = [...items];
@@ -1332,6 +1341,11 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
       if (updatedItem.singleBlanketCount > 0) parts.push(`${updatedItem.singleBlanketCount} Single`);
       if (updatedItem.doubleBlanketCount > 0) parts.push(`${updatedItem.doubleBlanketCount} Double`);
       updatedItem.description = parts.join(', ');
+    }
+
+    // Keep ironingPrice in sync for standalone ironing service
+    if (updatedItem.serviceId === 'ironing') {
+      updatedItem.ironingPrice = (updatedItem.ironingCount || 0) * 15;
     }
 
     // Recalculate price for this item
@@ -1456,6 +1470,39 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
               )}
 
 
+              {/* Standalone Steam Press / Ironing Editing */}
+              {item.serviceId === 'ironing' && (
+                <View style={{ marginTop: 8 }}>
+                  <Text style={TYPOGRAPHY.caption}>Number of Pieces (₹15/pc)</Text>
+                  <Text style={{ fontSize: 11, color: COLORS.textSecondary, marginBottom: 4 }}>
+                    Admin can adjust piece count (original customer limit does not apply)
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 }}>
+                    <TouchableOpacity
+                      style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                      onPress={() => updateItem(index, {
+                        ironingCount: Math.max(1, (item.ironingCount || item.clothesCount || 0) - 1),
+                        clothesCount: Math.max(1, (item.ironingCount || item.clothesCount || 0) - 1),
+                      })}
+                    >
+                      <Ionicons name="remove" size={20} />
+                    </TouchableOpacity>
+                    <Text style={{ ...TYPOGRAPHY.heading, minWidth: 40, textAlign: 'center' }}>
+                      {item.ironingCount || item.clothesCount || 0}
+                    </Text>
+                    <TouchableOpacity
+                      style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                      onPress={() => updateItem(index, {
+                        ironingCount: (item.ironingCount || item.clothesCount || 0) + 1,
+                        clothesCount: (item.ironingCount || item.clothesCount || 0) + 1,
+                      })}
+                    >
+                      <Ionicons name="add" size={20} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
               {/* Ironing Add-on Editing */}
               {(item.serviceId === 'ironing_addon' || item.serviceName?.toLowerCase().includes('ironing')) && (
                 <View style={{ marginTop: 8 }}>
@@ -1571,7 +1618,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
               )}
 
               {/* Read Only or generic for others */}
-              {!['wash_fold', 'wash_iron', 'ironing_addon', 'blanket_wash'].includes(item.serviceId) && !item.serviceName?.includes('Ironing') && (
+              {!['wash_fold', 'wash_iron', 'ironing_addon', 'blanket_wash', 'ironing'].includes(item.serviceId) && !item.serviceName?.includes('Ironing') && (
                 <Text style={{ color: COLORS.textSecondary, fontStyle: 'italic', fontSize: 12 }}>
                   Checking/Editing specifics for this service is limited to price override.
                 </Text>
@@ -1590,6 +1637,12 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
               <Text style={TYPOGRAPHY.bodySmall}>Item Total</Text>
               <Text style={TYPOGRAPHY.bodySmall}>₹{itemTotal}</Text>
             </View>
+            {deliveryFee > 0 && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={TYPOGRAPHY.bodySmall}>Pick up & Delivery Fee</Text>
+                <Text style={TYPOGRAPHY.bodySmall}>₹{deliveryFee}</Text>
+              </View>
+            )}
             {discount > 0 && (
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Text style={[TYPOGRAPHY.bodySmall, { color: COLORS.success }]}>Applied Discount</Text>
@@ -1603,7 +1656,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
           </View>
           <TouchableOpacity
             style={{ backgroundColor: COLORS.primary, padding: 16, borderRadius: 12, alignItems: 'center' }}
-            onPress={() => onSave(items, itemTotal, discount, grandTotal)}
+            onPress={() => onSave(items, itemTotal, discount, grandTotal, deliveryFee)}
             disabled={processing}
           >
             {processing ? <ActivityIndicator color="#FFF" /> : <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>Save Changes</Text>}

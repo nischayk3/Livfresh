@@ -36,11 +36,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyRazorpayPayment = exports.createRazorpayOrder = void 0;
+exports.onOrderUpdatedWhatsApp = exports.onOrderCreatedWhatsApp = exports.verifyRazorpayPayment = exports.createRazorpayOrder = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const razorpay_1 = __importDefault(require("razorpay"));
 const params_1 = require("firebase-functions/params");
+const whatsapp_1 = require("./whatsapp");
 admin.initializeApp();
 const razorpayKeyId = (0, params_1.defineSecret)("RAZORPAY_LIVE_KEY_ID");
 const razorpayKeySecret = (0, params_1.defineSecret)("RAZORPAY_LIVE_KEY_SECRET");
@@ -142,5 +143,74 @@ exports.verifyRazorpayPayment = functions.runWith({ secrets: [razorpayKeyId, raz
         console.error("Error verifying payment/updating DB:", error);
         throw new functions.https.HttpsError("internal", "Payment verified but failed to update record.");
     }
+});
+// ==========================================
+// WHATSAPP AUTOMATION TRIGGERS
+// ==========================================
+exports.onOrderCreatedWhatsApp = functions
+    .runWith({ secrets: [whatsapp_1.aisensyApiKey] })
+    .firestore.document("users/{userId}/orders/{orderId}")
+    .onCreate(async (snap, context) => {
+    const orderData = snap.data();
+    const orderId = context.params.orderId;
+    if (!orderData)
+        return null;
+    const phone = orderData.customerPhone || orderData.userPhone;
+    const name = orderData.customerName || "Customer";
+    const status = orderData.status;
+    // Send confirmation message if order is in a freshly placed state
+    // AND if phone number exists
+    if ((status === 'confirmed' || status === 'placed') && phone) {
+        try {
+            await (0, whatsapp_1.sendWhatsAppMessage)({
+                phone,
+                templateName: "spinzoorder_placed",
+                parameters: [name, orderId.toUpperCase().slice(-6), orderId]
+            });
+        }
+        catch (err) {
+            console.error("Failed to send WhatsApp order_placed notification:", err);
+        }
+    }
+    return null;
+});
+exports.onOrderUpdatedWhatsApp = functions
+    .runWith({ secrets: [whatsapp_1.aisensyApiKey] })
+    .firestore.document("users/{userId}/orders/{orderId}")
+    .onUpdate(async (change, context) => {
+    const beforeData = change.before.data();
+    const afterData = change.after.data();
+    const orderId = context.params.orderId;
+    if (!beforeData || !afterData)
+        return null;
+    const phone = afterData.customerPhone || afterData.userPhone;
+    const name = afterData.customerName || "Customer";
+    const beforeStatus = beforeData.status;
+    const afterStatus = afterData.status;
+    // Only act if the status actually changed
+    if (beforeStatus !== afterStatus && phone) {
+        try {
+            if (afterStatus === 'ready') {
+                // Admin marked clothes as ready for delivery scheduling
+                await (0, whatsapp_1.sendWhatsAppMessage)({
+                    phone,
+                    templateName: "spinzo_schedule_delivery",
+                    parameters: [name, orderId.toUpperCase().slice(-6), orderId]
+                });
+            }
+            else if (afterStatus === 'out_for_delivery') {
+                // Admin marked as out for delivery
+                await (0, whatsapp_1.sendWhatsAppMessage)({
+                    phone,
+                    templateName: "out_for_delivery",
+                    parameters: [name, orderId.toUpperCase().slice(-6), orderId]
+                });
+            }
+        }
+        catch (err) {
+            console.error(`Failed to send WhatsApp notification for status ${afterStatus}:`, err);
+        }
+    }
+    return null;
 });
 //# sourceMappingURL=index.js.map

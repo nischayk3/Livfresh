@@ -451,7 +451,7 @@ export const RootNavigator: React.FC = () => {
                 AddressList: 'addresses',
                 AddressMap: 'map',
                 OrderSuccess: 'order-success',
-                OrderDetail: 'order/:id',
+                OrderDetail: 'order/:orderId',
                 EditProfile: 'edit-profile',
                 HelpSupport: 'support',
                 BuyCredits: 'buy-credits',

@@ -26,7 +26,8 @@ export const OrderDetailScreen: React.FC = () => {
     const route = useRoute();
     const insets = useSafeAreaInsets();
     const { user } = useAuthStore();
-    const { orderId } = route.params as { orderId: string };
+    const { orderId: paramOrderId, id: fallbackId } = (route.params || {}) as { orderId?: string, id?: string };
+    const orderId = (paramOrderId || fallbackId) as string;
 
     const [order, setOrder] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -61,7 +62,19 @@ export const OrderDetailScreen: React.FC = () => {
     };
 
     useEffect(() => {
-        if (!user?.uid || !orderId) return;
+        if (!orderId) {
+            navigation.goBack();
+            return;
+        }
+
+        if (!user) {
+            // Unauthenticated: Redirect to login with return params
+            (navigation as any).navigate('PhoneLogin', {
+                returnTo: 'OrderDetail',
+                orderId: orderId
+            });
+            return;
+        }
 
         setIsLoading(true);
         const unsubscribe = subscribeToOrder(user.uid, orderId, (data) => {
@@ -274,13 +287,14 @@ export const OrderDetailScreen: React.FC = () => {
                         <View key={idx} style={styles.itemRow}>
                             <Text style={styles.itemName}>
                                 {item.serviceName} ({
-                                    item.serviceId === 'ironing_addon' ? `${item.clothesCount || item.ironingCount || 0} Clothes` :
-                                        (item.serviceType === 'wash_fold' || item.serviceType === 'wash_iron' || item.serviceType === 'premium_laundry')
-                                            ? `${item.weight ? `${item.weight}kg` : ''}${(item.ironingCount || item.ironingEnabled) ? ` + ${item.ironingCount || 0} Ironing` : ''}`
-                                            : item.serviceType === 'blanket_wash' ? (item.description || 'Blankets') :
-                                                item.serviceType === 'shoe_clean' ? `${item.shoeQuantity} pairs` :
-                                                    item.serviceType === 'dry_clean' ? (item.weight ? `${item.weight}kg` : `${item.items?.length || 0} items`) :
-                                                        'Service'
+                                    item.serviceId === 'ironing' ? `${item.ironingCount || item.clothesCount || 0} Pieces` :
+                                        item.serviceId === 'ironing_addon' ? `${item.clothesCount || item.ironingCount || 0} Clothes` :
+                                            (item.serviceType === 'wash_fold' || item.serviceType === 'wash_iron' || item.serviceType === 'premium_laundry')
+                                                ? `${item.weight ? `${item.weight}kg` : ''}${(item.ironingCount || item.ironingEnabled) ? ` + ${item.ironingCount || 0} Ironing` : ''}`
+                                                : item.serviceType === 'blanket_wash' ? (item.description || 'Blankets') :
+                                                    item.serviceType === 'shoe_clean' ? `${item.shoeQuantity} pairs` :
+                                                        item.serviceType === 'dry_clean' ? (item.weight ? `${item.weight}kg` : `${item.items?.length || 0} items`) :
+                                                            'Service'
                                 })
                             </Text>
                             <Text style={styles.itemPrice}>₹{item.totalPrice}</Text>

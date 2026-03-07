@@ -301,7 +301,8 @@ export const CartScreen: React.FC = () => {
             if (items.length > 0) {
                 trackPixelEvent('InitiateCheckout', {
                     value: totalAmount,
-                    currency: 'INR'
+                    currency: 'INR',
+                    num_items: items.length
                 });
             }
         }, [items.length, totalAmount])
@@ -430,7 +431,10 @@ export const CartScreen: React.FC = () => {
             // Track Purchase Event
             trackPixelEvent('Purchase', {
                 value: totalAmount,
-                currency: 'INR'
+                currency: 'INR',
+                num_items: items.length,
+                content_ids: items.map(i => i.id),
+                content_type: 'product'
             });
 
             // Set navigating state to prevent empty cart flash

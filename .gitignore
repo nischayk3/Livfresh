@@ -2,6 +2,10 @@
 
 # dependencies
 node_modules/
+.git_corrupted/
+*.log
+debug_log.txt
+config_error.txt
 
 # Expo
 .expo/

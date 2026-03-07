@@ -1,4 +1,4 @@
-import RazorpayCheckout from 'react-native-razorpay';
+import { Platform } from 'react-native';
 import { COLORS } from '../utils/constants';
 
 const RAZORPAY_KEY_ID = 'rzp_test_YOUR_KEY_HERE'; // Replace with actual key
@@ -29,7 +29,11 @@ export const paymentService = {
             theme: { color: COLORS.primary },
         };
 
+        if (Platform.OS === 'web') {
+            throw new Error('Payments are not supported on web.');
+        }
         try {
+            const RazorpayCheckout = (await import('react-native-razorpay')).default;
             const data = await RazorpayCheckout.open(options);
             return data;
         } catch (error: any) {
@@ -56,7 +60,11 @@ export const paymentService = {
             theme: { color: COLORS.primary },
         };
 
+        if (Platform.OS === 'web') {
+            throw new Error('Payments are not supported on web.');
+        }
         try {
+            const RazorpayCheckout = (await import('react-native-razorpay')).default;
             const data = await RazorpayCheckout.open(options);
             return data;
         } catch (error: any) {

@@ -327,20 +327,105 @@ export const SubscriptionsScreen: React.FC = () => {
   if (!user) {
     return (
       <View style={styles.container}>
-        <BrandHeader title="Subscriptions" />
-        <View style={[styles.emptyContainer, { flex: 1 }]}>
-          <View style={styles.emptyIconContainer}>
-            <Ionicons name="card-outline" size={64} color={COLORS.primaryLight} />
+        <BrandHeader title="Credits & Plans" />
+
+        {/* Guest View: Show Plans & Pricing */}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Info Banner */}
+          <View style={[styles.content, { marginTop: 0 }]}>
+            <View style={{ backgroundColor: '#F5F3FF', borderRadius: 12, padding: 16, marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Ionicons name="card" size={24} color="#7C3AED" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.emptyTitle, { marginBottom: 2, fontSize: 15 }]}>Save with Credit Packs</Text>
+                <Text style={[styles.emptySubtitle, { marginBottom: 0 }]}>Pre-purchase credits and save on every order</Text>
+              </View>
+            </View>
+
+            {/* Single Plan Card */}
+            <View style={styles.planCard}>
+              <View style={styles.planHeader}>
+                <View style={styles.planInfo}>
+                  <View style={styles.planBadge}><Text style={styles.planBadgeText}>SINGLE PLAN</Text></View>
+                  <Text style={styles.planTitle}>7 kg per Credit</Text>
+                  <Text style={styles.planSubtitle}>Wash & Fold • Pickup & Delivery included</Text>
+                </View>
+                <View style={styles.planMeta}>
+                  <Text style={[styles.planTitle, { color: '#7C3AED', fontSize: 22 }]}>₹399</Text>
+                  <Text style={styles.planSubtitle}>per credit</Text>
+                </View>
+              </View>
+              <View style={styles.statsContainer}>
+                <View style={styles.statItem}><Text style={styles.statValue}>2–4</Text><Text style={styles.statLabel}>Credits</Text></View>
+                <View style={styles.statItem}><Text style={styles.statValue}>30</Text><Text style={styles.statLabel}>Days valid</Text></View>
+                <View style={styles.statItem}><Text style={styles.statValue}>7kg</Text><Text style={styles.statLabel}>Per credit</Text></View>
+              </View>
+            </View>
+
+            {/* Couple Plan Card */}
+            <View style={[styles.planCard, { marginTop: 12 }]}>
+              <View style={styles.planHeader}>
+                <View style={styles.planInfo}>
+                  <View style={[styles.planBadge, { backgroundColor: '#FEF3C7' }]}><Text style={[styles.planBadgeText, { color: '#B45309' }]}>COUPLE PLAN</Text></View>
+                  <Text style={styles.planTitle}>14 kg per Credit</Text>
+                  <Text style={styles.planSubtitle}>Wash & Fold • Pickup & Delivery included</Text>
+                </View>
+                <View style={styles.planMeta}>
+                  <Text style={[styles.planTitle, { color: '#7C3AED', fontSize: 22 }]}>₹798</Text>
+                  <Text style={styles.planSubtitle}>per credit</Text>
+                </View>
+              </View>
+              <View style={styles.statsContainer}>
+                <View style={styles.statItem}><Text style={styles.statValue}>2–4</Text><Text style={styles.statLabel}>Credits</Text></View>
+                <View style={styles.statItem}><Text style={styles.statValue}>30</Text><Text style={styles.statLabel}>Days valid</Text></View>
+                <View style={styles.statItem}><Text style={styles.statValue}>14kg</Text><Text style={styles.statLabel}>Per credit</Text></View>
+              </View>
+            </View>
+
+            {/* Included / Not Included */}
+            <View style={[styles.includedGrid, { marginTop: 16 }]}>
+              <View style={styles.includedCard}>
+                <Text style={styles.includedTitle}>Included</Text>
+                <View style={styles.includedList}>
+                  {['Wash & Fold', 'Free Pickup', 'Free Delivery', 'Premium Detergent'].map(item => (
+                    <View key={item} style={styles.includedRow}>
+                      <View style={styles.iconBg}><Ionicons name="checkmark" size={12} color="#16A34A" /></View>
+                      <Text style={styles.includedItem}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+              <View style={styles.includedCard}>
+                <Text style={styles.includedTitle}>Not Included</Text>
+                <View style={styles.includedList}>
+                  {['Ironing Service', 'Dry Cleaning', 'Stain Removal'].map(item => (
+                    <View key={item} style={styles.includedRow}>
+                      <View style={[styles.iconBg, { backgroundColor: '#FEE2E2' }]}><Ionicons name="close" size={12} color="#DC2626" /></View>
+                      <Text style={styles.includedItem}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </View>
+
+            {/* FAQs */}
+            <View style={{ marginTop: 16 }}>
+              <Text style={[styles.headerTitle, { fontSize: 16, marginBottom: 12 }]}>FAQs</Text>
+              <FaqAccordion items={SUBSCRIPTION_FAQS} />
+            </View>
           </View>
-          <Text style={[styles.emptyTitle, { marginBottom: 8 }]}>Sign in to view plans</Text>
-          <Text style={styles.emptySubtitle}>
-            Buy credits to enjoy convenient laundry service with savings
-          </Text>
+        </ScrollView>
+
+        {/* Buy Credits CTA — triggers login */}
+        <View style={{ paddingHorizontal: 16, paddingBottom: 24, paddingTop: 12, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
           <TouchableOpacity
-            style={styles.browseButton}
+            style={[styles.buyButton, { width: '100%' }]}
             onPress={() => (navigation as any).navigate('PhoneLogin', { returnTo: 'Credits' })}
           >
-            <Text style={styles.browseButtonText}>Sign In</Text>
+            <Text style={styles.buyButtonText}>Sign In to Buy Credits</Text>
           </TouchableOpacity>
         </View>
       </View>

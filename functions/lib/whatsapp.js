@@ -13,7 +13,7 @@ const AISENSY_BASE_URL = "https://backend.aisensy.com/campaign/t1/api/v2";
  * @returns Response from AiSensy
  */
 const sendWhatsAppMessage = async (params) => {
-    const { phone, templateName, parameters } = params;
+    const { phone, campaignName, parameters } = params;
     // Clean phone number: remove non-digits, ensure it starts with country code (assuming 91 for India if missing and 10 digits)
     let cleanPhone = phone.replace(/\D/g, "");
     if (cleanPhone.length === 10) {
@@ -21,7 +21,7 @@ const sendWhatsAppMessage = async (params) => {
     }
     const payload = {
         apiKey: exports.aisensyApiKey.value(),
-        campaignName: templateName,
+        campaignName: campaignName,
         destination: cleanPhone,
         userName: "SpinZo User", // AiSensy requires this, but uses it internally or for fallback
         templateParams: parameters,
@@ -41,7 +41,7 @@ const sendWhatsAppMessage = async (params) => {
             throw new Error(`Failed to send WhatsApp message: ${response.statusText}`);
         }
         const data = await response.json();
-        console.log(`WhatsApp message '${templateName}' sent successfully to ${cleanPhone}.`, data);
+        console.log(`WhatsApp campaign '${campaignName}' sent successfully to ${cleanPhone}.`, data);
         return data;
     }
     catch (error) {

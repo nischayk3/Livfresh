@@ -641,16 +641,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       cartItem.ironingPrice = premiumIroningEnabled ? premiumIroningCount * 20 : 0;
     }
 
-    const { isLoggedIn } = useAuthStore.getState();
-
-    if (!isLoggedIn) {
-      const { setPendingItem } = useCartStore.getState();
-      setPendingItem(cartItem);
-      onClose();
-      (navigation as any).navigate('PhoneLogin', { returnTo: 'Cart' });
-      return;
-    }
-
+    // Guests CAN add to cart. Login is deferred to checkout (CartScreen.handlePlaceOrder)
     addItem(cartItem);
 
     // Track AddToCart
@@ -661,8 +652,8 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
     onClose();
     showAlert({
-      title: 'Cart Updated',
-      message: 'Added to cart!',
+      title: 'Added to Cart! 🎉',
+      message: 'Item added successfully. Sign in at checkout to place your order.',
       type: 'success'
     });
   };

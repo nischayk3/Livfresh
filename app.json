@@ -22,7 +22,10 @@
       "googleServicesFile": "./GoogleService-Info.plist",
       "bundleIdentifier": "com.nischayk3.Spinit",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "SpinZo uses your camera to photograph garments so you can attach care notes to your laundry order, helping us handle your clothes correctly.",
+        "NSPhotoLibraryUsageDescription": "SpinZo accesses your photo library so you can attach existing photos of your garments to communicate special care instructions for your laundry order.",
+        "NSMicrophoneUsageDescription": "SpinZo uses your microphone to let you add special garment care instructions to your laundry order using voice input."
       }
     },
     "android": {
@@ -77,8 +80,7 @@
           "displayName": "SpinZo",
           "advertiserIDCollectionEnabled": false,
           "autoLogAppEventsEnabled": false,
-          "isAutoInitEnabled": true,
-          "iosUserTrackingPermission": "This identifier will be used to deliver personalized ads to you."
+          "isAutoInitEnabled": true
         }
       ]
     ]

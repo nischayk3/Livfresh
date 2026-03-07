@@ -1,17 +1,15 @@
-const { withGradleProperties, withAppBuildGradle } = require('@expo/config-plugins');
+const { withAppBuildGradle } = require('@expo/config-plugins');
 
-// Plugin to disable PNG crunching in Android builds
-const withDisablePngCrunching = (config) => {
-    config = withAppBuildGradle(config, (config) => {
-        const buildGradle = config.modResults.contents;
-
-        // Check if aaptOptions already exists
-        if (!buildGradle.includes('aaptOptions')) {
-            // Add aaptOptions block after android { block
-            const androidBlockMatch = /android\s*\{/;
-            if (androidBlockMatch.test(buildGradle)) {
-                config.modResults.contents = buildGradle.replace(
-                    androidBlockMatch,
+/**
+ * Expo Config Plugin to disable PNG crunching in Android.
+ * This is used to fix issues where certain image assets cause build failures during the 'crunching' process.
+ */
+module.exports = function withDisablePngCrunching(config) {
+    return withAppBuildGradle(config, (config) => {
+        if (config.modResults.language === 'groovy') {
+            if (!config.modResults.contents.includes('cruncherEnabled = false')) {
+                config.modResults.contents = config.modResults.contents.replace(
+                    /android\s*{/,
                     `android {
     aaptOptions {
         cruncherEnabled = false
@@ -19,11 +17,6 @@ const withDisablePngCrunching = (config) => {
                 );
             }
         }
-
         return config;
     });
-
-    return config;
 };
-
-module.exports = withDisablePngCrunching;

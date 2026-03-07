@@ -170,8 +170,8 @@ export const onOrderCreatedWhatsApp = functions
             try {
                 await sendWhatsAppMessage({
                     phone,
-                    templateName: "spinzoorder_placed",
-                    parameters: [name, orderId.toUpperCase().slice(-6), orderId]
+                    campaignName: "spinzo_order_placed_final",
+                    parameters: [name, orderId.toUpperCase().slice(-6)] // {{1}} = name, {{2}} = short order ID (last 6 chars)
                 });
             } catch (err) {
                 console.error("Failed to send WhatsApp order_placed notification:", err);
@@ -205,15 +205,15 @@ export const onOrderUpdatedWhatsApp = functions
                     // Admin marked clothes as ready for delivery scheduling
                     await sendWhatsAppMessage({
                         phone,
-                        templateName: "spinzo_schedule_delivery",
-                        parameters: [name, orderId.toUpperCase().slice(-6), orderId]
+                        campaignName: "spinzo_schedule_delivery", // TODO: update to AiSensy campaign display name when created
+                        parameters: [name, orderId.toUpperCase().slice(-6)]
                     });
                 } else if (afterStatus === 'out_for_delivery') {
                     // Admin marked as out for delivery
                     await sendWhatsAppMessage({
                         phone,
-                        templateName: "out_for_delivery",
-                        parameters: [name, orderId.toUpperCase().slice(-6), orderId]
+                        campaignName: "out_for_delivery", // TODO: update to AiSensy campaign display name when created
+                        parameters: [name, orderId.toUpperCase().slice(-6)]
                     });
                 }
             } catch (err) {

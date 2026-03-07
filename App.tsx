@@ -12,12 +12,12 @@ import {
 } from '@expo-google-fonts/outfit';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { BrandAlert } from './src/components/BrandAlert';
-import { View } from 'react-native';
+import { View, Platform } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 
 Sentry.init({
   dsn: 'https://4823ae2cb52c014cbaa58bda55d5ce78@o4510713966166016.ingest.de.sentry.io/4510714043367504',
-  debug: false, // If `true`, Sentry will try to print out useful debugging information if something goes wrong with sending the event. Set it to `false` in production
+  debug: false,
 });
 
 // Keep the splash screen visible while we fetch resources
@@ -31,6 +31,30 @@ export default Sentry.wrap(function App() {
     Outfit_700Bold,
     Outfit_800ExtraBold,
   });
+
+  useEffect(() => {
+    const initFB = async () => {
+      // Both expo-tracking-transparency and react-native-fbsdk-next are native-only
+      if (Platform.OS !== 'web') {
+        try {
+          const TrackingTransparency = await import('expo-tracking-transparency');
+          const { Settings } = await import('react-native-fbsdk-next');
+          const { status } = await TrackingTransparency.requestTrackingPermissionsAsync();
+
+          // Initialize Facebook SDK
+          Settings.initializeSDK();
+          // Set advertiser tracking based on permission
+          if (Platform.OS === 'ios') {
+            Settings.setAdvertiserTrackingEnabled(status === 'granted');
+          }
+        } catch (e) {
+          console.error('FB SDK / Tracking Init Error:', e);
+        }
+      }
+    };
+
+    initFB();
+  }, []);
 
   const onLayoutRootView = useCallback(async () => {
     if (fontsLoaded || fontError) {

@@ -188,7 +188,10 @@ export const OTPScreen: React.FC = () => {
             }
 
             // Track Registration/Login Success
-            trackPixelEvent('CompleteRegistration');
+            trackPixelEvent('CompleteRegistration', {
+                currency: 'INR',
+                value: 0
+            });
         } catch (error: any) {
             console.error('OTP verification error:', error);
             setError(error.message || 'Invalid OTP. Please try again.');

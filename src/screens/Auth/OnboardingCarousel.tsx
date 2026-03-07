@@ -186,6 +186,13 @@ export const OnboardingCarousel: React.FC = () => {
               {currentIndex === slides.length - 1 ? 'Get Started' : 'Next'}
             </Text>
           </TouchableOpacity>
+
+          {/* Guest Access CTA — shown only on the last slide */}
+          {currentIndex === slides.length - 1 && (
+            <TouchableOpacity onPress={handleSkip} style={styles.guestButton} activeOpacity={0.7}>
+              <Text style={styles.guestButtonText}>Browse as Guest</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </View>
@@ -302,5 +309,17 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.button,
     color: '#FFFFFF',
     fontSize: 18,
+  },
+  guestButton: {
+    marginTop: SPACING.md,
+    paddingVertical: SPACING.sm,
+    alignItems: 'center',
+  },
+  guestButtonText: {
+    ...TYPOGRAPHY.body,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
 });

@@ -8,8 +8,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-// @ts-ignore
-import RazorpayCheckout from 'react-native-razorpay';
+
 import { createRazorpayOrder, verifyRazorpayPayment } from '../../services/functions';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -205,6 +204,7 @@ export const BuyCreditsScreen: React.FC = () => {
         });
         rzp1.open();
       } else {
+        const RazorpayCheckout = (await import('react-native-razorpay')).default;
         RazorpayCheckout.open(options).then((data: any) => {
           handleSuccess(data);
         }).catch((error: any) => {

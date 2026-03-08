@@ -205,14 +205,14 @@ export const onOrderUpdatedWhatsApp = functions
                     // Admin marked clothes as ready for delivery scheduling
                     await sendWhatsAppMessage({
                         phone,
-                        campaignName: "spinzo_schedule_delivery", // TODO: update to AiSensy campaign display name when created
+                        campaignName: "spinzo_schedule_delivery_final", // TODO: update to AiSensy campaign display name when created
                         parameters: [name, orderId.toUpperCase().slice(-6)]
                     });
                 } else if (afterStatus === 'out_for_delivery') {
                     // Admin marked as out for delivery
                     await sendWhatsAppMessage({
                         phone,
-                        campaignName: "out_for_delivery", // TODO: update to AiSensy campaign display name when created
+                        campaignName: "spinzo_out_for_delivery_final", // TODO: update to AiSensy campaign display name when created
                         parameters: [name, orderId.toUpperCase().slice(-6)]
                     });
                 }

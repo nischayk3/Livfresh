@@ -127,6 +127,5 @@ Private Project - All rights reserved.
 npx expo export --platform web
 pkill -9 node
 EAS_SKIP_AUTO_FINGERPRINT=1 npx eas build --platform android --profile production
-EAS_SKIP_AUTO_FINGERPRINT=1 eas b
-uild --platform ios --profile production --non-interactive
+EAS_SKIP_AUTO_FINGERPRINT=1 eas build --platform ios --profile production --non-interactive
 eas submit --platform ios --profile production --latest

@@ -25,7 +25,8 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "SpinZo uses your camera to photograph garments so you can attach care notes to your laundry order, helping us handle your clothes correctly.",
         "NSPhotoLibraryUsageDescription": "SpinZo accesses your photo library so you can attach existing photos of your garments to communicate special care instructions for your laundry order.",
-        "NSMicrophoneUsageDescription": "SpinZo uses your microphone to let you add special garment care instructions to your laundry order using voice input."
+        "NSMicrophoneUsageDescription": "SpinZo uses your microphone to let you add special garment care instructions to your laundry order using voice input.",
+        "NSUserTrackingUsageDescription": "This identifier will be used to track your activity across apps and websites to provide personalized content and ads."
       }
     },
     "android": {

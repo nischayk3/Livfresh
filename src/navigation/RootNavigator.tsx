@@ -487,23 +487,30 @@ export const RootNavigator: React.FC = () => {
           }}
         >
           {/* Guest or Public routes */}
+          {/* 1. Onboarding - only shown if never completed and not logged in */}
           {(!hasCompletedOnboarding && !isLoggedIn) ? (
             <Stack.Screen name="Onboarding" component={OnboardingCarousel} />
           ) : (
             <>
-              {/* New User Registration - only when logged in but profile incomplete (no name) */}
-              {(isLoggedIn && !user?.name) ? (
+              {/* 2. Logged In but Profile Incomplete - Force registration */}
+              {isLoggedIn && !user?.name ? (
                 <Stack.Screen name="UserDetails" component={UserDetailsScreen} />
               ) : (
-                /* Main app routes - accessible to guests AND logged-in users */
+                /* 3. Main App - Default for guests and full users */
                 <Stack.Screen name="Main" component={MainStack} />
+              )}
+
+              {/* 4. Auth screens - Available to guests to sign in */}
+              {!isLoggedIn && (
+                <>
+                  <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
+                  <Stack.Screen name="OTP" component={OTPScreen} />
+                </>
               )}
             </>
           )}
 
           {/* Fallback Auth Screens directly accessible from anywhere (e.g. from MainStack) */}
-          <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
-          <Stack.Screen name="OTP" component={OTPScreen} />
           <Stack.Screen name="LocationPermission" component={LocationPermissionScreen} />
           <Stack.Screen name="AddressMap" component={AddressMapScreen} />
 

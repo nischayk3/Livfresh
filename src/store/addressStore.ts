@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface Address {
   id: string;
@@ -26,35 +28,43 @@ interface AddressState {
   setHasSkippedLocation: (skipped: boolean) => void;
 }
 
-export const useAddressStore = create<AddressState>((set) => ({
-  currentAddress: '',
-  currentLatitude: 0,
-  currentLongitude: 0,
-  savedAddresses: [],
-  hasSkippedLocation: false,
-  setCurrentAddress: (address, lat, lng) =>
-    set({ currentAddress: address, currentLatitude: lat, currentLongitude: lng }),
-  clearCurrentAddress: () =>
-    set({ currentAddress: '', currentLatitude: 0, currentLongitude: 0 }),
-  setAddresses: (addresses) =>
-    set({ savedAddresses: addresses }),
-  addAddress: (address) =>
-    set((state) => ({ savedAddresses: [...state.savedAddresses, address] })),
-  updateAddress: (updatedAddress) =>
-    set((state) => ({
-      savedAddresses: state.savedAddresses.map(a => a.id === updatedAddress.id ? updatedAddress : a)
-    })),
-  removeAddress: (id) =>
-    set((state) => ({ savedAddresses: state.savedAddresses.filter(a => a.id !== id) })),
-  setPrimaryAddress: (id) =>
-    set((state) => ({
-      savedAddresses: state.savedAddresses.map(a => ({
-        ...a,
-        isPrimary: a.id === id,
-      })),
-    })),
-  setHasSkippedLocation: (skipped) => set({ hasSkippedLocation: skipped }),
-}));
+export const useAddressStore = create<AddressState>()(
+  persist(
+    (set) => ({
+      currentAddress: '',
+      currentLatitude: 0,
+      currentLongitude: 0,
+      savedAddresses: [],
+      hasSkippedLocation: false,
+      setCurrentAddress: (address, lat, lng) =>
+        set({ currentAddress: address, currentLatitude: lat, currentLongitude: lng }),
+      clearCurrentAddress: () =>
+        set({ currentAddress: '', currentLatitude: 0, currentLongitude: 0 }),
+      setAddresses: (addresses) =>
+        set({ savedAddresses: addresses }),
+      addAddress: (address) =>
+        set((state) => ({ savedAddresses: [...state.savedAddresses, address] })),
+      updateAddress: (updatedAddress) =>
+        set((state) => ({
+          savedAddresses: state.savedAddresses.map(a => a.id === updatedAddress.id ? updatedAddress : a)
+        })),
+      removeAddress: (id) =>
+        set((state) => ({ savedAddresses: state.savedAddresses.filter(a => a.id !== id) })),
+      setPrimaryAddress: (id) =>
+        set((state) => ({
+          savedAddresses: state.savedAddresses.map(a => ({
+            ...a,
+            isPrimary: a.id === id,
+          })),
+        })),
+      setHasSkippedLocation: (skipped) => set({ hasSkippedLocation: skipped }),
+    }),
+    {
+      name: 'livfresh-address-storage',
+      storage: createJSONStorage(() => AsyncStorage),
+    }
+  )
+);
 
 
 

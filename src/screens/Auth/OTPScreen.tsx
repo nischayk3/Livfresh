@@ -33,7 +33,8 @@ export const OTPScreen: React.FC = () => {
     const phone = otpPhone || getCurrentPhoneNumber();
 
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
-    const [loading, setLocalLoading] = useState(false);
+    const [localLoading, setLocalLoading] = useState(false);
+    const isVerifying = useRef(false);
     const [resendCountdown, setResendCountdown] = useState(30);
     const [resendAttempts, setResendAttempts] = useState(0);
     const [error, setError] = useState('');
@@ -121,6 +122,8 @@ export const OTPScreen: React.FC = () => {
     };
 
     const handleVerify = async () => {
+        if (isVerifying.current) return;
+
         const otpCode = otp.join('');
         if (otpCode.length !== 6) {
             setError('Please enter 6-digit code');
@@ -130,6 +133,7 @@ export const OTPScreen: React.FC = () => {
         // Ensure keyboard is dismissed
         Keyboard.dismiss();
 
+        isVerifying.current = true;
         setLocalLoading(true);
         setLoading(true);
         setError('');
@@ -145,46 +149,22 @@ export const OTPScreen: React.FC = () => {
             console.log('🔍 Diagnostic: Firestore result:', userData ? 'User Found' : 'User NOT Found');
 
             if (userData) {
-                // EXISTING USER: Set store and navigation is handled by RootNavigator
+                // EXISTING USER: Set store and RootNavigator handles the swap to 'Main'
                 setUser({
                     uid: firebaseUser.uid,
                     phone: firebaseUser.phoneNumber || phone,
                     name: userData.name || '',
-                    ...userData // Spread other fields like credits, etc.
+                    ...userData
                 });
-                console.log('✅ Existing user detected, navigating to Main');
-
-                // Navigate to Main Stack and specifically to returnTo if provided
-                const returnTo = params?.returnTo;
-                if (returnTo) {
-                    (navigation as any).reset({
-                        index: 0,
-                        routes: [
-                            {
-                                name: 'Main',
-                                state: {
-                                    routes: [
-                                        { name: 'MainTabs' },
-                                        { name: returnTo }
-                                    ]
-                                }
-                            }
-                        ],
-                    });
-                } else {
-                    (navigation as any).reset({
-                        index: 0,
-                        routes: [{ name: 'Main' }],
-                    });
-                }
+                console.log('✅ Existing user detected, state updated');
             } else {
-                // NEW USER: Go to UserDetails to collect name/email
-                console.log('🆕 New user detected, navigating to UserDetails');
-                (navigation as any).navigate('UserDetails', {
-                    ...params,
+                // NEW USER: Set minimal state (name: '') to trigger UserDetails in RootNavigator
+                console.log('🆕 New user detected, triggering UserDetails via state');
+                setUser({
+                    uid: firebaseUser.uid,
                     phone: firebaseUser.phoneNumber || phone,
-                    initialName: otpName
-                });
+                    name: ''
+                } as any);
             }
 
             // Track Registration/Login Success
@@ -201,6 +181,7 @@ export const OTPScreen: React.FC = () => {
                 inputRefs[0].current?.focus();
             }, 300);
         } finally {
+            isVerifying.current = false;
             setLocalLoading(false);
             setLoading(false);
         }
@@ -340,7 +321,7 @@ export const OTPScreen: React.FC = () => {
 
                         <AnimatedButton
                             onPress={handleVerify}
-                            disabled={!isOtpComplete || loading}
+                            disabled={!isOtpComplete || localLoading}
                             style={styles.verifyButton}
                         >
                             <LinearGradient
@@ -364,7 +345,7 @@ export const OTPScreen: React.FC = () => {
                 </ScrollView>
 
                 {/* Fullscreen loader overlay */}
-                {loading && <BrandLoader fullscreen message="Verifying OTP..." />}
+                {localLoading && <BrandLoader fullscreen message="Verifying OTP..." />}
             </LinearGradient>
         </KeyboardAvoidingView>
     );

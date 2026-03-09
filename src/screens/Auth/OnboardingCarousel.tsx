@@ -99,19 +99,12 @@ export const OnboardingCarousel: React.FC = () => {
     } else {
       // Last slide: complete onboarding and go to main app
       setHasCompletedOnboarding(true);
-      (navigation as any).reset({
-        index: 0,
-        routes: [{ name: 'Main' }],
-      });
     }
   };
 
   const handleSkip = () => {
+    console.log('⏭️ Skipping onboarding');
     setHasCompletedOnboarding(true);
-    (navigation as any).reset({
-      index: 0,
-      routes: [{ name: 'Main' }],
-    });
   };
 
   const renderSlide = ({ item }: { item: OnboardingSlide }) => (

@@ -194,7 +194,7 @@ exports.onOrderUpdatedWhatsApp = functions
                     // Admin marked clothes as ready for delivery scheduling
                     await (0, whatsapp_1.sendWhatsAppMessage)({
                         phone,
-                        campaignName: "spinzo_schedule_delivery", // TODO: update to AiSensy campaign display name when created
+                        campaignName: "spinzo_schedule_delivery_final", // TODO: update to AiSensy campaign display name when created
                         parameters: [name, orderId.toUpperCase().slice(-6)]
                     });
                 }
@@ -202,7 +202,7 @@ exports.onOrderUpdatedWhatsApp = functions
                     // Admin marked as out for delivery
                     await (0, whatsapp_1.sendWhatsAppMessage)({
                         phone,
-                        campaignName: "out_for_delivery", // TODO: update to AiSensy campaign display name when created
+                        campaignName: "spinzo_out_for_delivery_final", // TODO: update to AiSensy campaign display name when created
                         parameters: [name, orderId.toUpperCase().slice(-6)]
                     });
                 }

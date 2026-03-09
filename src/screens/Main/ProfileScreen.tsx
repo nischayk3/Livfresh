@@ -40,7 +40,7 @@ export const ProfileScreen: React.FC = () => {
             // Navigate to home after logout 
             (navigation as any).reset({
                 index: 0,
-                routes: [{ name: 'Main', state: { routes: [{ name: 'MainTabs', state: { routes: [{ name: 'Home' }] } }] } }],
+                routes: [{ name: 'Home' }],
             });
         } catch (error) {
             console.error('Logout error:', error);

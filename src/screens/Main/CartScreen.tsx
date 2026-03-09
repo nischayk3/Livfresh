@@ -429,7 +429,7 @@ export const CartScreen: React.FC = () => {
             const orderId = await createOrder(latestUser.uid, orderData);
 
             // Track Purchase Event
-            trackPixelEvent('Purchase', {
+            await trackPixelEvent('Purchase', {
                 value: totalAmount,
                 currency: 'INR',
                 num_items: items.length,

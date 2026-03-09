@@ -39,10 +39,29 @@ export const trackPixelEvent = async (event: PixelEvent, data?: Record<string, a
 
     // 2. NATIVE TRACKING (Facebook SDK) — dynamic import avoids web bundler crash
     if (Platform.OS === 'android' || Platform.OS === 'ios') {
-        console.log(`[FB SDK] Tracking ${event}`, data);
         try {
-            const { AppEventsLogger } = await import('react-native-fbsdk-next');
-            AppEventsLogger.logEvent(event, data as any);
+            const { AppEventsLogger, Settings } = await import('react-native-fbsdk-next');
+
+            // For iOS 14.5+, we should ideally set this based on ATT permission
+            // But for basic event firing, logPurchase is more robust than logEvent('Purchase')
+            if (Platform.OS === 'ios') {
+                await Settings.setAdvertiserTrackingEnabled(true);
+            }
+
+            if (event === 'Purchase') {
+                const amount = Number(data?.value || 0);
+                const currency = String(data?.currency || 'INR');
+                const params = { ...data };
+                // logPurchase handles value and currency as separate arguments
+                delete params.value;
+                delete params.currency;
+
+                console.log(`[FB SDK] Logging Purchase: ${amount} ${currency}`, params);
+                AppEventsLogger.logPurchase(amount, currency, params);
+            } else {
+                console.log(`[FB SDK] Tracking ${event}`, data);
+                AppEventsLogger.logEvent(event, data as any);
+            }
         } catch (error) {
             console.error('[FB SDK] Error logging event:', error);
         }

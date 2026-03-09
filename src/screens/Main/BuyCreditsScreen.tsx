@@ -137,6 +137,16 @@ export const BuyCreditsScreen: React.FC = () => {
             }
           });
 
+          // Track Purchase Event
+          await trackPixelEvent('Purchase', {
+            value: totalAmount,
+            currency: 'INR',
+            content_ids: [`subscription_${planType}_${creditCount}`],
+            content_type: 'product',
+            plan_type: planType,
+            credits: creditCount
+          });
+
           // Poll for subscription update to ensure consistency
           // Sometimes Firestore takes a split second to propagate even after write confirmation
           let retries = 3;

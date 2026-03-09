@@ -196,14 +196,18 @@ export const HomeScreen: React.FC = () => {
 
   // Redirect to Location Permission if no address is set (e.g. fresh login)
   useEffect(() => {
-    const { hasSkippedLocation } = useAddressStore.getState();
-
-    // Only redirect if they have NO address AND haven't explicitly skipped in this session
-    if (!currentAddress && user && !hasSkippedLocation) {
+    // Only redirect if they have NO address AND haven't explicitly skipped
+    if (!currentAddress && user) {
       // Small delay to allow hydration to finish if it's racing
       const timer = setTimeout(() => {
-        if (!useAddressStore.getState().currentAddress && !useAddressStore.getState().hasSkippedLocation) {
-          navigation.navigate('LocationPermission' as never);
+        const { hasSkippedLocation } = useAddressStore.getState();
+        if (!useAddressStore.getState().currentAddress && !hasSkippedLocation) {
+          // Check if we're already on LocationPermission to avoid double navigation
+          const state = navigation.getState();
+          const currentRouteName = state?.routes[state.index]?.name;
+          if (currentRouteName !== 'LocationPermission') {
+            navigation.navigate('LocationPermission' as never);
+          }
         }
       }, 1000);
       return () => clearTimeout(timer);

@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
 import * as Location from 'expo-location';
@@ -23,6 +23,8 @@ const { width } = Dimensions.get('window');
 
 export const LocationPermissionScreen: React.FC = () => {
   const navigation = useNavigation();
+  const route = useRoute<any>();
+  const params = route.params;
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const { setCurrentAddress } = useAddressStore();
@@ -173,29 +175,15 @@ export const LocationPermissionScreen: React.FC = () => {
 
     const returnTo = params?.returnTo;
 
+    // If we have a returnTo, we navigate to it. 
+    // Otherwise setting hasSkippedLocation(true) will make HomeScreen show up.
     if (returnTo) {
-      (navigation as any).reset({
-        index: 0,
-        routes: [{
-          name: 'Main',
-          state: {
-            routes: [{ name: 'MainTabs' }, { name: returnTo }]
-          }
-        }]
-      });
-      return;
-    }
-
-    if (user) {
-      (navigation as any).reset({
-        index: 0,
-        routes: [{ name: 'Main' }],
+      (navigation as any).navigate('Main', {
+        screen: 'MainTabs',
+        params: { screen: returnTo }
       });
     } else {
-      (navigation as any).reset({
-        index: 0,
-        routes: [{ name: 'MainTabs' }],
-      });
+      (navigation as any).navigate('Main', { screen: 'MainTabs' });
     }
   };
 

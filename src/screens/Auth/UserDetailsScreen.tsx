@@ -84,7 +84,9 @@ export const UserDetailsScreen: React.FC = () => {
       } as any);
 
       console.log('✅ User registration complete');
-      (navigation as any).navigate('LocationPermission', route.params);
+      // No manual navigation here. 
+      // Setting user state triggers RootNavigator to switch to Main stack.
+      // HomeScreen will handle the redirection to LocationPermission if needed.
     } catch (error: any) {
       console.error('Registration error:', error);
       showAlert({
@@ -113,7 +115,17 @@ export const UserDetailsScreen: React.FC = () => {
         >
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={async () => {
+              console.log('🔙 UserDetails back button pressed. canGoBack:', navigation.canGoBack());
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                // Root of registration stack - logging out returns user to Guest flow (Home)
+                console.log('🚪 No history. Logging out to return to Guest flow.');
+                const { logout } = useAuthStore.getState();
+                await logout();
+              }
+            }}
           >
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
           </TouchableOpacity>

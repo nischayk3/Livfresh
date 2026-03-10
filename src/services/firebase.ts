@@ -7,7 +7,8 @@ import {
   browserLocalPersistence,
   onAuthStateChanged,
   signInWithPhoneNumber,
-  signOut
+  signOut,
+  deleteUser
 } from 'firebase/auth';
 import { getFunctions } from 'firebase/functions'; // Import getFunctions from sdk
 import {
@@ -64,6 +65,7 @@ export {
   onAuthStateChanged,
   signInWithPhoneNumber,
   signOut,
+  deleteUser,
   collection,
   doc,
   getDoc,

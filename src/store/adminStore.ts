@@ -8,9 +8,9 @@ import {
   addCreditsAdmin,
   bulkAddCreditsAdmin,
   getUserStats,
-  getUserAnalytics,
-  UserAnalytics,
-  AbandonedCartUser,
+  // getUserAnalytics,
+  // UserAnalytics,
+  // AbandonedCartUser,
 } from '../services/adminFirestore';
 import { Timestamp } from '../services/firebase';
 
@@ -81,7 +81,7 @@ interface AdminStoreState {
   // Data
   orders: AdminOrder[];
   revenue: RevenueData | null;
-  userAnalytics: UserAnalytics | null;
+  userAnalytics: any | null; // UserAnalytics | null;
 
   // Loading states
   statsLoading: boolean;
@@ -100,7 +100,7 @@ interface AdminStoreState {
   fetchRevenue: (startDate: Date, endDate: Date) => Promise<void>;
   fetchSubscriptionStats: (silent?: boolean) => Promise<void>;
   fetchUserStats: (silent?: boolean) => Promise<void>;
-  fetchUserAnalytics: (silent?: boolean) => Promise<void>;
+  // fetchUserAnalytics: (silent?: boolean) => Promise<void>;
   updateOrderStatus: (
     userId: string,
     orderId: string,
@@ -299,6 +299,7 @@ export const useAdminStore = create<AdminStoreState>((set, get) => ({
     }
   },
 
+  /*
   fetchUserAnalytics: async (silent = false) => {
     if (!silent) set({ userAnalyticsLoading: true, error: null });
 
@@ -312,6 +313,7 @@ export const useAdminStore = create<AdminStoreState>((set, get) => ({
       if (!silent) set({ userAnalyticsLoading: false });
     }
   },
+  */
 
   clearError: () => {
     set({ error: null });

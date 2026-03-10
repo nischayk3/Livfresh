@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { auth, signOut, deleteUser } from '../services/firebase';
-import { deleteUserAccount } from '../services/firestore';
+// import { deleteUserAccount } from '../services/firestore';
 import { useAddressStore } from './addressStore';
 
 // Session timeout: 12 hours in milliseconds
@@ -111,7 +111,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       // 1. Delete Firestore Data
-      await deleteUserAccount(user.uid);
+      // await deleteUserAccount(user.uid);
 
       // 2. Delete Firebase Auth User
       // This might throw 'auth/requires-recent-login'

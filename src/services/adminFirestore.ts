@@ -12,6 +12,7 @@ import {
   writeBatch,
   collectionGroup,
   onSnapshot,
+  runTransaction,
 } from './firebase';
 import { adminDb as db } from './firebase';
 import { generateOTP } from '../utils/otpHelpers';
@@ -914,5 +915,85 @@ export const bulkAddCreditsAdmin = async (
       failed,
       errors: [error.message || 'Bulk operation failed'],
     };
+  }
+};
+
+/**
+ * Check slot availability (Admin)
+ */
+export const checkSlotAvailabilityAdmin = async (date: string): Promise<string[]> => {
+  try {
+    const scheduleRef = doc(db, 'daily_schedules', date);
+    const scheduleSnap = await getDoc(scheduleRef);
+    if (scheduleSnap.exists()) {
+      return scheduleSnap.data().occupied_slots || [];
+    }
+    return [];
+  } catch (error) {
+    console.error('Error checking slot availability (admin):', error);
+    return [];
+  }
+};
+
+/**
+ * Schedule delivery for an order (Transaction) (Admin)
+ */
+export const scheduleOrderDeliveryAdmin = async (
+  userId: string,
+  orderId: string,
+  deliveryDate: string,
+  deliveryTime: string
+): Promise<boolean> => {
+  try {
+    await runTransaction(db, async (transaction) => {
+      // 1. Check & Reserve Slot in Global Schedule
+      const scheduleRef = doc(db, 'daily_schedules', deliveryDate);
+      const scheduleSnap = await transaction.get(scheduleRef);
+
+      let currentSlots: string[] = [];
+      if (scheduleSnap.exists()) {
+        currentSlots = scheduleSnap.data().occupied_slots || [];
+      }
+
+      if (currentSlots.includes(deliveryTime)) {
+        throw new Error(`Slot ${deliveryTime} is no longer available.`);
+      }
+
+      // 2. Update Order
+      const userOrderRef = doc(db, 'users', userId, 'orders', orderId);
+      const userOrderSnap = await transaction.get(userOrderRef);
+
+      if (!userOrderSnap.exists()) {
+        throw new Error('Order not found');
+      }
+
+      const orderData = userOrderSnap.data();
+      const vendorId = orderData.vendorId || 'vendor_1'; // fallback
+      const timestamp = Timestamp.now();
+
+      const updateData = {
+        deliveryDate,
+        deliveryTime,
+        deliveryScheduledAt: timestamp,
+        updatedAt: timestamp,
+      };
+
+      // 3. Perform Writes
+      // Reserve Slot
+      transaction.set(scheduleRef, {
+        occupied_slots: [...currentSlots, deliveryTime]
+      }, { merge: true });
+
+      // Update both user and vendor orders
+      transaction.update(userOrderRef, updateData);
+
+      const vendorOrderRef = doc(db, 'vendors', vendorId, 'orders', orderId);
+      transaction.update(vendorOrderRef, updateData);
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error scheduling delivery (admin):', error);
+    throw error;
   }
 };

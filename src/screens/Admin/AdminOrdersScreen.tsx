@@ -21,8 +21,7 @@ import { useAdminStore } from '../../store/adminStore';
 import { useUIStore } from '../../store/uiStore';
 import { format, addDays, startOfToday } from 'date-fns';
 import { BrandLoader } from '../../components/BrandLoader';
-import { subscribeToAllOrdersAdmin } from '../../services/adminFirestore';
-import { checkSlotAvailability, scheduleOrderDelivery } from '../../services/firestore';
+import { subscribeToAllOrdersAdmin, checkSlotAvailabilityAdmin, scheduleOrderDeliveryAdmin } from '../../services/adminFirestore';
 
 // Status tabs configuration - mirroring SpinZo flow
 const STATUS_TABS = [
@@ -476,7 +475,7 @@ export const AdminOrdersScreen: React.FC = () => {
     setIsLoadingBusySlots(true);
     try {
       const dateStr = format(RESCHEDULE_DATES[selectedRescheduleDateIndex], 'yyyy-MM-dd');
-      const busy = await checkSlotAvailability(dateStr);
+      const busy = await checkSlotAvailabilityAdmin(dateStr);
       setBusySlotsForReschedule(busy || []);
     } catch (error) {
       console.error('Error fetching busy slots for reschedule:', error);
@@ -492,7 +491,7 @@ export const AdminOrdersScreen: React.FC = () => {
     setProcessing(true);
     try {
       const dateStr = format(RESCHEDULE_DATES[selectedRescheduleDateIndex], 'yyyy-MM-dd');
-      await scheduleOrderDelivery(
+      await scheduleOrderDeliveryAdmin(
         selectedOrderForOptions.userId,
         selectedOrderForOptions.id,
         dateStr,
@@ -1284,6 +1283,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
     if (item.serviceId === 'wash_fold') {
       let base = 0;
       if (item.weight === 7) base = 479;
+      else if (item.weight === 10) base = 849;
       else if (item.weight === 14) base = 958;
 
       const ironing = (item.ironingEnabled && item.ironingCount) ? (item.ironingCount * 15) : 0;
@@ -1299,9 +1299,9 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
       return base + ironing;
     }
     if (item.serviceId === 'wash_iron') {
-      if (item.weight === 3) return 360;
-      if (item.weight === 5) return 600;
-      if (item.weight === 7) return 840;
+      if (item.weight === 5) return 499;
+      if (item.weight === 7) return 699;
+      if (item.weight === 10) return 899;
     }
     if (item.serviceId === 'ironing_addon' || item.serviceName?.toLowerCase().includes('ironing')) {
       const count = item.clothesCount || item.ironingCount || 0;
@@ -1310,7 +1310,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
     if (item.serviceId === 'blanket_wash') {
       const single = item.singleBlanketCount || 0;
       const double = item.doubleBlanketCount || 0;
-      return (single * 199) + (double * 299);
+      return (single * 299) + (double * 399);
     }
 
     if (item.serviceId === 'ironing') {
@@ -1393,7 +1393,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
                 <View style={{ gap: 12 }}>
                   <Text style={TYPOGRAPHY.caption}>Select Weight Slab</Text>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
-                    {[7, 14].map(w => (
+                    {[7, 10, 14].map(w => (
                       <TouchableOpacity
                         key={w}
                         onPress={() => updateItem(index, { weight: w })}
@@ -1408,9 +1408,9 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
                         }}
                       >
                         <Text style={{ fontWeight: item.weight === w ? '700' : '400', color: COLORS.text }}>
-                          {w} kg ({w === 7 ? '~25' : '~50'} clothes)
+                          {w} kg ({w === 7 ? '~25' : w === 10 ? '~35' : '~50'} clothes)
                         </Text>
-                        <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>₹{w === 7 ? 479 : 958}</Text>
+                        <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>₹{w === 7 ? 479 : w === 10 ? 849 : 958}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -1445,7 +1445,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
                   <Text style={{ fontSize: 13, color: COLORS.info, marginBottom: 4 }}> Subscription Item (Paid via Credit) </Text>
                   <Text style={TYPOGRAPHY.caption}>Select Weight Slab</Text>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
-                    {[7, 14].map(w => (
+                    {[7, 10, 14].map(w => (
                       <TouchableOpacity
                         key={w}
                         onPress={() => updateItem(index, { weight: w })} // Only updates weight, price remains 0 usually
@@ -1541,7 +1541,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
                   {/* Single Blanket */}
                   <View>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <Text style={TYPOGRAPHY.caption}>Single Blankets (₹199)</Text>
+                      <Text style={TYPOGRAPHY.caption}>Single Blankets (₹299)</Text>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                       <TouchableOpacity
@@ -1563,7 +1563,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
                   {/* Double Blanket */}
                   <View>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <Text style={TYPOGRAPHY.caption}>Double Blankets (₹299)</Text>
+                      <Text style={TYPOGRAPHY.caption}>Double Blankets (₹399)</Text>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                       <TouchableOpacity
@@ -1589,7 +1589,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
                 <View style={{ gap: 12 }}>
                   <Text style={TYPOGRAPHY.caption}>Select Weight Slab</Text>
                   <View style={{ gap: 8 }}>
-                    {[3, 5, 7].map(w => (
+                    {[5, 7, 10].map(w => (
                       <TouchableOpacity
                         key={w}
                         onPress={() => updateItem(index, { weight: w })}
@@ -1605,10 +1605,10 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
                         }}
                       >
                         <Text style={{ fontWeight: item.weight === w ? '700' : '400', color: COLORS.text }}>
-                          {w} kg ({w === 3 ? '~10' : w === 5 ? '~18' : '~25'} clothes)
+                          {w} kg ({w === 5 ? '~15' : w === 7 ? '~25' : '~35'} clothes)
                         </Text>
                         <Text style={{ fontWeight: '600', color: COLORS.text }}>
-                          ₹{w === 3 ? 360 : w === 5 ? 600 : 840}
+                          ₹{w === 5 ? 499 : w === 7 ? 699 : 899}
                         </Text>
                         {item.weight === w && <Ionicons name="checkmark-circle" size={20} color={COLORS.primary} />}
                       </TouchableOpacity>

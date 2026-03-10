@@ -12,6 +12,7 @@ import {
 } from '@expo-google-fonts/outfit';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { BrandAlert } from './src/components/BrandAlert';
+import { initAds } from './src/utils/ads_init';
 import { View, Platform } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 
@@ -33,27 +34,7 @@ export default Sentry.wrap(function App() {
   });
 
   useEffect(() => {
-    const initFB = async () => {
-      // Both expo-tracking-transparency and react-native-fbsdk-next are native-only
-      if (Platform.OS !== 'web') {
-        try {
-          const TrackingTransparency = await import('expo-tracking-transparency');
-          const { Settings } = await import('react-native-fbsdk-next');
-          const { status } = await TrackingTransparency.requestTrackingPermissionsAsync();
-
-          // Initialize Facebook SDK
-          Settings.initializeSDK();
-          // Set advertiser tracking based on permission
-          if (Platform.OS === 'ios') {
-            Settings.setAdvertiserTrackingEnabled(status === 'granted');
-          }
-        } catch (e) {
-          console.error('FB SDK / Tracking Init Error:', e);
-        }
-      }
-    };
-
-    initFB();
+    initAds();
   }, []);
 
   const onLayoutRootView = useCallback(async () => {

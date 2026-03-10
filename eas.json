@@ -24,9 +24,9 @@
     "submit": {
         "production": {
             "ios": {
-                "ascApiKeyId": "72C9C4NYBY",
+                "ascApiKeyId": "GT869U49KM",
                 "ascApiKeyIssuerId": "91ba14ef-5b8a-42af-9d33-56417d6b53f6",
-                "ascApiKeyPath": "./AuthKey_72C9C4NYBY.p8",
+                "ascApiKeyPath": "./AuthKey_GT869U49KM.p8",
                 "ascAppId": "6758751814"
             }
         }

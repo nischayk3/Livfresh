@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore, useSubscriptionStore, useUIStore } from '../../store';
 import { trackPixelEvent } from '../../utils/pixel';
+import { openRazorpay } from '../../utils/payment_helper';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandHeader } from '../../components/BrandHeader';
 import { GlassCard } from '../../components/GlassCard';
@@ -191,6 +192,8 @@ export const BuyCreditsScreen: React.FC = () => {
         });
       };
 
+      const { openRazorpay } = await import('../../utils/payment_helper');
+
       if (Platform.OS === 'web') {
         const res = await loadRazorpayScript();
         if (!res) {
@@ -198,29 +201,11 @@ export const BuyCreditsScreen: React.FC = () => {
           setPurchasing(false);
           return;
         }
-
-        options.handler = function (response: any) {
-          handleSuccess(response);
-        };
-        options.modal = {
-          ondismiss: function () {
-            setPurchasing(false);
-          }
-        };
-
-        const rzp1 = new (window as any).Razorpay(options);
-        rzp1.on('payment.failed', function (response: any) {
-          handleFailure(response.error);
-        });
-        rzp1.open();
-      } else {
-        const RazorpayCheckout = (await import('react-native-razorpay')).default;
-        RazorpayCheckout.open(options).then((data: any) => {
-          handleSuccess(data);
-        }).catch((error: any) => {
-          handleFailure(error);
-        });
       }
+
+      openRazorpay(options)
+        .then((data: any) => handleSuccess(data))
+        .catch((error: any) => handleFailure(error));
 
     } catch (error) {
       console.error("Error initiating purchase:", error);

@@ -1,22 +1,22 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function (o, m, k, k2) {
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
     if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-        desc = { enumerable: true, get: function () { return m[k]; } };
+      desc = { enumerable: true, get: function() { return m[k]; } };
     }
     Object.defineProperty(o, k2, desc);
-}) : (function (o, m, k, k2) {
+}) : (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     o[k2] = m[k];
 }));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function (o, v) {
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
     Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function (o, v) {
+}) : function(o, v) {
     o["default"] = v;
 });
 var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function (o) {
+    var ownKeys = function(o) {
         ownKeys = Object.getOwnPropertyNames || function (o) {
             var ar = [];
             for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
@@ -151,66 +151,66 @@ exports.onOrderCreatedWhatsApp = functions
     .runWith({ secrets: [whatsapp_1.aisensyApiKey] })
     .firestore.document("users/{userId}/orders/{orderId}")
     .onCreate(async (snap, context) => {
-        const orderData = snap.data();
-        const orderId = context.params.orderId;
-        if (!orderData)
-            return null;
-        const phone = orderData.customerPhone || orderData.userPhone;
-        const name = orderData.customerName || "Customer";
-        const status = orderData.status;
-        // Send confirmation message if order is in a freshly placed state
-        // AND if phone number exists
-        if ((status === 'confirmed' || status === 'placed') && phone) {
-            try {
-                await (0, whatsapp_1.sendWhatsAppMessage)({
-                    phone,
-                    campaignName: "spinzo_order_placed_final",
-                    parameters: [name, orderId.toUpperCase().slice(-6)] // {{1}} = name, {{2}} = short order ID (last 6 chars)
-                });
-            }
-            catch (err) {
-                console.error("Failed to send WhatsApp order_placed notification:", err);
-            }
-        }
+    const orderData = snap.data();
+    const orderId = context.params.orderId;
+    if (!orderData)
         return null;
-    });
+    const phone = orderData.customerPhone || orderData.userPhone;
+    const name = orderData.customerName || "Customer";
+    const status = orderData.status;
+    // Send confirmation message if order is in a freshly placed state
+    // AND if phone number exists
+    if ((status === 'confirmed' || status === 'placed') && phone) {
+        try {
+            await (0, whatsapp_1.sendWhatsAppMessage)({
+                phone,
+                campaignName: "spinzo_order_placed_final",
+                parameters: [name, orderId.toUpperCase().slice(-6)] // {{1}} = name, {{2}} = short order ID (last 6 chars)
+            });
+        }
+        catch (err) {
+            console.error("Failed to send WhatsApp order_placed notification:", err);
+        }
+    }
+    return null;
+});
 exports.onOrderUpdatedWhatsApp = functions
     .runWith({ secrets: [whatsapp_1.aisensyApiKey] })
     .firestore.document("users/{userId}/orders/{orderId}")
     .onUpdate(async (change, context) => {
-        const beforeData = change.before.data();
-        const afterData = change.after.data();
-        const orderId = context.params.orderId;
-        if (!beforeData || !afterData)
-            return null;
-        const phone = afterData.customerPhone || afterData.userPhone;
-        const name = afterData.customerName || "Customer";
-        const beforeStatus = beforeData.status;
-        const afterStatus = afterData.status;
-        // Only act if the status actually changed
-        if (beforeStatus !== afterStatus && phone) {
-            try {
-                if (afterStatus === 'ready') {
-                    // Admin marked clothes as ready for delivery scheduling
-                    await (0, whatsapp_1.sendWhatsAppMessage)({
-                        phone,
-                        campaignName: "spinzo_schedule_delivery_final", // TODO: update to AiSensy campaign display name when created
-                        parameters: [name, orderId.toUpperCase().slice(-6)]
-                    });
-                }
-                else if (afterStatus === 'out_for_delivery') {
-                    // Admin marked as out for delivery
-                    await (0, whatsapp_1.sendWhatsAppMessage)({
-                        phone,
-                        campaignName: "spinzo_out_for_delivery_final", // TODO: update to AiSensy campaign display name when created
-                        parameters: [name, orderId.toUpperCase().slice(-6)]
-                    });
-                }
+    const beforeData = change.before.data();
+    const afterData = change.after.data();
+    const orderId = context.params.orderId;
+    if (!beforeData || !afterData)
+        return null;
+    const phone = afterData.customerPhone || afterData.userPhone;
+    const name = afterData.customerName || "Customer";
+    const beforeStatus = beforeData.status;
+    const afterStatus = afterData.status;
+    // Only act if the status actually changed
+    if (beforeStatus !== afterStatus && phone) {
+        try {
+            if (afterStatus === 'ready') {
+                // Admin marked clothes as ready for delivery scheduling
+                await (0, whatsapp_1.sendWhatsAppMessage)({
+                    phone,
+                    campaignName: "spinzo_schedule_delivery_final", // TODO: update to AiSensy campaign display name when created
+                    parameters: [name, orderId.toUpperCase().slice(-6)]
+                });
             }
-            catch (err) {
-                console.error(`Failed to send WhatsApp notification for status ${afterStatus}:`, err);
+            else if (afterStatus === 'out_for_delivery') {
+                // Admin marked as out for delivery
+                await (0, whatsapp_1.sendWhatsAppMessage)({
+                    phone,
+                    campaignName: "spinzo_out_for_delivery_final", // TODO: update to AiSensy campaign display name when created
+                    parameters: [name, orderId.toUpperCase().slice(-6)]
+                });
             }
         }
-        return null;
-    });
+        catch (err) {
+            console.error(`Failed to send WhatsApp notification for status ${afterStatus}:`, err);
+        }
+    }
+    return null;
+});
 //# sourceMappingURL=index.js.map

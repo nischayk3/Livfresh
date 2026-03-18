@@ -1,34 +1,37 @@
-import React, { useRef, useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
-import { Video, ResizeMode, AVPlaybackStatus, Audio } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { useEvent } from 'expo';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../utils/constants';
 
 const { width } = Dimensions.get('window');
 
-export const ProcessVideoSection: React.FC = () => {
-    const videoRef = useRef<Video>(null);
-    const [status, setStatus] = useState<AVPlaybackStatus>({} as AVPlaybackStatus);
-    const [isMuted, setIsMuted] = useState(true);
+const videoSource = require('../../assets/process_video.mp4');
 
-    const videoSource = require('../../assets/process_video.mp4');
+export const ProcessVideoSection: React.FC = () => {
+    const player = useVideoPlayer(videoSource, player => {
+        player.loop = true;
+        player.muted = true;
+        player.pause(); // Ensure it starts paused
+    });
+
+    const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
+    const { muted: isMuted } = useEvent(player, 'mutedChange', { muted: player.muted });
 
     const handlePlayPause = async () => {
-        if (!videoRef.current) return;
-
-        if (status.isLoaded && status.isPlaying) {
-            await videoRef.current.pauseAsync();
+        if (isPlaying) {
+            player.pause();
         } else {
-            // Enable audio when user manually plays
-            await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-            await videoRef.current.playAsync();
-            setIsMuted(false);
+            // Unmute when explicitly played by user
+            player.muted = false;
+            player.play();
         }
     };
 
     const toggleMute = () => {
-        setIsMuted(!isMuted);
+        player.muted = !player.muted;
     };
 
     return (
@@ -38,23 +41,18 @@ export const ProcessVideoSection: React.FC = () => {
                     <Text style={styles.title}>Experience the Care</Text>
                     <Text style={styles.subtitle}>See what happens after you book ✨</Text>
                 </View>
-                {/* Optional: Add a "Watch Full" button or similar if needed */}
             </View>
 
             <View style={styles.videoCard}>
-                <Video
-                    ref={videoRef}
+                <VideoView
                     style={styles.video}
-                    source={videoSource}
-                    resizeMode={ResizeMode.COVER}
-                    isLooping
-                    isMuted={isMuted}
-                    shouldPlay={false} // Don't autoplay heavy video by default to save data/battery
-                    onPlaybackStatusUpdate={status => setStatus(() => status)}
+                    player={player}
+                    contentFit="cover"
+                    nativeControls={false}
                 />
 
                 {/* Overlay Gradient for Text readability */}
-                {(!status.isLoaded || !status.isPlaying) && (
+                {!isPlaying && (
                     <LinearGradient
                         colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.7)']}
                         style={StyleSheet.absoluteFill}
@@ -73,7 +71,7 @@ export const ProcessVideoSection: React.FC = () => {
                 )}
 
                 {/* Controls Overlay (visible when playing) */}
-                {status.isLoaded && status.isPlaying && (
+                {isPlaying && (
                     <View style={styles.controlsOverlay}>
                         <TouchableOpacity onPress={toggleMute} style={styles.iconButton}>
                             <Ionicons name={isMuted ? "volume-mute" : "volume-high"} size={20} color="#FFFFFF" />
@@ -145,9 +143,7 @@ const styles = StyleSheet.create({
     overlayText: {
         ...TYPOGRAPHY.subheading,
         color: '#FFFFFF',
-        textShadowColor: 'rgba(0, 0, 0, 0.5)',
-        textShadowOffset: { width: 0, height: 1 },
-        textShadowRadius: 4,
+        textShadow: '0px 1px 4px rgba(0, 0, 0, 0.5)',
     },
     controlsOverlay: {
         position: 'absolute',

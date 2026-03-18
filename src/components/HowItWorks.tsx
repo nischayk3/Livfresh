@@ -81,11 +81,7 @@ const styles = StyleSheet.create({
         zIndex: 2,
         borderWidth: 2,
         borderColor: '#FFFFFF',
-        shadowColor: COLORS.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
-        elevation: 4,
+        boxShadow: '0px 4px 8px rgba(124, 58, 237, 0.15)', // Replaced deprecated shadow* and elevation props with new boxShadow standard
     },
     stepTitle: {
         fontSize: 12,

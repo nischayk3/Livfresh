@@ -178,8 +178,13 @@ export const AddressMapScreen: React.FC = () => {
                             longitudeDelta: 0.005,
                         };
                     }
-                } catch (e) {
-                    console.error('Location permission error:', e);
+                } catch (e: any) {
+                    if (e?.code === 2) {
+                        // Position update unavailable (common on desktop/web without GPS)
+                        console.warn('Location info unavailable. Defaulting to fallback coordinates.');
+                    } else {
+                        console.warn('Could not determine precise location:', e?.message || e);
+                    }
                 }
             }
 

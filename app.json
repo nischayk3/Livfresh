@@ -88,7 +88,9 @@
           "autoLogAppEventsEnabled": true,
           "isAutoInitEnabled": true
         }
-      ]
+      ],
+      "expo-video",
+      "expo-audio"
     ]
   }
 }

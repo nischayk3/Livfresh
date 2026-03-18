@@ -1,7 +1,8 @@
 {
     "cli": {
         "version": ">= 3.0.0",
-        "appVersionSource": "remote"
+        "appVersionSource": "remote",
+        "requireCommit": true
     },
     "build": {
         "development": {
@@ -28,7 +29,3 @@
                 "ascApiKeyIssuerId": "91ba14ef-5b8a-42af-9d33-56417d6b53f6",
                 "ascApiKeyPath": "./AuthKey_GT869U49KM.p8",
                 "ascAppId": "6758751814"
-            }
-        }
-    }
-}

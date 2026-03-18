@@ -11,6 +11,7 @@ import { auth, adminAuth, onAuthStateChanged } from '../services/firebase';
 import { useCartStore, useAddressStore } from '../store';
 import { COLORS, TYPOGRAPHY, SHADOWS } from '../utils/constants';
 import { BrandLoader } from '../components/BrandLoader';
+import AnalyticsService from '../services/analytics';
 
 // Helper for lazy loading components with Web compatibility
 const lazyWeb = (importPath: () => Promise<any>) => {
@@ -404,6 +405,8 @@ export const RootNavigator: React.FC = () => {
   // A better spot is HomeScreen. HomeScreen checks "if (!currentAddress) navigate('LocationPermission')".
 
 
+  const routeNameRef = React.useRef<string | undefined>(undefined);
+
   if (isAuthLoading || !isHydrated) {
     return (
       <View style={styles.loadingWrapper}>
@@ -415,6 +418,21 @@ export const RootNavigator: React.FC = () => {
   return (
     <NavigationContainer
       ref={navigationRef}
+      onReady={() => {
+        routeNameRef.current = navigationRef.getCurrentRoute()?.name;
+        if (routeNameRef.current) {
+          AnalyticsService.logScreenView(routeNameRef.current);
+        }
+      }}
+      onStateChange={async () => {
+        const previousRouteName = routeNameRef.current;
+        const currentRouteName = navigationRef.getCurrentRoute()?.name;
+
+        if (previousRouteName !== currentRouteName && currentRouteName) {
+          await AnalyticsService.logScreenView(currentRouteName);
+        }
+        routeNameRef.current = currentRouteName;
+      }}
       documentTitle={{
         formatter: () => 'SpinZo',
       }}

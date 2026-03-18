@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { BrandLoader } from '../../components/BrandLoader';
 import { GoogleMap, useJsApiLoader, Autocomplete } from '@react-google-maps/api';
+import AnalyticsService from '../../services/analytics';
 import * as Location from 'expo-location';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -262,6 +263,11 @@ export const AddressMapScreen: React.FC = () => {
                     mapRef.current.panTo({ lat, lng });
                     mapRef.current.setZoom(17);
                 }
+
+                // Log search event
+                AnalyticsService.logEvent('search', {
+                    search_term: place.name || place.formatted_address || 'unknown_location'
+                });
             }
         }
     }, []);

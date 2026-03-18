@@ -21,6 +21,7 @@ import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/consta
 import { createOrder, saveCart, clearCartInFirestore, uploadServicePhotos, getUserOrders } from '../../services/firestore';
 import { trackPixelEvent } from '../../utils/pixel';
 import { BrandLoader } from '../../components/BrandLoader';
+import AnalyticsService from '../../services/analytics';
 import { CartTrust } from '../../components/CartTrust';
 import { GlassCard } from '../../components/GlassCard';
 import { AnimatedButton } from '../../components/AnimatedButton';
@@ -304,6 +305,15 @@ export const CartScreen: React.FC = () => {
                     currency: 'INR',
                     num_items: items.length
                 });
+                AnalyticsService.logEvent('begin_checkout', {
+                    value: totalAmount,
+                    currency: 'INR',
+                    items: items.map(i => ({
+                        item_id: i.id,
+                        item_name: i.serviceName,
+                        price: i.totalPrice
+                    }))
+                });
             }
         }, [items.length, totalAmount])
     );
@@ -429,12 +439,27 @@ export const CartScreen: React.FC = () => {
             const orderId = await createOrder(latestUser.uid, orderData);
 
             // Track Purchase Event
+            // ⚠️ IMPORTANT: `await` is critical here. pixel.native.ts includes a 400ms
+            // flush delay inside trackPixelEvent('Purchase') to prevent the race condition
+            // where navigation.dispatch(reset) destroys the Android activity before the
+            // Facebook SDK finishes its HTTP POST to Graph API.
             await trackPixelEvent('Purchase', {
                 value: totalAmount,
                 currency: 'INR',
                 num_items: items.length,
                 content_ids: items.map(i => i.id),
                 content_type: 'product'
+            });
+
+            await AnalyticsService.logEvent('purchase', {
+                transaction_id: orderId,
+                value: totalAmount,
+                currency: 'INR',
+                items: items.map(i => ({
+                    item_id: i.id,
+                    item_name: i.serviceName,
+                    price: i.totalPrice
+                }))
             });
 
             // Set navigating state to prevent empty cart flash

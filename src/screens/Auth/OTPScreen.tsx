@@ -21,6 +21,7 @@ import { trackPixelEvent } from '../../utils/pixel';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandLoader } from '../../components/BrandLoader';
 import { AnimatedButton } from '../../components/AnimatedButton';
+import AnalyticsService from '../../services/analytics';
 import { MotiView } from 'moti';
 
 export const OTPScreen: React.FC = () => {
@@ -172,6 +173,18 @@ export const OTPScreen: React.FC = () => {
                 currency: 'INR',
                 value: 0
             });
+
+            // Analytics Expert Tracking
+            AnalyticsService.setUserId(firebaseUser.uid);
+            if (userData) {
+                AnalyticsService.logEvent('login', {
+                    method: 'phone_otp'
+                });
+            } else {
+                AnalyticsService.logEvent('sign_up', {
+                    method: 'phone_otp'
+                });
+            }
         } catch (error: any) {
             console.error('OTP verification error:', error);
             setError(error.message || 'Invalid OTP. Please try again.');

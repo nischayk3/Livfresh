@@ -1,8 +1,8 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-// @ts-ignore - known issue with firebase/auth types in SDK 10+
 import {
   getAuth,
   initializeAuth,
+  // @ts-ignore - known issue with firebase/auth types in SDK 10+
   getReactNativePersistence,
   browserLocalPersistence,
   onAuthStateChanged,

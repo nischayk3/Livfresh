@@ -22,6 +22,7 @@ import { GlassCard } from '../../components/GlassCard';
 import { AnimatedButton } from '../../components/AnimatedButton';
 import { MotiView } from 'moti';
 import { LinearGradient } from 'expo-linear-gradient';
+import AnalyticsService from '../../services/analytics';
 
 type PlanType = 'single' | 'couple';
 
@@ -75,9 +76,16 @@ export const BuyCreditsScreen: React.FC = () => {
       script.src = 'https://checkout.razorpay.com/v1/checkout.js';
       script.onload = () => resolve(true);
       script.onerror = () => resolve(false);
-      document.body.appendChild(script);
     });
   };
+
+  React.useEffect(() => {
+    AnalyticsService.logEvent('view_item', {
+      item_id: 'credits_screen',
+      item_name: 'Buy Credits Screen',
+      item_category: 'Subscription'
+    });
+  }, []);
 
 
   const handlePurchase = async () => {
@@ -102,7 +110,15 @@ export const BuyCreditsScreen: React.FC = () => {
     try {
       setPurchasing(true);
 
-      setPurchasing(true);
+      AnalyticsService.logEvent('begin_checkout', {
+        value: totalAmount,
+        currency: 'INR',
+        items: [{
+          item_id: `subscription_${planType}_${creditCount}`,
+          item_name: `${planType === 'single' ? 'Single' : 'Couple'} Plan - ${creditCount} Credits`,
+          price: totalAmount
+        }]
+      });
 
       // 1. Create Order on Backend
       const order = await createRazorpayOrder(totalAmount * 100); // Amount in paise
@@ -144,6 +160,20 @@ export const BuyCreditsScreen: React.FC = () => {
             currency: 'INR',
             content_ids: [`subscription_${planType}_${creditCount}`],
             content_type: 'product',
+            plan_type: planType,
+            credits: creditCount
+          });
+
+          AnalyticsService.logEvent('purchase', {
+            transaction_id: data.razorpay_payment_id,
+            value: totalAmount,
+            currency: 'INR',
+            items: [{
+              item_id: `subscription_${planType}_${creditCount}`,
+              item_name: `${planType === 'single' ? 'Single' : 'Couple'} Plan - ${creditCount} Credits`,
+              price: totalAmount,
+              quantity: 1
+            }],
             plan_type: planType,
             credits: creditCount
           });

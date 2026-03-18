@@ -26,6 +26,7 @@ import Animated, {
 import { useAuthStore, useSubscriptionStore } from '../../store';
 import { useAddressStore } from '../../store';
 import { useCartStore } from '../../store';
+import AnalyticsService from '../../services/analytics';
 import { ServiceDetailScreen } from './ServiceDetailScreen';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandLoader } from '../../components/BrandLoader';
@@ -238,9 +239,20 @@ export const HomeScreen: React.FC = () => {
 
   const handleServicePress = (serviceId: string) => {
     if (serviceId === 'subscription') {
+      AnalyticsService.logEvent('select_item', {
+        item_id: 'subscription',
+        item_name: 'Smart Care Subscription',
+        item_category: 'Service'
+      });
       (navigation as any).navigate('BuyCredits');
       return;
     }
+    const service = SERVICES.find(s => s.id === serviceId);
+    AnalyticsService.logEvent('select_item', {
+      item_id: serviceId,
+      item_name: service?.name || serviceId,
+      item_category: 'Service'
+    });
     setSelectedService(serviceId);
     setServiceModalVisible(true);
   };
@@ -260,26 +272,39 @@ export const HomeScreen: React.FC = () => {
 
   const renderPromoItem = ({ item }: { item: typeof PROMOS[0] }) => (
     <View style={styles.promoCard}>
-      <LinearGradient
-        colors={item.gradient as [string, string]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.promoGradient}
+      <TouchableOpacity 
+        activeOpacity={0.9} 
+        onPress={() => {
+          AnalyticsService.logEvent('select_promotion', {
+            promotion_id: item.id,
+            promotion_name: item.title,
+            creative_name: item.badge
+          });
+          // In future, navigate to a specific offer page
+        }}
+        style={{ flex: 1 }}
       >
-        <View style={styles.promoContent}>
-          <View style={styles.promoBadge}>
-            <Text style={styles.promoBadgeText}>{item.badge || 'Why SpinZo?'}</Text>
+        <LinearGradient
+          colors={item.gradient as [string, string]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.promoGradient}
+        >
+          <View style={styles.promoContent}>
+            <View style={styles.promoBadge}>
+              <Text style={styles.promoBadgeText}>{item.badge || 'Why SpinZo?'}</Text>
+            </View>
+            <Text style={styles.promoTitle}>{item.title}</Text>
+            <Text style={styles.promoSubtitle}>{item.subtitle}</Text>
           </View>
-          <Text style={styles.promoTitle}>{item.title}</Text>
-          <Text style={styles.promoSubtitle}>{item.subtitle}</Text>
-        </View>
-        <Image
-          source={item.image}
-          style={styles.promoImage}
-          contentFit="contain"
-          transition={500}
-        />
-      </LinearGradient>
+          <Image
+            source={item.image}
+            style={styles.promoImage}
+            contentFit="contain"
+            transition={500}
+          />
+        </LinearGradient>
+      </TouchableOpacity>
     </View>
   );
 

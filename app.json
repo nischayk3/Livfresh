@@ -7,7 +7,7 @@
       "com.nischayk3.Spinit-ios",
       "app-1-597897149776-ios-bc466d02099d18a135c055"
     ],
-    "version": "1.0.4",
+    "version": "1.0.6",
     "orientation": "portrait",
     "icon": "./assets/SpinZo.png",
     "userInterfaceStyle": "light",
@@ -21,6 +21,7 @@
       "supportsTablet": true,
       "googleServicesFile": "./GoogleService-Info.plist",
       "bundleIdentifier": "com.nischayk3.Spinit",
+      "buildNumber": "35",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "SpinZo uses your camera to photograph garments so you can attach care notes to your laundry order, helping us handle your clothes correctly.",
@@ -39,7 +40,12 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.nischayk3.Spinit",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyADDmG-kNKYDNa0eBoamy6nin03XkkcvWs"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/SpinZo.png",
@@ -71,7 +77,6 @@
       ],
       "./plugins/withFirebaseModularHeaders",
       "@react-native-firebase/app",
-      "@react-native-firebase/auth",
       "expo-font",
       [
         "react-native-fbsdk-next",
@@ -79,8 +84,8 @@
           "appID": "1548776956231117",
           "clientToken": "e123bd0dc1f62abc525df57d1173fdff2",
           "displayName": "SpinZo",
-          "advertiserIDCollectionEnabled": false,
-          "autoLogAppEventsEnabled": false,
+          "advertiserIDCollectionEnabled": true,
+          "autoLogAppEventsEnabled": true,
           "isAutoInitEnabled": true
         }
       ]

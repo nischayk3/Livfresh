@@ -41,11 +41,7 @@ export const AddressListScreen: React.FC = () => {
                     style={styles.editButton}
                     onPress={(e) => {
                         e.stopPropagation(); // Don't select the address, just edit
-                        navigation.navigate('AddressMap' as never, {
-                            editingAddress: item,
-                            initialLat: item.latitude,
-                            initialLng: item.longitude
-                        } as never);
+                        navigation.navigate('AddressMap' as never);
                     }}
                 >
                     <Ionicons name="pencil" size={20} color={COLORS.textSecondary} />

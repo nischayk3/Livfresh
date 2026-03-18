@@ -38,6 +38,7 @@ import { ServiceStats } from '../../components/ServiceStats';
 import { ServiceInfo } from '../../components/ServiceInfo';
 import { GlassCard } from '../../components/GlassCard';
 import { AnimatedButton } from '../../components/AnimatedButton';
+import AnalyticsService from '../../services/analytics';
 
 // -------------- FAQ DATA --------------
 const WASH_FOLD_FAQS = [
@@ -128,6 +129,12 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       trackPixelEvent('ViewContent', {
         content_category: 'Laundry Service',
         content_name: serviceName
+      });
+
+      AnalyticsService.logEvent('view_item', {
+        item_id: serviceId,
+        item_name: serviceName,
+        item_category: 'Laundry Service'
       });
     }
   }, [visible, serviceId]);
@@ -648,6 +655,16 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     trackPixelEvent('AddToCart', {
       value: cartItem.totalPrice,
       currency: 'INR'
+    });
+
+    AnalyticsService.logEvent('add_to_cart', {
+      value: cartItem.totalPrice,
+      currency: 'INR',
+      items: [{
+        item_id: cartItem.serviceId,
+        item_name: cartItem.serviceName,
+        price: cartItem.totalPrice
+      }]
     });
 
     onClose();

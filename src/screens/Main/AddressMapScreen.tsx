@@ -12,7 +12,7 @@ import {
     Alert,
     Keyboard,
 } from 'react-native';
-import MapView, { Marker, Region } from 'react-native-maps';
+import MapView, { Marker, Region, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +21,7 @@ import { addAddress, updateUserAddress } from '../../services/firestore';
 import { useAuthStore, useAddressStore, useUIStore } from '../../store';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrandLoader } from '../../components/BrandLoader';
+import AnalyticsService from '../../services/analytics';
 
 const { width, height } = Dimensions.get('window');
 const ASPECT_RATIO = width / height;
@@ -70,6 +71,7 @@ export const AddressMapScreen: React.FC = () => {
 
     // Initial Region
     const [initialRegion, setInitialRegion] = useState<Region | null>(null);
+    const [hasLocationPermission, setHasLocationPermission] = useState(false);
 
     // Reverse Geocode Logic
     const fetchAddress = async (lat: number, lng: number) => {
@@ -112,6 +114,7 @@ export const AddressMapScreen: React.FC = () => {
                 try {
                     const { status } = await Location.requestForegroundPermissionsAsync();
                     if (status === 'granted') {
+                        setHasLocationPermission(true);
                         // Use a race for timeout
                         const locationPromise = Location.getCurrentPositionAsync({
                             accuracy: Platform.OS === 'web' ? Location.Accuracy.Balanced : Location.Accuracy.High,
@@ -125,6 +128,7 @@ export const AddressMapScreen: React.FC = () => {
                         lat = loc.coords.latitude;
                         lng = loc.coords.longitude;
                     } else {
+                        setHasLocationPermission(false);
                         // Permission denied — show a helpful alert instead of crashing
                         showAlert({
                             title: 'Location Permission Required',
@@ -134,6 +138,7 @@ export const AddressMapScreen: React.FC = () => {
                     }
                 } catch (e) {
                     console.warn('Location error:', e);
+                    setHasLocationPermission(false);
                     // Show a non-blocking warning; map will still work with default coords
                     showAlert({
                         title: 'Location Unavailable',
@@ -141,6 +146,10 @@ export const AddressMapScreen: React.FC = () => {
                         type: 'info',
                     });
                 }
+            } else {
+                // If editing or has params, check permission status but don't force request if already checked
+                const { status } = await Location.getForegroundPermissionsAsync();
+                setHasLocationPermission(status === 'granted');
             }
 
             // Always set a valid region so MapView never gets unstable props
@@ -194,8 +203,15 @@ export const AddressMapScreen: React.FC = () => {
 
         setLoading(true);
         try {
-            const fullAddress = `${addressDetails.houseNo}, ${addressDetails.landmark ? addressDetails.landmark + ', ' : ''}${addressDetails.formattedAddress}`;
             const regionToSave = currentRegionRef.current;
+            const fullAddress = `${addressDetails.houseNo}, ${addressDetails.landmark ? addressDetails.landmark + ', ' : ''}${addressDetails.formattedAddress}`;
+            
+            // Analytics Expert Tracking: Log search/selection event
+            AnalyticsService.logEvent('search', {
+                search_term: addressDetails.formattedAddress,
+                location_type: 'pin_selection'
+            });
+
             const isPrimary = editingAddress ? editingAddress.isPrimary : true; // Default true for new? Or logic driven.
 
             if (editingAddress) {
@@ -281,12 +297,13 @@ export const AddressMapScreen: React.FC = () => {
             <View style={styles.mapContainer}>
                 <MapView
                     ref={mapRef}
+                    provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
                     style={styles.map}
                     initialRegion={initialRegion}
                     onRegionChange={handleRegionChange}
                     onRegionChangeComplete={handleRegionChangeComplete}
-                    showsUserLocation={true}
-                    showsMyLocationButton={true}
+                    showsUserLocation={hasLocationPermission}
+                    showsMyLocationButton={hasLocationPermission}
                 />
 
                 {/* Fixed Center Marker */}

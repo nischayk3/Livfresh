@@ -1,31 +1,35 @@
 {
-    "cli": {
-        "version": ">= 3.0.0",
-        "appVersionSource": "remote",
-        "requireCommit": true
+  "cli": {
+    "version": ">= 3.0.0",
+    "appVersionSource": "remote",
+    "requireCommit": true
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
     },
-    "build": {
-        "development": {
-            "developmentClient": true,
-            "distribution": "internal"
-        },
-        "preview": {
-            "android": {
-                "buildType": "apk"
-            },
-            "distribution": "internal"
-        },
-        "production": {
-            "autoIncrement": true,
-            "android": {
-                "buildType": "app-bundle"
-            }
-        }
+    "preview": {
+      "android": {
+        "buildType": "apk"
+      },
+      "distribution": "internal"
     },
-    "submit": {
-        "production": {
-            "ios": {
-                "ascApiKeyId": "GT869U49KM",
-                "ascApiKeyIssuerId": "91ba14ef-5b8a-42af-9d33-56417d6b53f6",
-                "ascApiKeyPath": "./AuthKey_GT869U49KM.p8",
-                "ascAppId": "6758751814"
+    "production": {
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascApiKeyId": "GT869U49KM",
+        "ascApiKeyIssuerId": "91ba14ef-5b8a-42af-9d33-56417d6b53f6",
+        "ascApiKeyPath": "./AuthKey_GT869U49KM.p8",
+        "ascAppId": "6758751814"
+      }
+    }
+  }
+}

@@ -7,6 +7,7 @@ import { format, isSameDay, isAfter, addMinutes, parse, addDays, startOfToday } 
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
 import { useAuthStore } from '../../store';
 import { getOrder, getBusySlots, scheduleOrderDelivery, subscribeToOrder, checkSlotAvailability } from '../../services/firestore';
+import { generateTimeSlots, SLOT_CONSTANTS } from '../../utils/slotUtils';
 import { BrandLoader } from '../../components/BrandLoader';
 
 // Order Status Steps
@@ -38,24 +39,10 @@ export const OrderDetailScreen: React.FC = () => {
     const [isLoadingBusySlots, setIsLoadingBusySlots] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Dynamic next 5 days
     const DATES = Array.from({ length: 5 }, (_, i) => {
         const d = startOfToday();
         return addDays(d, i);
     });
-
-    // Generate time slots (9 AM to 9 PM)
-    const generateTimeSlots = () => {
-        const slots = [];
-        for (let i = 9; i < 21; i++) {
-            const p1 = `${i.toString().padStart(2, '0')}:00`;
-            const p2 = `${i.toString().padStart(2, '0')}:30`;
-            const p3 = `${(i + 1).toString().padStart(2, '0')}:00`;
-            slots.push(`${p1} - ${p2}`);
-            slots.push(`${p2} - ${p3}`);
-        }
-        return slots;
-    };
 
     const fetchOrder = async () => {
         // Handled by real-time listener now
@@ -189,7 +176,7 @@ export const OrderDetailScreen: React.FC = () => {
                         </View>
                         <View style={styles.scheduleContent}>
                             <Text style={styles.scheduleTitle}>Schedule Your Delivery</Text>
-                            <Text style={styles.scheduleSub}>Pick a 30-min slot that works for you</Text>
+                            <Text style={styles.scheduleSub}>Pick a 1-hour slot that works for you</Text>
                             <TouchableOpacity
                                 style={styles.scheduleButton}
                                 onPress={() => setShowScheduler(true)}
@@ -385,7 +372,7 @@ export const OrderDetailScreen: React.FC = () => {
                             })}
                         </ScrollView>
 
-                        <Text style={styles.modalSubtitle}>Select 30-min Slot</Text>
+                        <Text style={styles.modalSubtitle}>Select 1-Hour Slot</Text>
                         {isLoadingBusySlots ? (
                             <View style={styles.slotLoader}>
                                 <ActivityIndicator color={COLORS.primary} />
@@ -408,10 +395,10 @@ export const OrderDetailScreen: React.FC = () => {
                                         // Logic for today: hide past slots
                                         if (isSameDay(DATES[selectedDateIndex], new Date())) {
                                             const now = new Date();
-                                            // Add 30 min buffer for delivery prep
+                                            // Add buffer for delivery prep
                                             const slotTime = new Date();
                                             slotTime.setHours(slotHour, slotMin, 0, 0);
-                                            const cutoff = addMinutes(now, 30);
+                                            const cutoff = addMinutes(now, SLOT_CONSTANTS.MIN_BUFFER_MINS);
                                             isPast = !isAfter(slotTime, cutoff);
                                         }
 

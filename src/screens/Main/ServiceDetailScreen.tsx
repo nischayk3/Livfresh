@@ -670,7 +670,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     onClose();
     showAlert({
       title: 'Added to Cart! 🎉',
-      message: 'Item added successfully. Sign in at checkout to place your order.',
+      message: 'Item added successfully',
       type: 'success'
     });
   };

@@ -164,7 +164,7 @@ exports.onOrderCreatedWhatsApp = functions
         try {
             await (0, whatsapp_1.sendWhatsAppMessage)({
                 phone,
-                campaignName: "spinzo_order_placed_final",
+                campaignName: "SPINZO",
                 parameters: [name, orderId.toUpperCase().slice(-6)] // {{1}} = name, {{2}} = short order ID (last 6 chars)
             });
         }
@@ -194,7 +194,7 @@ exports.onOrderUpdatedWhatsApp = functions
                 // Admin marked clothes as ready for delivery scheduling
                 await (0, whatsapp_1.sendWhatsAppMessage)({
                     phone,
-                    campaignName: "spinzo_schedule_delivery_final", // TODO: update to AiSensy campaign display name when created
+                    campaignName: "Spinzo Schedule Delivery",
                     parameters: [name, orderId.toUpperCase().slice(-6)]
                 });
             }
@@ -202,7 +202,7 @@ exports.onOrderUpdatedWhatsApp = functions
                 // Admin marked as out for delivery
                 await (0, whatsapp_1.sendWhatsAppMessage)({
                     phone,
-                    campaignName: "spinzo_out_for_delivery_final", // TODO: update to AiSensy campaign display name when created
+                    campaignName: "Spinzo out of delivery",
                     parameters: [name, orderId.toUpperCase().slice(-6)]
                 });
             }

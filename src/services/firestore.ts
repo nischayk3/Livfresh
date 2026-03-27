@@ -322,8 +322,10 @@ export const createOrder = async (userId: string, orderData: any) => {
     const cleanOrder = cleanData(orderWithTimestamp);
 
     await runTransaction(db, async (transaction) => {
-      // 1. If scheduled, check & reserve slot
-      if (isScheduled && scheduleDate && scheduleTime) {
+      // 1. Reserve slot for ALL order types (instant AND scheduled).
+      //    Both consume the same delivery-partner capacity, so both must
+      //    write to daily_schedules to prevent double-booking.
+      if (scheduleDate && scheduleTime) {
         const scheduleRef = doc(db, 'daily_schedules', scheduleDate);
         const scheduleSnap = await transaction.get(scheduleRef);
 
@@ -333,10 +335,10 @@ export const createOrder = async (userId: string, orderData: any) => {
         }
 
         if (currentSlots.includes(scheduleTime)) {
-          throw new Error(`Slot ${scheduleTime} is no longer available.`);
+          throw new Error(`This time slot is no longer available. Please try a different time.`);
         }
 
-        // Add reservation
+        // Atomically add the reservation
         transaction.set(scheduleRef, {
           occupied_slots: [...currentSlots, scheduleTime]
         }, { merge: true });

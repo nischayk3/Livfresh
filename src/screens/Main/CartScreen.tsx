@@ -20,7 +20,9 @@ import { useCartStore, useAuthStore, useAddressStore, useUIStore, useSubscriptio
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
 import { createOrder, saveCart, clearCartInFirestore, uploadServicePhotos, getUserOrders } from '../../services/firestore';
 import { trackPixelEvent } from '../../utils/pixel';
+import { SLOT_CONSTANTS, generateTimeSlots, getNextInstantSlot, isInstantWithinHours } from '../../utils/slotUtils';
 import { BrandLoader } from '../../components/BrandLoader';
+import { checkSlotAvailability } from '../../services/firestore';
 import AnalyticsService from '../../services/analytics';
 import { CartTrust } from '../../components/CartTrust';
 import { GlassCard } from '../../components/GlassCard';
@@ -41,6 +43,7 @@ export const CartScreen: React.FC = () => {
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
     const [occupiedSlots, setOccupiedSlots] = useState<string[]>([]);
+    const [instantBlockedBySlot, setInstantBlockedBySlot] = useState(false);
     const [orderCount, setOrderCount] = useState<number>(0);
     const [isDiscountApplied, setIsDiscountApplied] = useState(false);
     const [discountAmount, setDiscountAmount] = useState(0);
@@ -48,16 +51,14 @@ export const CartScreen: React.FC = () => {
     // Constants
     const PLATFORM_FEE = 0;
     const GST_PERCENTAGE = 0;
-    const MIN_BUFFER_MINS = 20;
-    const OPERATIONAL_START_HOUR = 9; // 9:00 AM
-    const LAST_INSTANT_ORDER_TIME = 19.5; // 7:30 PM in decimal hours
-    const OPERATIONAL_END_HOUR = 21; // 9:00 PM
 
     // Coupon Logic
     const isFirstOrder = orderCount === 0;
     const isNextTwoOrders = orderCount === 1 || orderCount === 2;
     const MIN_CART_VALUE = 500;
     const STANDARD_DISCOUNT = 100;
+
+    const timeSlots = generateTimeSlots();
 
     const subtotal = getTotalAmount();
     const onlyIroningInCart = items.length > 0 && items.every(item => item.serviceType === 'ironing');
@@ -84,9 +85,8 @@ export const CartScreen: React.FC = () => {
         const now = new Date();
 
         // Check if there are any slots left today with buffer
-        // Last slot starts at 20:30 (20.5)
-        const currentHourDecimal = now.getHours() + (now.getMinutes() + MIN_BUFFER_MINS) / 60;
-        const slotsLeftToday = currentHourDecimal < 20.5;
+        const currentHourDecimal = now.getHours() + (now.getMinutes() + SLOT_CONSTANTS.MIN_BUFFER_MINS) / 60;
+        const slotsLeftToday = currentHourDecimal < SLOT_CONSTANTS.LAST_SCHEDULED_SLOT_START_DECIMAL;
 
         for (let i = 0; i < 7; i++) {
             const d = addDays(today, i);
@@ -146,54 +146,32 @@ export const CartScreen: React.FC = () => {
         }
     }, [items, onlyIroningInCart, isDiscountApplied, subtotal, orderCount]);
 
-    // Check if store is currently open (9 AM - 7:30 PM)
-    const checkInstantAvailability = () => {
-        const now = new Date();
-        const hour = now.getHours();
-        const mins = now.getMinutes();
-        const decimalTime = hour + (mins + MIN_BUFFER_MINS) / 60;
+    // Effect to check if instant order is blocked by today's occupied slots
+    useFocusEffect(
+        React.useCallback(() => {
+            const checkInstantBlock = async () => {
+                const withinHours = isInstantWithinHours();
+                if (!withinHours) {
+                    setInstantBlockedBySlot(false);
+                    return;
+                }
 
-        return hour >= OPERATIONAL_START_HOUR && decimalTime <= LAST_INSTANT_ORDER_TIME;
-    };
+                try {
+                    const today = format(new Date(), 'yyyy-MM-dd');
+                    const occupied = await checkSlotAvailability(today);
 
-    const isInstantAvailable = checkInstantAvailability();
+                    const nextSlot = getNextInstantSlot(timeSlots, SLOT_CONSTANTS.MIN_BUFFER_MINS);
+                    setInstantBlockedBySlot(!!nextSlot && occupied.includes(nextSlot));
+                } catch (error) {
+                    console.error("Failed to check instant slot availability", error);
+                }
+            };
+            checkInstantBlock();
+        }, [])
+    );
 
-    // Generate time slots (9 AM to 9 PM)
-    const generateTimeSlots = () => {
-        const slots = [];
-        // From 9:00 (9) to 21:00 (21)
-        for (let i = 9; i < 21; i++) {
-            // XX:00 - XX:30
-            const hourStart = i > 12 ? i - 12 : i;
-            const ampmStart = i >= 12 ? 'PM' : 'AM';
-            // Logic for end time of first slot
-            // 9:30 is just 9:30 AM
-
-            // Actually, let's keep the format simple and consistent with Firestore string matching
-            // Using 24h format for internal logic might be easier, but UI needs AM/PM.
-            // Let's generate simple strings as request: "10:00 - 10:30"
-            // Wait, previous code used "10:00 - 10:30" (implied 24h start, but maybe not?)
-            // The previous code was: `slots.push(\`\${i}:00 - \${i}:30\`);` where i went 10 to 22. 
-            // This is actually mixing 24h and AM/PM loosely or just 24h. 
-            // "13:00 - 13:30" etc.
-            // User requested "9 to 9". 
-            // Let's stick to 24-hour format strings for consistency in DB, but maybe formatted nicely in UI if needed.
-            // But for simplicity of matching existing DB / strings, let's use the code loop style but strictly 09-21.
-
-            // Format: "09:00 - 09:30", "09:30 - 10:00" ... "20:30 - 21:00".
-            // i starts 9, ends < 21. 
-            // Wait, last slot is 20:30 - 21:00. So loop i from 9 to 20.
-
-            const p1 = `${i.toString().padStart(2, '0')}:00`;
-            const p2 = `${i.toString().padStart(2, '0')}:30`;
-            const p3 = `${(i + 1).toString().padStart(2, '0')}:00`;
-
-            slots.push(`${p1} - ${p2}`);
-            slots.push(`${p2} - ${p3}`);
-        }
-        return slots;
-    };
-    const timeSlots = generateTimeSlots();
+    const isInstantAvailable = isInstantWithinHours();
+    const canPlaceInstant = isInstantAvailable && !instantBlockedBySlot;
 
     useEffect(() => {
         const fetchOrderCount = async () => {
@@ -213,7 +191,7 @@ export const CartScreen: React.FC = () => {
 
     // Select first available date/time by default
     useEffect(() => {
-        if (pickupType === 'instant' && !isInstantAvailable) {
+        if (pickupType === 'instant' && !canPlaceInstant) {
             setPickupType('scheduled');
         }
 
@@ -223,7 +201,7 @@ export const CartScreen: React.FC = () => {
                 setSelectedDate(dates[0]?.id);
             }
         }
-    }, [pickupType]);
+    }, [pickupType, canPlaceInstant]);
 
     // Auto-select first available time slot when date/occupiedSlots changes
     useEffect(() => {
@@ -240,7 +218,7 @@ export const CartScreen: React.FC = () => {
                     const [h, m] = startStr.split(':').map(Number);
                     const slotStartTime = new Date();
                     slotStartTime.setHours(h, m, 0, 0);
-                    const bufferTime = new Date(now.getTime() + MIN_BUFFER_MINS * 60000);
+                    const bufferTime = new Date(now.getTime() + SLOT_CONSTANTS.MIN_BUFFER_MINS * 60000);
                     return slotStartTime >= bufferTime;
                 }
                 return true;
@@ -258,7 +236,6 @@ export const CartScreen: React.FC = () => {
     useEffect(() => {
         const fetchOccupied = async () => {
             if (selectedDate && pickupType === 'scheduled') {
-                const { checkSlotAvailability } = require('../../services/firestore');
                 setSlotsLoading(true);
                 const occupied = await checkSlotAvailability(selectedDate);
                 setOccupiedSlots(occupied);
@@ -401,7 +378,8 @@ export const CartScreen: React.FC = () => {
                     const slotStartTime = new Date();
                     slotStartTime.setHours(h, m, 0, 0);
 
-                    return isAfter(slotStartTime, now);
+                    const bufferTime = new Date(now.getTime() + SLOT_CONSTANTS.MIN_BUFFER_MINS * 60_000);
+                    return slotStartTime >= bufferTime;
                 });
 
                 // Fail-safe: if too late (e.g. 8:50 PM), take the last slot or let backend handle/reject.
@@ -768,26 +746,28 @@ export const CartScreen: React.FC = () => {
                                 style={[
                                     styles.toggleOption,
                                     pickupType === 'instant' && styles.toggleOptionActive,
-                                    !isInstantAvailable && styles.toggleOptionDisabled
+                                    !canPlaceInstant && styles.toggleOptionDisabled
                                 ]}
-                                disabled={!isInstantAvailable}
+                                disabled={!canPlaceInstant}
                                 onPress={() => setPickupType('instant')}
                             >
                                 <Ionicons
                                     name="flash"
                                     size={16}
-                                    color={!isInstantAvailable ? COLORS.textLight : (pickupType === 'instant' ? '#FFF' : COLORS.text)}
+                                    color={!canPlaceInstant ? COLORS.textLight : (pickupType === 'instant' ? '#FFF' : COLORS.text)}
                                 />
                                 <View>
                                     <Text style={[
                                         styles.toggleText,
                                         pickupType === 'instant' && styles.toggleTextActive,
-                                        !isInstantAvailable && styles.toggleTextDisabled
+                                        !canPlaceInstant && styles.toggleTextDisabled
                                     ]}>
-                                        Instant (20-30 min)
+                                        Instant(within hour)
                                     </Text>
-                                    {!isInstantAvailable && (
-                                        <Text style={styles.disabledHint}>Ops Ends at 7:30 PM</Text>
+                                    {(!isInstantAvailable || instantBlockedBySlot) && (
+                                        <Text style={styles.disabledHint}>
+                                            {instantBlockedBySlot ?? 'Next slot fully booked'}
+                                        </Text>
                                     )}
                                 </View>
                             </TouchableOpacity>
@@ -824,7 +804,6 @@ export const CartScreen: React.FC = () => {
                                     {(() => {
                                         const now = new Date();
                                         const isToday = selectedDate === format(now, 'yyyy-MM-dd');
-                                        const bufferTime = addMinutes(now, MIN_BUFFER_MINS);
 
                                         return timeSlots.map((slot) => {
                                             const isOccupied = occupiedSlots.includes(slot);
@@ -835,7 +814,9 @@ export const CartScreen: React.FC = () => {
                                                 const [h, m] = startStr.split(':').map(Number);
                                                 const slotStartTime = new Date();
                                                 slotStartTime.setHours(h, m, 0, 0);
-                                                isPast = isAfter(bufferTime, slotStartTime);
+
+                                                const bufferTime = new Date(now.getTime() + SLOT_CONSTANTS.MIN_BUFFER_MINS * 60000);
+                                                isPast = slotStartTime < bufferTime;
                                             }
 
                                             const isDisabled = isOccupied || isPast;

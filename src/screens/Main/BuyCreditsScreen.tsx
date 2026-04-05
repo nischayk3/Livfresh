@@ -110,7 +110,7 @@ export const BuyCreditsScreen: React.FC = () => {
     try {
       setPurchasing(true);
 
-      AnalyticsService.logEvent('begin_checkout', {
+      AnalyticsService.logEvent('begin_checkout_credits', {
         value: totalAmount,
         currency: 'INR',
         items: [{

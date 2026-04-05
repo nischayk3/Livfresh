@@ -1281,27 +1281,13 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
   // Pricing Logic (Mirrors ServiceDetailScreen)
   const calculateItemPrice = (item: any) => {
     if (item.serviceId === 'wash_fold') {
-      let base = 0;
-      if (item.weight === 7) base = 479;
-      else if (item.weight === 10) base = 849;
-      else if (item.weight === 14) base = 958;
-
+      const base = (item.weight || 5) * 85;
       const ironing = (item.ironingEnabled && item.ironingCount) ? (item.ironingCount * 15) : 0;
-
-      // If subscription item, usually base price is 0 (paid by credit)
-      // If we allow them to change slab, maybe we charge difference? 
-      // For now, if isCreditItem, keep base as 0 unless logic demands otherwise.
-      // But typically admin edit might mean 'correction'. 
-      // Let's assume for credit item, price remains effectively 0 for the base part if checked against credit.
-      // However, simplified approach: if it was 0, keep it 0.
-      if (item.isCreditItem) return item.totalPrice; // Don't recalc pricing for sub items easily without context
-
+      if (item.isCreditItem) return item.totalPrice;
       return base + ironing;
     }
     if (item.serviceId === 'wash_iron') {
-      if (item.weight === 5) return 499;
-      if (item.weight === 7) return 699;
-      if (item.weight === 10) return 899;
+      return (item.weight || 5) * 120;
     }
     if (item.serviceId === 'ironing_addon' || item.serviceName?.toLowerCase().includes('ironing')) {
       const count = item.clothesCount || item.ironingCount || 0;
@@ -1353,8 +1339,9 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
 
     // Update label/description based on new weight
     if (updatedItem.serviceId === 'wash_fold' && !updatedItem.isCreditItem) {
-      updatedItem.quantity = updatedItem.weight === 7 ? 1 : 1;
-      if (updatedItem.weight === 7 && updatedItem.clothesCount > 25) updatedItem.clothesCount = 25;
+      updatedItem.quantity = 1;
+      const maxPieces = Math.round((updatedItem.weight || 5) * 3.5);
+      if (updatedItem.ironingCount > maxPieces) updatedItem.ironingCount = maxPieces;
     }
 
     newItems[index] = updatedItem;
@@ -1391,28 +1378,25 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
               {/* Wash & Fold Editing */}
               {item.serviceId === 'wash_fold' && !item.isCreditItem && (
                 <View style={{ gap: 12 }}>
-                  <Text style={TYPOGRAPHY.caption}>Select Weight Slab</Text>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    {[7, 10, 14].map(w => (
-                      <TouchableOpacity
-                        key={w}
-                        onPress={() => updateItem(index, { weight: w })}
-                        style={{
-                          flex: 1,
-                          padding: 10,
-                          borderWidth: 1,
-                          borderColor: item.weight === w ? COLORS.primary : COLORS.borderLight,
-                          backgroundColor: item.weight === w ? COLORS.primary + '10' : '#FFF',
-                          borderRadius: 8,
-                          alignItems: 'center'
-                        }}
-                      >
-                        <Text style={{ fontWeight: item.weight === w ? '700' : '400', color: COLORS.text }}>
-                          {w} kg ({w === 7 ? '~25' : w === 10 ? '~35' : '~50'} clothes)
-                        </Text>
-                        <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>₹{w === 7 ? 479 : w === 10 ? 849 : 958}</Text>
-                      </TouchableOpacity>
-                    ))}
+                  <Text style={TYPOGRAPHY.caption}>Adjust Weight (₹85/kg)</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <TouchableOpacity
+                      style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                      onPress={() => updateItem(index, { weight: Math.max(5, (item.weight || 5) - 1) })}
+                      disabled={(item.weight || 5) <= 5}
+                    >
+                      <Ionicons name="remove" size={20} color={(item.weight || 5) <= 5 ? '#CBD5E1' : COLORS.text} />
+                    </TouchableOpacity>
+                    <Text style={{ ...TYPOGRAPHY.heading, minWidth: 50, textAlign: 'center' }}>
+                      {item.weight || 5} kg
+                    </Text>
+                    <TouchableOpacity
+                      style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                      onPress={() => updateItem(index, { weight: Math.min(50, (item.weight || 5) + 1) })}
+                      disabled={(item.weight || 5) >= 50}
+                    >
+                      <Ionicons name="add" size={20} color={(item.weight || 5) >= 50 ? '#CBD5E1' : COLORS.text} />
+                    </TouchableOpacity>
                   </View>
 
                   {/* Ironing Toggle/Count for Wash & Fold */}
@@ -1439,32 +1423,28 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
                 </View>
               )}
 
-              {/* Wash & Fold Subscription (Weight Only - Credits are fixed usually but let allow slab change if needed) */}
               {item.serviceId === 'wash_fold' && item.isCreditItem && (
                 <View style={{ gap: 12 }}>
                   <Text style={{ fontSize: 13, color: COLORS.info, marginBottom: 4 }}> Subscription Item (Paid via Credit) </Text>
-                  <Text style={TYPOGRAPHY.caption}>Select Weight Slab</Text>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    {[7, 10, 14].map(w => (
-                      <TouchableOpacity
-                        key={w}
-                        onPress={() => updateItem(index, { weight: w })} // Only updates weight, price remains 0 usually
-                        style={{
-                          flex: 1,
-                          padding: 10,
-                          borderWidth: 1,
-                          borderColor: item.weight === w ? COLORS.primary : COLORS.borderLight,
-                          backgroundColor: item.weight === w ? COLORS.primary + '10' : '#FFF',
-                          borderRadius: 8,
-                          alignItems: 'center'
-                        }}
-                      >
-                        <Text style={{ fontWeight: item.weight === w ? '700' : '400', color: COLORS.text }}>
-                          {w} kg
-                        </Text>
-                        <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>{item.weight === w ? 'Selected' : ''}</Text>
-                      </TouchableOpacity>
-                    ))}
+                  <Text style={TYPOGRAPHY.caption}>Adjust Weight</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <TouchableOpacity
+                      style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                      onPress={() => updateItem(index, { weight: Math.max(5, (item.weight || 5) - 1) })}
+                      disabled={(item.weight || 5) <= 5}
+                    >
+                      <Ionicons name="remove" size={20} color={(item.weight || 5) <= 5 ? '#CBD5E1' : COLORS.text} />
+                    </TouchableOpacity>
+                    <Text style={{ ...TYPOGRAPHY.heading, minWidth: 50, textAlign: 'center' }}>
+                      {item.weight || 5} kg
+                    </Text>
+                    <TouchableOpacity
+                      style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                      onPress={() => updateItem(index, { weight: Math.min(50, (item.weight || 5) + 1) })}
+                      disabled={(item.weight || 5) >= 50}
+                    >
+                      <Ionicons name="add" size={20} color={(item.weight || 5) >= 50 ? '#CBD5E1' : COLORS.text} />
+                    </TouchableOpacity>
                   </View>
                 </View>
               )}
@@ -1587,32 +1567,25 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
               {/* Wash & Iron Editing */}
               {item.serviceId === 'wash_iron' && !item.serviceName?.includes('Ironing Add-on') && (
                 <View style={{ gap: 12 }}>
-                  <Text style={TYPOGRAPHY.caption}>Select Weight Slab</Text>
-                  <View style={{ gap: 8 }}>
-                    {[5, 7, 10].map(w => (
-                      <TouchableOpacity
-                        key={w}
-                        onPress={() => updateItem(index, { weight: w })}
-                        style={{
-                          padding: 12,
-                          borderWidth: 1,
-                          borderColor: item.weight === w ? COLORS.primary : COLORS.borderLight,
-                          backgroundColor: item.weight === w ? COLORS.primary + '10' : '#FFF',
-                          borderRadius: 8,
-                          flexDirection: 'row',
-                          justifyContent: 'space-between',
-                          alignItems: 'center'
-                        }}
-                      >
-                        <Text style={{ fontWeight: item.weight === w ? '700' : '400', color: COLORS.text }}>
-                          {w} kg ({w === 5 ? '~15' : w === 7 ? '~25' : '~35'} clothes)
-                        </Text>
-                        <Text style={{ fontWeight: '600', color: COLORS.text }}>
-                          ₹{w === 5 ? 499 : w === 7 ? 699 : 899}
-                        </Text>
-                        {item.weight === w && <Ionicons name="checkmark-circle" size={20} color={COLORS.primary} />}
-                      </TouchableOpacity>
-                    ))}
+                  <Text style={TYPOGRAPHY.caption}>Adjust Weight (₹120/kg)</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <TouchableOpacity
+                      style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                      onPress={() => updateItem(index, { weight: Math.max(5, (item.weight || 5) - 1) })}
+                      disabled={(item.weight || 5) <= 5}
+                    >
+                      <Ionicons name="remove" size={20} color={(item.weight || 5) <= 5 ? '#CBD5E1' : COLORS.text} />
+                    </TouchableOpacity>
+                    <Text style={{ ...TYPOGRAPHY.heading, minWidth: 50, textAlign: 'center' }}>
+                      {item.weight || 5} kg
+                    </Text>
+                    <TouchableOpacity
+                      style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                      onPress={() => updateItem(index, { weight: Math.min(50, (item.weight || 5) + 1) })}
+                      disabled={(item.weight || 5) >= 50}
+                    >
+                      <Ionicons name="add" size={20} color={(item.weight || 5) >= 50 ? '#CBD5E1' : COLORS.text} />
+                    </TouchableOpacity>
                   </View>
                 </View>
               )}

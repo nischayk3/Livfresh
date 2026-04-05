@@ -16,6 +16,7 @@ import {
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from './firebase';
 import { generateOTP } from '../utils/otpHelpers';
+import { SLOT_CONSTANTS } from '../utils/slotUtils';
 
 // Get vendor data
 export const getVendor = async (vendorId: string) => {
@@ -279,13 +280,21 @@ export const updateUserAddress = async (userId: string, updatedAddress: any) => 
   }
 };
 
-// Check slot availability
+// Check slot availability — returns only FULLY-OCCUPIED slots (count >= MAX_ORDERS_PER_SLOT)
 export const checkSlotAvailability = async (date: string): Promise<string[]> => {
   try {
     const scheduleRef = doc(db, 'daily_schedules', date);
     const scheduleSnap = await getDoc(scheduleRef);
     if (scheduleSnap.exists()) {
-      return scheduleSnap.data().occupied_slots || [];
+      const data = scheduleSnap.data();
+      // New format: slot_counts map { "10:00 - 11:00": 1, ... }
+      if (data.slot_counts) {
+        return Object.entries(data.slot_counts)
+          .filter(([_, count]) => (count as number) >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT)
+          .map(([slot]) => slot);
+      }
+      // Legacy fallback: old occupied_slots array → treat each as count=1 (not full under new rules)
+      return [];
     }
     return [];
   } catch (error) {
@@ -329,18 +338,18 @@ export const createOrder = async (userId: string, orderData: any) => {
         const scheduleRef = doc(db, 'daily_schedules', scheduleDate);
         const scheduleSnap = await transaction.get(scheduleRef);
 
-        let currentSlots: string[] = [];
-        if (scheduleSnap.exists()) {
-          currentSlots = scheduleSnap.data().occupied_slots || [];
-        }
+        const slotCounts: Record<string, number> = scheduleSnap.exists()
+          ? (scheduleSnap.data().slot_counts || {})
+          : {};
+        const currentCount = slotCounts[scheduleTime] || 0;
 
-        if (currentSlots.includes(scheduleTime)) {
+        if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
           throw new Error(`This time slot is no longer available. Please try a different time.`);
         }
 
-        // Atomically add the reservation
+        // Atomically increment the slot count
         transaction.set(scheduleRef, {
-          occupied_slots: [...currentSlots, scheduleTime]
+          slot_counts: { ...slotCounts, [scheduleTime]: currentCount + 1 }
         }, { merge: true });
       }
 
@@ -593,16 +602,14 @@ export const scheduleOrderDelivery = async (
       const scheduleRef = doc(db, 'daily_schedules', deliveryDate);
       const scheduleSnap = await transaction.get(scheduleRef);
 
-      let currentSlots: string[] = [];
-      if (scheduleSnap.exists()) {
-        currentSlots = scheduleSnap.data().occupied_slots || [];
-      }
+      const slotCounts: Record<string, number> = scheduleSnap.exists()
+        ? (scheduleSnap.data().slot_counts || {})
+        : {};
+      const currentCount = slotCounts[deliveryTime] || 0;
 
-      if (currentSlots.includes(deliveryTime)) {
+      if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
         throw new Error(`Slot ${deliveryTime} is no longer available.`);
       }
-
-
 
       // 2. Update Order
       const userOrderRef = doc(db, 'users', userId, 'orders', orderId);
@@ -624,9 +631,9 @@ export const scheduleOrderDelivery = async (
       };
 
       // 3. Perform Writes
-      // Reserve Slot
+      // Reserve Slot (increment count)
       transaction.set(scheduleRef, {
-        occupied_slots: [...currentSlots, deliveryTime]
+        slot_counts: { ...slotCounts, [deliveryTime]: currentCount + 1 }
       }, { merge: true });
 
       // Update both user and vendor orders

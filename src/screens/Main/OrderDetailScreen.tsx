@@ -395,11 +395,10 @@ export const OrderDetailScreen: React.FC = () => {
                                         // Logic for today: hide past slots
                                         if (isSameDay(DATES[selectedDateIndex], new Date())) {
                                             const now = new Date();
-                                            // Add buffer for delivery prep
                                             const slotTime = new Date();
                                             slotTime.setHours(slotHour, slotMin, 0, 0);
-                                            const cutoff = addMinutes(now, SLOT_CONSTANTS.MIN_BUFFER_MINS);
-                                            isPast = !isAfter(slotTime, cutoff);
+                                            // Slot is past if it has already started
+                                            isPast = slotTime <= now;
                                         }
 
                                         const isDisabled = isBusy || isPast;

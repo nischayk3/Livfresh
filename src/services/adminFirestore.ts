@@ -16,6 +16,7 @@ import {
 } from './firebase';
 import { adminDb as db } from './firebase';
 import { generateOTP } from '../utils/otpHelpers';
+import { SLOT_CONSTANTS } from '../utils/slotUtils';
 
 /**
  * Get list of admin phone numbers from Firestore config
@@ -926,7 +927,15 @@ export const checkSlotAvailabilityAdmin = async (date: string): Promise<string[]
     const scheduleRef = doc(db, 'daily_schedules', date);
     const scheduleSnap = await getDoc(scheduleRef);
     if (scheduleSnap.exists()) {
-      return scheduleSnap.data().occupied_slots || [];
+      const data = scheduleSnap.data();
+      // New format: slot_counts map
+      if (data.slot_counts) {
+        return Object.entries(data.slot_counts)
+          .filter(([_, count]) => (count as number) >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT)
+          .map(([slot]) => slot);
+      }
+      // Legacy fallback
+      return [];
     }
     return [];
   } catch (error) {
@@ -950,12 +959,12 @@ export const scheduleOrderDeliveryAdmin = async (
       const scheduleRef = doc(db, 'daily_schedules', deliveryDate);
       const scheduleSnap = await transaction.get(scheduleRef);
 
-      let currentSlots: string[] = [];
-      if (scheduleSnap.exists()) {
-        currentSlots = scheduleSnap.data().occupied_slots || [];
-      }
+      const slotCounts: Record<string, number> = scheduleSnap.exists()
+        ? (scheduleSnap.data().slot_counts || {})
+        : {};
+      const currentCount = slotCounts[deliveryTime] || 0;
 
-      if (currentSlots.includes(deliveryTime)) {
+      if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
         throw new Error(`Slot ${deliveryTime} is no longer available.`);
       }
 
@@ -968,7 +977,7 @@ export const scheduleOrderDeliveryAdmin = async (
       }
 
       const orderData = userOrderSnap.data();
-      const vendorId = orderData.vendorId || 'vendor_1'; // fallback
+      const vendorId = orderData.vendorId || 'vendor_1';
       const timestamp = Timestamp.now();
 
       const updateData = {
@@ -979,9 +988,9 @@ export const scheduleOrderDeliveryAdmin = async (
       };
 
       // 3. Perform Writes
-      // Reserve Slot
+      // Reserve Slot (increment count)
       transaction.set(scheduleRef, {
-        occupied_slots: [...currentSlots, deliveryTime]
+        slot_counts: { ...slotCounts, [deliveryTime]: currentCount + 1 }
       }, { merge: true });
 
       // Update both user and vendor orders

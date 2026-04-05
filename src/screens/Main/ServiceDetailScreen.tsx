@@ -140,13 +140,13 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   }, [visible, serviceId]);
 
   // Wash & Fold / Wash & Iron state
-  // Wash & Fold
-  const [washFoldWeight, setWashFoldWeight] = useState<'small' | 'medium' | 'large' | null>(null);
+  // Wash & Fold — per-kg pricing (₹85/kg, min 5kg, max 15kg)
+  const [washFoldKg, setWashFoldKg] = useState(5);
   const [washFoldIroningEnabled, setWashFoldIroningEnabled] = useState(false);
   const [washFoldIroningCount, setWashFoldIroningCount] = useState(4); // Default to 4
 
-  // Wash & Iron
-  const [washIronWeight, setWashIronWeight] = useState<'small' | 'medium' | 'large' | null>(null);
+  // Wash & Iron — per-kg pricing (₹120/kg, min 5kg, max 15kg)
+  const [washIronKg, setWashIronKg] = useState(5);
 
   const [specialInstructions, setSpecialInstructions] = useState('');
 
@@ -478,20 +478,13 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     if (!service) return 0;
 
     if (serviceId === 'wash_fold') {
-      let basePrice = 0;
-      if (washFoldWeight === 'small') basePrice = 479; // ~7kg
-      if (washFoldWeight === 'medium') basePrice = 849; // ~10kg
-      if (washFoldWeight === 'large') basePrice = 958; // ~14kg
-
+      const basePrice = washFoldKg * 85;
       const ironingPrice = washFoldIroningEnabled ? washFoldIroningCount * 15 : 0;
       return basePrice + ironingPrice;
     }
 
     if (serviceId === 'wash_iron') {
-      if (washIronWeight === 'small') return 499; // 5kg
-      if (washIronWeight === 'medium') return 699; // 7kg
-      if (washIronWeight === 'large') return 899; // 10kg
-      return 0;
+      return washIronKg * 120;
     }
 
     if (serviceId === 'blanket_wash') {
@@ -518,30 +511,16 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
     // Wash & Fold
     if (serviceId === 'wash_fold') {
-      if (!washFoldWeight) {
-        showAlert({ title: 'Required', message: 'Please select weight first', type: 'warning' });
-        return;
-      }
-
-      const maxPieces = washFoldWeight === 'small' ? 25 : (washFoldWeight === 'medium' ? 35 : 50);
-
+      const maxPieces = Math.round(washFoldKg * 3.5);
       if (washFoldIroningEnabled) {
         if (washFoldIroningCount < 4) {
           showAlert({ title: 'Minimum Required', message: 'Minimum 4 clothes required for ironing', type: 'warning' });
           return;
         }
         if (washFoldIroningCount > maxPieces) {
-          showAlert({ title: 'Limit Exceeded', message: `Maximum ${maxPieces} ironing pieces allowed for this weight.`, type: 'warning' });
+          showAlert({ title: 'Limit Exceeded', message: `Maximum ${maxPieces} ironing pieces allowed for ${washFoldKg}kg.`, type: 'warning' });
           return;
         }
-      }
-    }
-
-    // Wash & Iron
-    if (serviceId === 'wash_iron') {
-      if (!washIronWeight) {
-        showAlert({ title: 'Required', message: 'Please select weight first', type: 'warning' });
-        return;
       }
     }
 
@@ -607,7 +586,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     };
 
     if (serviceId === 'wash_fold') {
-      cartItem.weight = washFoldWeight === 'small' ? 7 : (washFoldWeight === 'medium' ? 10 : 14);
+      cartItem.weight = washFoldKg;
       cartItem.clothesCount = 0;
       cartItem.ironingEnabled = washFoldIroningEnabled;
       cartItem.ironingCount = washFoldIroningEnabled ? washFoldIroningCount : 0;
@@ -615,12 +594,9 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     }
 
     if (serviceId === 'wash_iron') {
-      // Map small/medium/large to weight
-      cartItem.weight = washIronWeight === 'small' ? 5 : (washIronWeight === 'medium' ? 7 : 10);
-      // Wash & Iron strictly implies ironing included, but Cart structure typically expects standard flags
+      cartItem.weight = washIronKg;
       cartItem.ironingEnabled = true;
-      // Approximation of clothes count based on weight for reference
-      cartItem.clothesCount = washIronWeight === 'small' ? 15 : (washIronWeight === 'medium' ? 25 : 35);
+      cartItem.clothesCount = Math.round(washIronKg * 3.5);
     }
 
     if (serviceId === 'blanket_wash') {
@@ -680,7 +656,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   /* ----------- SEPARATE RENDER FUNCTIONS ----------- */
 
   const renderWashFold = () => {
-    const maxPieces = washFoldWeight === 'small' ? 25 : (washFoldWeight === 'large' ? 50 : 0);
+    const maxPieces = Math.round(washFoldKg * 3.5);
 
     return (
       <View>
@@ -689,53 +665,56 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
           <ServiceStats rating={4.8} reviewCount={1400} />
         </View>
 
-        {/* Improved Weight Selection */}
-        {/* Improved Weight Selection - Consistent with Wash & Iron */}
+        {/* Per-KG Weight Counter (matches Steam Iron pattern) */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Select Estimated Weight</Text>
+          <View style={styles.premiumSelectorContainer}>
+            <Text style={styles.premiumSelectorTitle}>Select Weight</Text>
+            <Text style={styles.premiumSelectorSubtitle}>Min 5 kg - Max 50 kg</Text>
 
-          <TouchableOpacity
-            style={[styles.weightOption, washFoldWeight === 'small' && styles.weightOptionSelected]}
-            onPress={() => setWashFoldWeight('small')}
-          >
-            <View style={styles.weightOptionContent}>
-              <View style={styles.radioButton}>
-                {washFoldWeight === 'small' && <View style={styles.radioButtonInner} />}
-              </View>
-              <Text style={styles.weightOptionText}>~7kg • ~25 clothes</Text>
-              <Text style={styles.weightPrice}>₹479</Text>
-            </View>
-          </TouchableOpacity>
+            <View style={styles.counterWrapper}>
+              <TouchableOpacity
+                style={[styles.countBtn, washFoldKg <= 5 && styles.countBtnDisabled]}
+                onPress={() => {
+                  const newKg = Math.max(5, washFoldKg - 1);
+                  setWashFoldKg(newKg);
+                  // Clamp ironing count to new max
+                  const newMax = Math.round(newKg * 3.5);
+                  if (washFoldIroningCount > newMax) setWashFoldIroningCount(newMax);
+                }}
+                disabled={washFoldKg <= 5}
+                activeOpacity={0.6}
+              >
+                <MaterialCommunityIcons name="minus" size={24} color={washFoldKg <= 5 ? '#CBD5E1' : '#7C3AED'} />
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.weightOption, washFoldWeight === 'medium' && styles.weightOptionSelected]}
-            onPress={() => setWashFoldWeight('medium')}
-          >
-            <View style={styles.weightOptionContent}>
-              <View style={styles.radioButton}>
-                {washFoldWeight === 'medium' && <View style={styles.radioButtonInner} />}
+              <View style={styles.countDisplay}>
+                <Text style={styles.countText}>{washFoldKg}</Text>
+                <Text style={styles.countLabel}>KG</Text>
               </View>
-              <Text style={styles.weightOptionText}>~10kg • ~35 clothes</Text>
-              <Text style={styles.weightPrice}>₹849</Text>
-            </View>
-          </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.weightOption, washFoldWeight === 'large' && styles.weightOptionSelected]}
-            onPress={() => setWashFoldWeight('large')}
-          >
-            <View style={styles.weightOptionContent}>
-              <View style={styles.radioButton}>
-                {washFoldWeight === 'large' && <View style={styles.radioButtonInner} />}
-              </View>
-              <Text style={styles.weightOptionText}>~14kg • ~50 clothes</Text>
-              <Text style={styles.weightPrice}>₹958</Text>
+              <TouchableOpacity
+                style={[styles.countBtn, washFoldKg >= 50 && styles.countBtnDisabled]}
+                onPress={() => setWashFoldKg(Math.min(50, washFoldKg + 1))}
+                disabled={washFoldKg >= 50}
+                activeOpacity={0.6}
+              >
+                <MaterialCommunityIcons name="plus" size={24} color={washFoldKg >= 50 ? '#CBD5E1' : '#7C3AED'} />
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
+
+            <View style={{ alignItems: 'center', marginTop: 12 }}>
+              <View style={styles.priceTag}>
+                <Text style={styles.priceTagText}>₹85 per kg</Text>
+              </View>
+              <Text style={{ fontSize: 13, color: COLORS.textSecondary, marginTop: 8, fontWeight: '500' }}>
+                <MaterialCommunityIcons name="tshirt-crew-outline" size={14} color={COLORS.textSecondary} /> ~ {Math.round(washFoldKg * 3.5)} clothes
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* Ironing Add-on */}
-        <View style={[styles.section, !washFoldWeight && { opacity: 0.5 }]}>
+        <View style={styles.section}>
           <View style={styles.addonHeader}>
             <Text style={styles.sectionTitle}>Need Ironing?</Text>
             <Text style={styles.addonPrice}>₹15 per piece</Text>
@@ -745,25 +724,19 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
             <TouchableOpacity
               style={[styles.toggle, washFoldIroningEnabled && styles.toggleActive]}
               onPress={() => {
-                if (washFoldWeight) {
-                  const newState = !washFoldIroningEnabled;
-                  setWashFoldIroningEnabled(newState);
-                  // If enabling, set default to 4
-                  if (newState && washFoldIroningCount < 4) {
-                    setWashFoldIroningCount(4);
-                  }
-                } else {
-                  showAlert({ title: 'Weight Required', message: 'Select weight first', type: 'info' });
+                const newState = !washFoldIroningEnabled;
+                setWashFoldIroningEnabled(newState);
+                if (newState && washFoldIroningCount < 4) {
+                  setWashFoldIroningCount(4);
                 }
               }}
-              disabled={!washFoldWeight}
             >
               <View style={[styles.toggleThumb, washFoldIroningEnabled && styles.toggleThumbActive]} />
             </TouchableOpacity>
           </View>
           {washFoldIroningEnabled && (
             <View style={styles.quantitySelector}>
-              <Text style={styles.quantityLabel}>Number of pieces (Min 4)</Text>
+              <Text style={styles.quantityLabel}>Number of pieces (Min 4, Max {maxPieces})</Text>
               <View style={styles.quantityControls}>
                 <TouchableOpacity
                   style={[styles.quantityButton, washFoldIroningCount <= 4 && styles.quantityButtonDisabled]}
@@ -818,53 +791,48 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   const renderWashIron = () => {
     return (
       <View>
-        {/* Weight Selection */}
+        {/* Weight Counter (matches Steam Iron / Wash & Fold pattern) */}
         <View style={styles.section}>
           <ServiceStats rating={4.8} reviewCount={1200} />
-          <Text style={styles.sectionTitle}>Select Estimated Weight</Text>
 
-          {/* 3kg Slot */}
-          {/* 5kg Slot */}
-          <TouchableOpacity
-            style={[styles.weightOption, washIronWeight === 'small' && styles.weightOptionSelected]}
-            onPress={() => setWashIronWeight('small')}
-          >
-            <View style={styles.weightOptionContent}>
-              <View style={styles.radioButton}>
-                {washIronWeight === 'small' && <View style={styles.radioButtonInner} />}
-              </View>
-              <Text style={styles.weightOptionText}>~5kg • ~15 clothes</Text>
-              <Text style={styles.weightPrice}>₹499</Text>
-            </View>
-          </TouchableOpacity>
+          <View style={styles.premiumSelectorContainer}>
+            <Text style={styles.premiumSelectorTitle}>Select Weight</Text>
+            <Text style={styles.premiumSelectorSubtitle}>Min 5 kg - Max 50 kg</Text>
 
-          {/* 7kg Slot */}
-          <TouchableOpacity
-            style={[styles.weightOption, washIronWeight === 'medium' && styles.weightOptionSelected]}
-            onPress={() => setWashIronWeight('medium')}
-          >
-            <View style={styles.weightOptionContent}>
-              <View style={styles.radioButton}>
-                {washIronWeight === 'medium' && <View style={styles.radioButtonInner} />}
-              </View>
-              <Text style={styles.weightOptionText}>~7kg • ~25 clothes</Text>
-              <Text style={styles.weightPrice}>₹699</Text>
-            </View>
-          </TouchableOpacity>
+            <View style={styles.counterWrapper}>
+              <TouchableOpacity
+                style={[styles.countBtn, washIronKg <= 5 && styles.countBtnDisabled]}
+                onPress={() => setWashIronKg(Math.max(5, washIronKg - 1))}
+                disabled={washIronKg <= 5}
+                activeOpacity={0.6}
+              >
+                <MaterialCommunityIcons name="minus" size={24} color={washIronKg <= 5 ? '#CBD5E1' : '#7C3AED'} />
+              </TouchableOpacity>
 
-          {/* 10kg Slot */}
-          <TouchableOpacity
-            style={[styles.weightOption, washIronWeight === 'large' && styles.weightOptionSelected]}
-            onPress={() => setWashIronWeight('large')}
-          >
-            <View style={styles.weightOptionContent}>
-              <View style={styles.radioButton}>
-                {washIronWeight === 'large' && <View style={styles.radioButtonInner} />}
+              <View style={styles.countDisplay}>
+                <Text style={styles.countText}>{washIronKg}</Text>
+                <Text style={styles.countLabel}>KG</Text>
               </View>
-              <Text style={styles.weightOptionText}>~10kg • ~35 clothes</Text>
-              <Text style={styles.weightPrice}>₹899</Text>
+
+              <TouchableOpacity
+                style={[styles.countBtn, washIronKg >= 50 && styles.countBtnDisabled]}
+                onPress={() => setWashIronKg(Math.min(50, washIronKg + 1))}
+                disabled={washIronKg >= 50}
+                activeOpacity={0.6}
+              >
+                <MaterialCommunityIcons name="plus" size={24} color={washIronKg >= 50 ? '#CBD5E1' : '#7C3AED'} />
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
+
+            <View style={{ alignItems: 'center', marginTop: 12 }}>
+              <View style={styles.priceTag}>
+                <Text style={styles.priceTagText}>₹120 per kg</Text>
+              </View>
+              <Text style={{ fontSize: 13, color: COLORS.textSecondary, marginTop: 8, fontWeight: '500' }}>
+                <MaterialCommunityIcons name="tshirt-crew-outline" size={14} color={COLORS.textSecondary} /> ~ {Math.round(washIronKg * 3.5)} clothes
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* Special Instructions */}

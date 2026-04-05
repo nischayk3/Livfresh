@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
     View,
     Text,
@@ -9,24 +9,62 @@ import {
     Platform,
     Dimensions,
     ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useFocusEffect, CommonActions } from '@react-navigation/native';
-import { Timestamp } from '../../services/firebase';
-import { format, isAfter, addMinutes, isSameDay, parse, addDays, startOfToday, getHours } from 'date-fns';
+} from "react-native";
+import {
+    SafeAreaView,
+    useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import {
+    useNavigation,
+    useFocusEffect,
+    CommonActions,
+} from "@react-navigation/native";
+import { Timestamp } from "../../services/firebase";
+import {
+    format,
+    isAfter,
+    addMinutes,
+    isSameDay,
+    parse,
+    addDays,
+    startOfToday,
+    getHours,
+} from "date-fns";
 
-import { useCartStore, useAuthStore, useAddressStore, useUIStore, useSubscriptionStore } from '../../store';
-import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
-import { createOrder, saveCart, clearCartInFirestore, uploadServicePhotos, getUserOrders } from '../../services/firestore';
-import { trackPixelEvent } from '../../utils/pixel';
-import { SLOT_CONSTANTS, generateTimeSlots, getNextInstantSlot, isInstantWithinHours } from '../../utils/slotUtils';
-import { BrandLoader } from '../../components/BrandLoader';
-import { checkSlotAvailability } from '../../services/firestore';
-import AnalyticsService from '../../services/analytics';
-import { CartTrust } from '../../components/CartTrust';
-import { GlassCard } from '../../components/GlassCard';
-import { AnimatedButton } from '../../components/AnimatedButton';
+import {
+    useCartStore,
+    useAuthStore,
+    useAddressStore,
+    useUIStore,
+    useSubscriptionStore,
+} from "../../store";
+import {
+    COLORS,
+    SPACING,
+    RADIUS,
+    SHADOWS,
+    TYPOGRAPHY,
+} from "../../utils/constants";
+import {
+    createOrder,
+    saveCart,
+    clearCartInFirestore,
+    uploadServicePhotos,
+    getUserOrders,
+} from "../../services/firestore";
+import { trackPixelEvent } from "../../utils/pixel";
+import {
+    SLOT_CONSTANTS,
+    generateTimeSlots,
+    getNextInstantSlot,
+} from "../../utils/slotUtils";
+import { BrandLoader } from "../../components/BrandLoader";
+import { checkSlotAvailability } from "../../services/firestore";
+import AnalyticsService from "../../services/analytics";
+import { CartTrust } from "../../components/CartTrust";
+import { GlassCard } from "../../components/GlassCard";
+import { AnimatedButton } from "../../components/AnimatedButton";
 
 export const CartScreen: React.FC = () => {
     const navigation = useNavigation();
@@ -39,7 +77,9 @@ export const CartScreen: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [slotsLoading, setSlotsLoading] = useState(false);
     const [isNavigating, setIsNavigating] = useState(false);
-    const [pickupType, setPickupType] = useState<'instant' | 'scheduled'>('instant');
+    const [pickupType, setPickupType] = useState<"instant" | "scheduled">(
+        "instant",
+    );
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
     const [occupiedSlots, setOccupiedSlots] = useState<string[]>([]);
@@ -61,7 +101,8 @@ export const CartScreen: React.FC = () => {
     const timeSlots = generateTimeSlots();
 
     const subtotal = getTotalAmount();
-    const onlyIroningInCart = items.length > 0 && items.every(item => item.serviceType === 'ironing');
+    const onlyIroningInCart =
+        items.length > 0 && items.every((item) => item.serviceType === "ironing");
     const DELIVERY_FEE = onlyIroningInCart ? 50 : 0;
     const gstAmount = Math.round(subtotal * GST_PERCENTAGE);
 
@@ -76,7 +117,10 @@ export const CartScreen: React.FC = () => {
     };
 
     const actualDiscount = isDiscountApplied ? getPotentialDiscount() : 0;
-    const totalAmount = Math.max(0, subtotal + PLATFORM_FEE + DELIVERY_FEE + gstAmount - actualDiscount);
+    const totalAmount = Math.max(
+        0,
+        subtotal + PLATFORM_FEE + DELIVERY_FEE + gstAmount - actualDiscount,
+    );
 
     // Generate next 7 days dates
     const generateDates = () => {
@@ -85,8 +129,9 @@ export const CartScreen: React.FC = () => {
         const now = new Date();
 
         // Check if there are any slots left today with buffer
-        const currentHourDecimal = now.getHours() + (now.getMinutes() + SLOT_CONSTANTS.MIN_BUFFER_MINS) / 60;
-        const slotsLeftToday = currentHourDecimal < SLOT_CONSTANTS.LAST_SCHEDULED_SLOT_START_DECIMAL;
+        const currentHourDecimal = now.getHours() + now.getMinutes() / 60;
+        const lastSlotStart = SLOT_CONSTANTS.OPERATIONAL_END_HOUR - 1;
+        const slotsLeftToday = currentHourDecimal < lastSlotStart;
 
         for (let i = 0; i < 7; i++) {
             const d = addDays(today, i);
@@ -95,8 +140,8 @@ export const CartScreen: React.FC = () => {
             if (i === 0 && !slotsLeftToday) continue;
 
             dates.push({
-                id: format(d, 'yyyy-MM-dd'),
-                day: format(d, 'EEE'),
+                id: format(d, "yyyy-MM-dd"),
+                day: format(d, "EEE"),
                 date: d.getDate(),
                 fullDate: d,
             });
@@ -108,32 +153,33 @@ export const CartScreen: React.FC = () => {
 
     // Effect to revoke coupon if conditions change
     useEffect(() => {
-        const isCreditApplied = items.some(item => item.isCreditItem);
+        const isCreditApplied = items.some((item) => item.isCreditItem);
 
         if (isDiscountApplied) {
             if (onlyIroningInCart) {
                 setIsDiscountApplied(false);
                 setDiscountAmount(0);
                 showAlert({
-                    title: 'Coupon Removed',
-                    message: 'The discount is not applicable for standalone ironing orders.',
-                    type: 'info'
+                    title: "Coupon Removed",
+                    message:
+                        "The discount is not applicable for standalone ironing orders.",
+                    type: "info",
                 });
             } else if (isCreditApplied) {
                 setIsDiscountApplied(false);
                 setDiscountAmount(0);
                 showAlert({
-                    title: 'Coupon Removed',
-                    message: 'Offers cannot be combined with Subscription Credits.',
-                    type: 'info'
+                    title: "Coupon Removed",
+                    message: "Offers cannot be combined with Subscription Credits.",
+                    type: "info",
                 });
             } else if (isNextTwoOrders && subtotal < MIN_CART_VALUE) {
                 setIsDiscountApplied(false);
                 setDiscountAmount(0);
                 showAlert({
-                    title: 'Coupon Removed',
+                    title: "Coupon Removed",
                     message: `Discount removed because cart value is less than ₹${MIN_CART_VALUE}.`,
-                    type: 'info'
+                    type: "info",
                 });
             } else {
                 // Update discount amount dynamically if cart total changes (weird edge case for 1st order where it matches subtotal)
@@ -150,28 +196,28 @@ export const CartScreen: React.FC = () => {
     useFocusEffect(
         React.useCallback(() => {
             const checkInstantBlock = async () => {
-                const withinHours = isInstantWithinHours();
-                if (!withinHours) {
-                    setInstantBlockedBySlot(false);
+                const nextSlot = getNextInstantSlot(timeSlots);
+                if (!nextSlot) {
+                    // Outside operating hours or no valid next slot
+                    setInstantBlockedBySlot(true);
                     return;
                 }
 
                 try {
-                    const today = format(new Date(), 'yyyy-MM-dd');
+                    const today = format(new Date(), "yyyy-MM-dd");
                     const occupied = await checkSlotAvailability(today);
-
-                    const nextSlot = getNextInstantSlot(timeSlots, SLOT_CONSTANTS.MIN_BUFFER_MINS);
-                    setInstantBlockedBySlot(!!nextSlot && occupied.includes(nextSlot));
+                    // Block instant if the very next slot is fully occupied
+                    setInstantBlockedBySlot(occupied.includes(nextSlot));
                 } catch (error) {
                     console.error("Failed to check instant slot availability", error);
                 }
             };
             checkInstantBlock();
-        }, [])
+        }, []),
     );
 
-    const isInstantAvailable = isInstantWithinHours();
-    const canPlaceInstant = isInstantAvailable && !instantBlockedBySlot;
+    const nextSlotForInstant = getNextInstantSlot(timeSlots);
+    const canPlaceInstant = !!nextSlotForInstant && !instantBlockedBySlot;
 
     useEffect(() => {
         const fetchOrderCount = async () => {
@@ -179,7 +225,9 @@ export const CartScreen: React.FC = () => {
                 try {
                     const orders = await getUserOrders(user.uid);
                     // Filter out cancelled orders for the count
-                    const validOrders = orders.filter((o: any) => o.status !== 'cancelled');
+                    const validOrders = orders.filter(
+                        (o: any) => o.status !== "cancelled",
+                    );
                     setOrderCount(validOrders.length);
                 } catch (error) {
                     console.error("Error fetching order count:", error);
@@ -191,13 +239,13 @@ export const CartScreen: React.FC = () => {
 
     // Select first available date/time by default
     useEffect(() => {
-        if (pickupType === 'instant' && !canPlaceInstant) {
-            setPickupType('scheduled');
+        if (pickupType === "instant" && !canPlaceInstant) {
+            setPickupType("scheduled");
         }
 
-        if (pickupType === 'scheduled') {
+        if (pickupType === "scheduled") {
             // Pick first available date if none selected or if selected date is no longer in list
-            if (!selectedDate || !dates.find(d => d.id === selectedDate)) {
+            if (!selectedDate || !dates.find((d) => d.id === selectedDate)) {
                 setSelectedDate(dates[0]?.id);
             }
         }
@@ -205,21 +253,21 @@ export const CartScreen: React.FC = () => {
 
     // Auto-select first available time slot when date/occupiedSlots changes
     useEffect(() => {
-        if (selectedDate && pickupType === 'scheduled') {
+        if (selectedDate && pickupType === "scheduled") {
             const now = new Date();
-            const isToday = selectedDate === format(now, 'yyyy-MM-dd');
+            const isToday = selectedDate === format(now, "yyyy-MM-dd");
 
-            const firstAvailableSlot = timeSlots.find(slot => {
+            const firstAvailableSlot = timeSlots.find((slot) => {
                 const isOccupied = occupiedSlots.includes(slot);
                 if (isOccupied) return false;
 
                 if (isToday) {
-                    const [startStr] = slot.split(' - ');
-                    const [h, m] = startStr.split(':').map(Number);
+                    const [startStr] = slot.split(" - ");
+                    const [h, m] = startStr.split(":").map(Number);
                     const slotStartTime = new Date();
                     slotStartTime.setHours(h, m, 0, 0);
-                    const bufferTime = new Date(now.getTime() + SLOT_CONSTANTS.MIN_BUFFER_MINS * 60000);
-                    return slotStartTime >= bufferTime;
+                    // Slot is past if it has already started
+                    return slotStartTime > now;
                 }
                 return true;
             });
@@ -235,7 +283,7 @@ export const CartScreen: React.FC = () => {
     // Fetch occupied slots when date Selected
     useEffect(() => {
         const fetchOccupied = async () => {
-            if (selectedDate && pickupType === 'scheduled') {
+            if (selectedDate && pickupType === "scheduled") {
                 setSlotsLoading(true);
                 const occupied = await checkSlotAvailability(selectedDate);
                 setOccupiedSlots(occupied);
@@ -245,12 +293,12 @@ export const CartScreen: React.FC = () => {
         fetchOccupied();
     }, [selectedDate, pickupType]);
 
-    // ... (Focus Effect) ... 
+    // ... (Focus Effect) ...
 
     // ... (handlePlaceOrder) ...
-    // Note: handlePlaceOrder function body is large, better to leave it mostly alone via contextual replace 
-    // unless we need to change it. 
-    // Wait, the previous replacement was mostly "top half" of component. 
+    // Note: handlePlaceOrder function body is large, better to leave it mostly alone via contextual replace
+    // unless we need to change it.
+    // Wait, the previous replacement was mostly "top half" of component.
     // I need to be careful not to replace `handlePlaceOrder` with truncated placeholder logic.
     // The instructions say "Update slot rendering".
 
@@ -261,38 +309,37 @@ export const CartScreen: React.FC = () => {
     // Actually, I can replace the `generateTimeSlots` and adds usages.
     // But Render is at the bottom.
 
-    // Let's split. 
+    // Let's split.
     // 1. Top chunk: State, Constants, Logic.
 
     // ... code ...
 
     /* SKIPPING handlePlaceOrder logic replacement here to avoid massive diff. 
-       Use a separate call for render logic if needed, or if start/end line allows.
-       Actually, `generateTimeSlots` is near top (line 65). `render` is near bottom. 
-       I will target the top part first.
-    */
-
+         Use a separate call for render logic if needed, or if start/end line allows.
+         Actually, `generateTimeSlots` is near top (line 65). `render` is near bottom. 
+         I will target the top part first.
+      */
 
     // Track InitiateCheckout when Cart is viewed
     useFocusEffect(
         React.useCallback(() => {
             if (items.length > 0) {
-                trackPixelEvent('InitiateCheckout', {
+                trackPixelEvent("InitiateCheckout", {
                     value: totalAmount,
-                    currency: 'INR',
-                    num_items: items.length
+                    currency: "INR",
+                    num_items: items.length,
                 });
-                AnalyticsService.logEvent('begin_checkout', {
+                AnalyticsService.logEvent("begin_checkout", {
                     value: totalAmount,
-                    currency: 'INR',
-                    items: items.map(i => ({
+                    currency: "INR",
+                    items: items.map((i) => ({
                         item_id: i.id,
                         item_name: i.serviceName,
-                        price: i.totalPrice
-                    }))
+                        price: i.totalPrice,
+                    })),
                 });
             }
-        }, [items.length, totalAmount])
+        }, [items.length, totalAmount]),
     );
 
     const handlePlaceOrder = async () => {
@@ -300,24 +347,24 @@ export const CartScreen: React.FC = () => {
         const { user: latestUser } = useAuthStore.getState();
 
         if (!latestUser) {
-            (navigation as any).navigate('PhoneLogin', { returnTo: 'Cart' });
+            (navigation as any).navigate("PhoneLogin", { returnTo: "Cart" });
             return;
         }
 
         if (!currentAddress) {
             showAlert({
-                title: 'Address Required',
-                message: 'Please select a delivery address',
-                type: 'warning'
+                title: "Address Required",
+                message: "Please select a delivery address",
+                type: "warning",
             });
             return;
         }
 
-        if (pickupType === 'scheduled' && (!selectedDate || !selectedTimeSlot)) {
+        if (pickupType === "scheduled" && (!selectedDate || !selectedTimeSlot)) {
             showAlert({
-                title: 'Incomplete Details',
-                message: 'Please select a date and time for pickup',
-                type: 'warning'
+                title: "Incomplete Details",
+                message: "Please select a date and time for pickup",
+                type: "warning",
             });
             return;
         }
@@ -325,14 +372,14 @@ export const CartScreen: React.FC = () => {
         const { currentLatitude, currentLongitude } = useAddressStore.getState();
 
         // --- GEOFENCING CHECK ---
-        const { isLocationServiceable } = require('../../utils/geofence');
-        const { logUnserviceableRequest } = require('../../services/firestore');
+        const { isLocationServiceable } = require("../../utils/geofence");
+        const { logUnserviceableRequest } = require("../../services/firestore");
 
         // Ensure we have lat/lng
         if (currentLatitude && currentLongitude) {
             const serviceable = isLocationServiceable({
                 latitude: currentLatitude,
-                longitude: currentLongitude
+                longitude: currentLongitude,
             });
 
             if (!serviceable) {
@@ -340,55 +387,60 @@ export const CartScreen: React.FC = () => {
                 logUnserviceableRequest(latestUser.uid, {
                     latitude: currentLatitude,
                     longitude: currentLongitude,
-                    address: currentAddress
+                    address: currentAddress,
                 });
 
                 showAlert({
-                    title: 'Service Not Available',
-                    message: `Sorry, we are not serving your area yet.\n\nWe have recorded your interest and will notify you as soon as we launch near ${currentAddress.split(',')[0]}!`,
-                    type: 'info' // Use 'info' so it's not scary, just informative
+                    title: "Service Not Available",
+                    message: `Sorry, we are not serving your area yet.\n\nWe have recorded your interest and will notify you as soon as we launch near ${currentAddress.split(",")[0]}!`,
+                    type: "info", // Use 'info' so it's not scary, just informative
                 });
                 return;
             }
         }
         // ------------------------
 
+        // --- STEP TRACKING EVENTS ---
+        AnalyticsService.logEvent("add_shipping_info", {
+            currency: "INR",
+            value: totalAmount,
+            items: items.map((i) => ({
+                item_id: i.id,
+                item_name: i.serviceName,
+                price: i.totalPrice,
+            })),
+        });
+
+        AnalyticsService.logEvent("add_payment_info", {
+            payment_type: "COD", // Default for MVP
+            currency: "INR",
+            value: totalAmount,
+            items: items.map((i) => ({
+                item_id: i.id,
+                item_name: i.serviceName,
+                price: i.totalPrice,
+            })),
+        });
+        // ----------------------------
+
         setLoading(true);
 
         try {
             // Re-fetch here to be safe, though we used them above
-            // const { currentLatitude, currentLongitude } = useAddressStore.getState(); 
+            // const { currentLatitude, currentLongitude } = useAddressStore.getState();
 
             // Upload photos logic REMOVED. Photos are already uploaded in ServiceDetailScreen.
             // Items in cart already contain valid persistent Firebase URLs.
             const itemsWithPhotoUrls = items;
 
             let instantSlot = null;
-            if (pickupType === 'instant') {
-                const now = new Date();
-
-                // STRICT NEXT SLOT LOGIC:
-                // Find the first slot where the Start Time is strictly after ANY current time.
-                // e.g. 13:01 -> Next slot starting at 13:30.
-                // e.g. 13:29 -> Next slot starting at 13:30.
-                // e.g. 13:30 -> Next slot starting at 14:00.
-                const nextSlot = timeSlots.find(slot => {
-                    const [startStr] = slot.split(' - ');
-                    const [h, m] = startStr.split(':').map(Number);
-                    const slotStartTime = new Date();
-                    slotStartTime.setHours(h, m, 0, 0);
-
-                    const bufferTime = new Date(now.getTime() + SLOT_CONSTANTS.MIN_BUFFER_MINS * 60_000);
-                    return slotStartTime >= bufferTime;
-                });
-
-                // Fail-safe: if too late (e.g. 8:50 PM), take the last slot or let backend handle/reject.
-                // For MVP we just default to last slot if nothing found, but operational checks should prevent this earlier.
-                instantSlot = nextSlot || timeSlots[timeSlots.length - 1];
+            if (pickupType === "instant") {
+                // Use the very next slot (already validated by canPlaceInstant check)
+                instantSlot = getNextInstantSlot(timeSlots);
             }
 
             const orderData = {
-                vendorId: items[0]?.vendorId || 'default', // Assuming single vendor for MVP
+                vendorId: items[0]?.vendorId || "default", // Assuming single vendor for MVP
                 items: itemsWithPhotoUrls, // Use items with uploaded photo URLs
                 billDetails: {
                     itemTotal: subtotal,
@@ -400,17 +452,21 @@ export const CartScreen: React.FC = () => {
                 },
                 pickupDetails: {
                     type: pickupType,
-                    scheduledDate: pickupType === 'scheduled' ? selectedDate : format(new Date(), 'yyyy-MM-dd'),
-                    scheduledTime: pickupType === 'scheduled' ? selectedTimeSlot : instantSlot,
-                    isInstant: pickupType === 'instant',
+                    scheduledDate:
+                        pickupType === "scheduled"
+                            ? selectedDate
+                            : format(new Date(), "yyyy-MM-dd"),
+                    scheduledTime:
+                        pickupType === "scheduled" ? selectedTimeSlot : instantSlot,
+                    isInstant: pickupType === "instant",
                 },
                 address: currentAddress,
                 latitude: currentLatitude,
                 longitude: currentLongitude,
-                userName: latestUser.name || 'Guest User',
+                userName: latestUser.name || "Guest User",
                 userPhone: latestUser.phone,
-                status: 'placed',
-                paymentMode: 'cod', // Default to COD for MVP, maybe add card option later?
+                status: "placed",
+                paymentMode: "cod", // Default to COD for MVP, maybe add card option later?
             };
 
             // Create the order first
@@ -421,45 +477,63 @@ export const CartScreen: React.FC = () => {
             // flush delay inside trackPixelEvent('Purchase') to prevent the race condition
             // where navigation.dispatch(reset) destroys the Android activity before the
             // Facebook SDK finishes its HTTP POST to Graph API.
-            await trackPixelEvent('Purchase', {
+            await trackPixelEvent("Purchase", {
                 value: totalAmount,
-                currency: 'INR',
+                currency: "INR",
                 num_items: items.length,
-                content_ids: items.map(i => i.id),
-                content_type: 'product'
+                content_ids: items.map((i) => i.id),
+                content_type: "product",
             });
 
-            await AnalyticsService.logEvent('purchase', {
+            await AnalyticsService.logEvent("purchase", {
                 transaction_id: orderId,
                 value: totalAmount,
-                currency: 'INR',
-                items: items.map(i => ({
+                currency: "INR",
+                items: items.map((i) => ({
                     item_id: i.id,
                     item_name: i.serviceName,
-                    price: i.totalPrice
-                }))
+                    price: i.totalPrice,
+                })),
             });
 
             // Set navigating state to prevent empty cart flash
             setIsNavigating(true);
 
             // --- CONSUME CREDIT FIRST ---
-            const creditItem = items.find(item => item.isCreditItem);
-            console.log("[Credit] Checking for credit item in cart. Found:", creditItem ? `Yes (${creditItem.creditSubscriptionId})` : "No");
+            const creditItem = items.find((item) => item.isCreditItem);
+            console.log(
+                "[Credit] Checking for credit item in cart. Found:",
+                creditItem ? `Yes (${creditItem.creditSubscriptionId})` : "No",
+            );
 
             if (creditItem && creditItem.creditSubscriptionId) {
                 try {
                     const { useCredit } = useSubscriptionStore.getState();
-                    console.log("[Credit] Initiating useCredit for sub:", creditItem.creditSubscriptionId);
-                    const success = await useCredit(latestUser.uid, creditItem.creditSubscriptionId, orderId);
+                    console.log(
+                        "[Credit] Initiating useCredit for sub:",
+                        creditItem.creditSubscriptionId,
+                    );
+                    const success = await useCredit(
+                        latestUser.uid,
+                        creditItem.creditSubscriptionId,
+                        orderId,
+                    );
 
                     if (success) {
-                        console.log("[Credit] Subscription credit successfully consumed for order:", orderId);
+                        console.log(
+                            "[Credit] Subscription credit successfully consumed for order:",
+                            orderId,
+                        );
                     } else {
-                        console.warn("[Credit] Credit utilization failed internally (returned false), but proceeding with order flow to prevent stuck cart.");
+                        console.warn(
+                            "[Credit] Credit utilization failed internally (returned false), but proceeding with order flow to prevent stuck cart.",
+                        );
                     }
                 } catch (creditError) {
-                    console.error("[Credit] Critical error during credit consumption:", creditError);
+                    console.error(
+                        "[Credit] Critical error during credit consumption:",
+                        creditError,
+                    );
                 }
             }
 
@@ -471,18 +545,15 @@ export const CartScreen: React.FC = () => {
             navigation.dispatch(
                 CommonActions.reset({
                     index: 0,
-                    routes: [
-                        { name: 'OrderSuccess' }
-                    ],
-                })
+                    routes: [{ name: "OrderSuccess" }],
+                }),
             );
-
         } catch (error) {
             console.error("Order placement failed", error);
             showAlert({
-                title: 'Error',
-                message: 'Failed to place order. Please try again.',
-                type: 'error'
+                title: "Error",
+                message: "Failed to place order. Please try again.",
+                type: "error",
             });
         } finally {
             setLoading(false);
@@ -497,7 +568,9 @@ export const CartScreen: React.FC = () => {
                 </View>
                 <View style={styles.itemInfo}>
                     <Text style={styles.serviceName}>{item.serviceName}</Text>
-                    <Text style={styles.serviceType}>{item.serviceType.replace('_', ' ').toUpperCase()}</Text>
+                    <Text style={styles.serviceType}>
+                        {item.serviceType.replace("_", " ").toUpperCase()}
+                    </Text>
                 </View>
                 <Text style={styles.itemPrice}>₹{item.totalPrice}</Text>
             </View>
@@ -505,34 +578,35 @@ export const CartScreen: React.FC = () => {
             {/* Dynamic details based on service type */}
             <View style={styles.itemDetails}>
                 {/* Wash & Fold / Premium Laundry Details */}
-                {(item.serviceType === 'wash_fold' || item.serviceType === 'premium_laundry') && (
-                    <Text style={styles.detailText}>
-                        {item.weight ? `${item.weight}kg` : ''}
-                        {item.ironingEnabled && item.ironingCount > 0 ? ` + ${item.ironingCount} Ironing` : ''}
-                    </Text>
-                )}
+                {(item.serviceType === "wash_fold" ||
+                    item.serviceType === "premium_laundry") && (
+                        <Text style={styles.detailText}>
+                            {item.weight ? `${item.weight}kg` : ""}
+                            {item.ironingEnabled && item.ironingCount > 0
+                                ? ` + ${item.ironingCount} Ironing`
+                                : ""}
+                        </Text>
+                    )}
 
                 {/* Wash & Iron / Ironing Add-on Details */}
-                {item.serviceType === 'wash_iron' && (
+                {item.serviceType === "wash_iron" && (
                     <Text style={styles.detailText}>
-                        {item.serviceId === 'ironing_addon'
+                        {item.serviceId === "ironing_addon"
                             ? `${item.ironingCount || item.clothesCount || 0} Clothes`
-                            : (item.weight ? `${item.weight}kg` : '')}
+                            : item.weight
+                                ? `${item.weight}kg`
+                                : ""}
                     </Text>
                 )}
 
                 {/* Shoe Details */}
-                {item.serviceType === 'shoe_clean' && (
-                    <Text style={styles.detailText}>
-                        {item.shoeCount} Pairs
-                    </Text>
+                {item.serviceType === "shoe_clean" && (
+                    <Text style={styles.detailText}>{item.shoeCount} Pairs</Text>
                 )}
 
                 {/* Blanket Details */}
-                {item.serviceType === 'blanket_wash' && (
-                    <Text style={styles.detailText}>
-                        {item.blanketCount} Blankets
-                    </Text>
+                {item.serviceType === "blanket_wash" && (
+                    <Text style={styles.detailText}>{item.blanketCount} Blankets</Text>
                 )}
                 {item.ironingEnabled && (
                     <Text style={styles.detailText}>
@@ -576,18 +650,24 @@ export const CartScreen: React.FC = () => {
             )}
             {discountAmount > 0 && (
                 <View style={styles.billRow}>
-                    <Text style={[styles.billLabel, { color: COLORS.success }]}>First Order Discount</Text>
-                    <Text style={[styles.billValue, { color: COLORS.success }]}>-₹{discountAmount}</Text>
+                    <Text style={[styles.billLabel, { color: COLORS.success }]}>
+                        First Order Discount
+                    </Text>
+                    <Text style={[styles.billValue, { color: COLORS.success }]}>
+                        -₹{discountAmount}
+                    </Text>
                 </View>
             )}
             <View style={[styles.billRow, styles.totalRow]}>
                 <Text style={styles.totalLabel}>Grand Total</Text>
                 <Text style={styles.totalValue}>₹{totalAmount}</Text>
             </View>
-            {items.some(item => item.isCreditItem) && (
+            {items.some((item) => item.isCreditItem) && (
                 <View style={styles.creditBadge}>
                     <Ionicons name="sparkles" size={14} color={COLORS.primary} />
-                    <Text style={styles.creditBadgeText}>Subscription Credit Applied</Text>
+                    <Text style={styles.creditBadgeText}>
+                        Subscription Credit Applied
+                    </Text>
                 </View>
             )}
         </View>
@@ -605,13 +685,27 @@ export const CartScreen: React.FC = () => {
                     <Ionicons name="cart-outline" size={64} color={COLORS.textLight} />
                 </View>
                 <Text style={styles.emptyText}>Your cart is empty!</Text>
-                <Text style={styles.emptySubtext}>Add some services to get started.</Text>
+                <Text style={styles.emptySubtext}>
+                    Add some services to get started.
+                </Text>
                 <TouchableOpacity
                     style={styles.browseButton}
                     onPress={() => {
                         (navigation as any).reset({
                             index: 0,
-                            routes: [{ name: 'Main', state: { routes: [{ name: 'MainTabs', state: { routes: [{ name: 'Home' }] } }] } }],
+                            routes: [
+                                {
+                                    name: "Main",
+                                    state: {
+                                        routes: [
+                                            {
+                                                name: "MainTabs",
+                                                state: { routes: [{ name: "Home" }] },
+                                            },
+                                        ],
+                                    },
+                                },
+                            ],
                         });
                     }}
                 >
@@ -625,17 +719,18 @@ export const CartScreen: React.FC = () => {
 
     // ... (render)
 
-
-
     return (
-        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
+        <SafeAreaView
+            style={styles.safeArea}
+            edges={["top", "left", "right", "bottom"]}
+        >
             <View style={styles.header}>
                 <TouchableOpacity
                     onPress={() => {
                         if (navigation.canGoBack()) {
                             navigation.goBack();
                         } else {
-                            (navigation as any).navigate('MainTabs');
+                            (navigation as any).navigate("MainTabs");
                         }
                     }}
                     style={styles.backButton}
@@ -661,11 +756,14 @@ export const CartScreen: React.FC = () => {
                     </View>
 
                     {/* Coupon Section - Hide if subscription credit is applied */}
-                    {orderCount < 3 && !items.some(item => item.isCreditItem) && (
+                    {orderCount < 3 && !items.some((item) => item.isCreditItem) && (
                         <View style={styles.section}>
                             <Text style={styles.sectionTitle}>Offers & Benefits</Text>
                             <TouchableOpacity
-                                style={[styles.couponCard, isDiscountApplied && styles.couponCardApplied]}
+                                style={[
+                                    styles.couponCard,
+                                    isDiscountApplied && styles.couponCardApplied,
+                                ]}
                                 onPress={() => {
                                     if (isDiscountApplied) {
                                         setIsDiscountApplied(false);
@@ -673,18 +771,19 @@ export const CartScreen: React.FC = () => {
                                     } else {
                                         if (onlyIroningInCart) {
                                             showAlert({
-                                                title: 'Coupon Not Applicable',
-                                                message: 'The FIRST100 discount is not available for standalone ironing orders. Add another service to use this offer!',
-                                                type: 'info'
+                                                title: "Coupon Not Applicable",
+                                                message:
+                                                    "The FIRST100 discount is not available for standalone ironing orders. Add another service to use this offer!",
+                                                type: "info",
                                             });
                                             return;
                                         }
 
                                         if (isNextTwoOrders && subtotal < MIN_CART_VALUE) {
                                             showAlert({
-                                                title: 'Cart Value Too Low',
+                                                title: "Cart Value Too Low",
                                                 message: `Add items worth ₹${MIN_CART_VALUE - subtotal} more to apply this coupon!`,
-                                                type: 'warning'
+                                                type: "warning",
                                             });
                                             return;
                                         }
@@ -694,32 +793,55 @@ export const CartScreen: React.FC = () => {
                                         setDiscountAmount(discount);
 
                                         showAlert({
-                                            title: 'Coupon Applied!',
+                                            title: "Coupon Applied!",
                                             message: `₹${discount} discount has been added to your order.`,
-                                            type: 'success'
+                                            type: "success",
                                         });
                                     }
                                 }}
                             >
                                 <View style={styles.couponIconContainer}>
-                                    <Ionicons name="gift-outline" size={24} color={isDiscountApplied ? '#FFF' : COLORS.primary} />
+                                    <Ionicons
+                                        name="gift-outline"
+                                        size={24}
+                                        color={isDiscountApplied ? "#FFF" : COLORS.primary}
+                                    />
                                 </View>
                                 <View style={styles.couponInfo}>
-                                    <Text style={[styles.couponTitle, isDiscountApplied && styles.couponTextApplied]}>
-                                        {isDiscountApplied ? 'FIRST100 Applied' : 'Apply FIRST100'}
+                                    <Text
+                                        style={[
+                                            styles.couponTitle,
+                                            isDiscountApplied && styles.couponTextApplied,
+                                        ]}
+                                    >
+                                        {isDiscountApplied ? "FIRST100 Applied" : "Apply FIRST100"}
                                     </Text>
-                                    <Text style={[styles.couponSub, isDiscountApplied && styles.couponTextApplied]}>
+                                    <Text
+                                        style={[
+                                            styles.couponSub,
+                                            isDiscountApplied && styles.couponTextApplied,
+                                        ]}
+                                    >
                                         {isDiscountApplied
                                             ? `Saved ₹${discountAmount} on this order`
-                                            : (isFirstOrder
-                                                ? 'Get flat ₹100 OFF on your 1st order'
-                                                : `Get ₹${STANDARD_DISCOUNT} off over ₹${MIN_CART_VALUE}`)
-                                        }
+                                            : isFirstOrder
+                                                ? "Get flat ₹100 OFF on your 1st order"
+                                                : `Get ₹${STANDARD_DISCOUNT} off over ₹${MIN_CART_VALUE}`}
                                     </Text>
                                 </View>
-                                <View style={[styles.applyBadge, isDiscountApplied && styles.applyBadgeApplied]}>
-                                    <Text style={[styles.applyText, isDiscountApplied && styles.applyTextApplied]}>
-                                        {isDiscountApplied ? 'REMOVE' : 'APPLY'}
+                                <View
+                                    style={[
+                                        styles.applyBadge,
+                                        isDiscountApplied && styles.applyBadgeApplied,
+                                    ]}
+                                >
+                                    <Text
+                                        style={[
+                                            styles.applyText,
+                                            isDiscountApplied && styles.applyTextApplied,
+                                        ]}
+                                    >
+                                        {isDiscountApplied ? "REMOVE" : "APPLY"}
                                     </Text>
                                 </View>
                             </TouchableOpacity>
@@ -731,8 +853,14 @@ export const CartScreen: React.FC = () => {
                         <Text style={styles.sectionTitle}>Order Summary</Text>
                         {renderBillDetails()}
                         <View style={styles.guaranteeContainer}>
-                            <Ionicons name="shield-checkmark" size={16} color={COLORS.success} />
-                            <Text style={styles.guaranteeText}>100% Satisfaction Guarantee</Text>
+                            <Ionicons
+                                name="shield-checkmark"
+                                size={16}
+                                color={COLORS.success}
+                            />
+                            <Text style={styles.guaranteeText}>
+                                100% Satisfaction Guarantee
+                            </Text>
                         </View>
                     </GlassCard>
 
@@ -745,78 +873,132 @@ export const CartScreen: React.FC = () => {
                             <TouchableOpacity
                                 style={[
                                     styles.toggleOption,
-                                    pickupType === 'instant' && styles.toggleOptionActive,
-                                    !canPlaceInstant && styles.toggleOptionDisabled
+                                    pickupType === "instant" && styles.toggleOptionActive,
+                                    !canPlaceInstant && styles.toggleOptionDisabled,
                                 ]}
                                 disabled={!canPlaceInstant}
-                                onPress={() => setPickupType('instant')}
+                                onPress={() => setPickupType("instant")}
                             >
                                 <Ionicons
                                     name="flash"
                                     size={16}
-                                    color={!canPlaceInstant ? COLORS.textLight : (pickupType === 'instant' ? '#FFF' : COLORS.text)}
+                                    color={
+                                        !canPlaceInstant
+                                            ? COLORS.textLight
+                                            : pickupType === "instant"
+                                                ? "#FFF"
+                                                : COLORS.text
+                                    }
                                 />
                                 <View>
-                                    <Text style={[
-                                        styles.toggleText,
-                                        pickupType === 'instant' && styles.toggleTextActive,
-                                        !canPlaceInstant && styles.toggleTextDisabled
-                                    ]}>
+                                    <Text
+                                        style={[
+                                            styles.toggleText,
+                                            pickupType === "instant" && styles.toggleTextActive,
+                                            !canPlaceInstant && styles.toggleTextDisabled,
+                                        ]}
+                                    >
                                         Instant(within hour)
                                     </Text>
-                                    {(!isInstantAvailable || instantBlockedBySlot) && (
+                                    {(!nextSlotForInstant || instantBlockedBySlot) && (
                                         <Text style={styles.disabledHint}>
-                                            {instantBlockedBySlot ?? 'Next slot fully booked'}
+                                            {!nextSlotForInstant
+                                                ? "Outside operating hours"
+                                                : "Next slot fully booked"}
                                         </Text>
                                     )}
                                 </View>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[styles.toggleOption, pickupType === 'scheduled' && styles.toggleOptionActive]}
-                                onPress={() => setPickupType('scheduled')}
+                                style={[
+                                    styles.toggleOption,
+                                    pickupType === "scheduled" && styles.toggleOptionActive,
+                                ]}
+                                onPress={() => setPickupType("scheduled")}
                             >
-                                <Ionicons name="calendar" size={16} color={pickupType === 'scheduled' ? '#FFF' : COLORS.text} />
-                                <Text style={[styles.toggleText, pickupType === 'scheduled' && styles.toggleTextActive]}>
+                                <Ionicons
+                                    name="calendar"
+                                    size={16}
+                                    color={pickupType === "scheduled" ? "#FFF" : COLORS.text}
+                                />
+                                <Text
+                                    style={[
+                                        styles.toggleText,
+                                        pickupType === "scheduled" && styles.toggleTextActive,
+                                    ]}
+                                >
                                     Schedule Later
                                 </Text>
                             </TouchableOpacity>
                         </View>
 
                         {/* Schedule Picker */}
-                        {pickupType === 'scheduled' && (
+                        {pickupType === "scheduled" && (
                             <View style={styles.scheduleContainer}>
                                 <Text style={styles.pickerLabel}>Select Date</Text>
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateScroll}>
+                                <ScrollView
+                                    horizontal
+                                    showsHorizontalScrollIndicator={false}
+                                    style={styles.dateScroll}
+                                >
                                     {dates.map((date) => (
                                         <TouchableOpacity
                                             key={date.id}
-                                            style={[styles.dateCard, selectedDate === date.id && styles.dateCardSelected]}
+                                            style={[
+                                                styles.dateCard,
+                                                selectedDate === date.id && styles.dateCardSelected,
+                                            ]}
                                             onPress={() => setSelectedDate(date.id)}
                                         >
-                                            <Text style={[styles.dateDay, selectedDate === date.id && styles.dateTextSelected]}>{date.day}</Text>
-                                            <Text style={[styles.dateNum, selectedDate === date.id && styles.dateTextSelected]}>{date.date}</Text>
+                                            <Text
+                                                style={[
+                                                    styles.dateDay,
+                                                    selectedDate === date.id && styles.dateTextSelected,
+                                                ]}
+                                            >
+                                                {date.day}
+                                            </Text>
+                                            <Text
+                                                style={[
+                                                    styles.dateNum,
+                                                    selectedDate === date.id && styles.dateTextSelected,
+                                                ]}
+                                            >
+                                                {date.date}
+                                            </Text>
                                         </TouchableOpacity>
                                     ))}
                                 </ScrollView>
 
-                                <Text style={styles.pickerLabel}>Select Time {slotsLoading && <ActivityIndicator size="small" color={COLORS.primary} style={{ marginLeft: 10 }} />}</Text>
-                                <View style={[styles.timeGrid, slotsLoading && { opacity: 0.5 }]}>
+                                <Text style={styles.pickerLabel}>
+                                    Select Time{" "}
+                                    {slotsLoading && (
+                                        <ActivityIndicator
+                                            size="small"
+                                            color={COLORS.primary}
+                                            style={{ marginLeft: 10 }}
+                                        />
+                                    )}
+                                </Text>
+                                <View
+                                    style={[styles.timeGrid, slotsLoading && { opacity: 0.5 }]}
+                                >
                                     {(() => {
                                         const now = new Date();
-                                        const isToday = selectedDate === format(now, 'yyyy-MM-dd');
+                                        const isToday = selectedDate === format(now, "yyyy-MM-dd");
 
                                         return timeSlots.map((slot) => {
                                             const isOccupied = occupiedSlots.includes(slot);
 
                                             let isPast = false;
                                             if (isToday) {
-                                                const [startStr] = slot.split(' - ');
-                                                const [h, m] = startStr.split(':').map(Number);
+                                                const [startStr] = slot.split(" - ");
+                                                const [h, m] = startStr.split(":").map(Number);
                                                 const slotStartTime = new Date();
                                                 slotStartTime.setHours(h, m, 0, 0);
 
-                                                const bufferTime = new Date(now.getTime() + SLOT_CONSTANTS.MIN_BUFFER_MINS * 60000);
-                                                isPast = slotStartTime < bufferTime;
+                                                // Slot is past if it has already started
+                                                isPast = slotStartTime <= now;
                                             }
 
                                             const isDisabled = isOccupied || isPast;
@@ -827,16 +1009,20 @@ export const CartScreen: React.FC = () => {
                                                     disabled={isDisabled}
                                                     style={[
                                                         styles.timeSlot,
-                                                        selectedTimeSlot === slot && styles.timeSlotSelected,
-                                                        isDisabled && styles.timeSlotDisabled
+                                                        selectedTimeSlot === slot &&
+                                                        styles.timeSlotSelected,
+                                                        isDisabled && styles.timeSlotDisabled,
                                                     ]}
                                                     onPress={() => setSelectedTimeSlot(slot)}
                                                 >
-                                                    <Text style={[
-                                                        styles.timeText,
-                                                        selectedTimeSlot === slot && styles.timeTextSelected,
-                                                        isDisabled && styles.timeTextDisabled
-                                                    ]}>
+                                                    <Text
+                                                        style={[
+                                                            styles.timeText,
+                                                            selectedTimeSlot === slot &&
+                                                            styles.timeTextSelected,
+                                                            isDisabled && styles.timeTextDisabled,
+                                                        ]}
+                                                    >
                                                         {slot}
                                                     </Text>
                                                 </TouchableOpacity>
@@ -854,11 +1040,11 @@ export const CartScreen: React.FC = () => {
                             <View style={{ flex: 1 }}>
                                 <Text style={styles.addressLabel}>Delivery Address</Text>
                                 <Text style={styles.cleanAddressText} numberOfLines={2}>
-                                    {currentAddress || 'Select Delivery Address'}
+                                    {currentAddress || "Select Delivery Address"}
                                 </Text>
                             </View>
                             <TouchableOpacity
-                                onPress={() => navigation.navigate('AddressList' as never)}
+                                onPress={() => navigation.navigate("AddressList" as never)}
                             >
                                 <Text style={styles.cleanChangeText}>CHANGE</Text>
                             </TouchableOpacity>
@@ -867,12 +1053,16 @@ export const CartScreen: React.FC = () => {
 
                     {/* Trust Signals */}
                     <CartTrust />
-
                 </ScrollView>
-            </View >
+            </View>
 
             {/* Floating Premium Footer */}
-            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) + 4 }]}>
+            <View
+                style={[
+                    styles.footer,
+                    { paddingBottom: Math.max(insets.bottom, 20) + 4 },
+                ]}
+            >
                 <GlassCard intensity="high" style={styles.footerGlass}>
                     <View style={styles.footerAmountContainer}>
                         <Text style={styles.footerLabel}>Total to Pay</Text>
@@ -889,72 +1079,82 @@ export const CartScreen: React.FC = () => {
                     </AnimatedButton>
                 </GlassCard>
             </View>
-        </SafeAreaView >
+        </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: '#F9FAFB',
-        ...(Platform.OS === 'web' ? {
-            height: '100vh',
-            display: 'flex',
-            flexDirection: 'column',
-        } : {}) as any,
+        backgroundColor: "#F9FAFB",
+        ...((Platform.OS === "web"
+            ? {
+                height: "100vh",
+                display: "flex",
+                flexDirection: "column",
+            }
+            : {}) as any),
     },
     header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
         paddingHorizontal: SPACING.lg,
         paddingVertical: SPACING.md,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.borderLight,
-        backgroundColor: '#FFFFFF',
-        ...(Platform.OS === 'web' ? {
-            flexShrink: 0,
-        } : {}),
+        backgroundColor: "#FFFFFF",
+        ...(Platform.OS === "web"
+            ? {
+                flexShrink: 0,
+            }
+            : {}),
     },
     headerTitle: {
         ...TYPOGRAPHY.subheading,
-        fontWeight: '700',
+        fontWeight: "700",
     },
     backButton: {
         padding: 4,
     },
     scrollContainer: {
         flex: 1,
-        ...(Platform.OS === 'web' ? {
-            minHeight: 0,
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            flexShrink: 1,
-        } : {}),
+        ...(Platform.OS === "web"
+            ? {
+                minHeight: 0,
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
+                flexShrink: 1,
+            }
+            : {}),
     },
     scrollView: {
         flex: 1,
-        ...(Platform.OS === 'web' ? {
-            minHeight: 0,
-            overflowY: 'auto' as any,
-            overflowX: 'hidden' as any,
-            WebkitOverflowScrolling: 'touch' as any,
-            flexShrink: 1,
-        } : {}),
+        ...(Platform.OS === "web"
+            ? {
+                minHeight: 0,
+                overflowY: "auto" as any,
+                overflowX: "hidden" as any,
+                WebkitOverflowScrolling: "touch" as any,
+                flexShrink: 1,
+            }
+            : {}),
     },
     scrollContent: {
         flexGrow: 1,
         paddingBottom: 40,
-        ...(Platform.OS === 'web' ? {
-            minHeight: 'auto',
-        } : {}),
+        ...(Platform.OS === "web"
+            ? {
+                minHeight: "auto",
+            }
+            : {}),
     },
     section: {
         paddingHorizontal: SPACING.lg,
         paddingVertical: SPACING.md,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255, 255, 255, 0.2)',
+        borderBottomColor: "rgba(255, 255, 255, 0.2)",
     },
     sectionTitle: {
         ...TYPOGRAPHY.bodyBold,
@@ -970,8 +1170,8 @@ const styles = StyleSheet.create({
         borderColor: COLORS.borderLight,
     },
     itemHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         marginBottom: 8,
     },
     serviceIcon: {
@@ -979,8 +1179,8 @@ const styles = StyleSheet.create({
         height: 32,
         borderRadius: 16,
         backgroundColor: COLORS.background,
-        alignItems: 'center',
-        justifyContent: 'center',
+        alignItems: "center",
+        justifyContent: "center",
         marginRight: SPACING.sm,
     },
     itemInfo: {
@@ -993,7 +1193,7 @@ const styles = StyleSheet.create({
     serviceType: {
         fontSize: 10,
         color: COLORS.textSecondary,
-        fontWeight: '600',
+        fontWeight: "600",
     },
     itemPrice: {
         ...TYPOGRAPHY.bodyBold,
@@ -1006,27 +1206,27 @@ const styles = StyleSheet.create({
     cleanAddressContainer: {
         paddingHorizontal: SPACING.lg,
         paddingVertical: SPACING.md,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: "#FFFFFF",
         marginBottom: SPACING.sm,
     },
     addressLabel: {
         fontSize: 12,
-        fontWeight: '600',
-        color: '#1E293B',
+        fontWeight: "600",
+        color: "#1E293B",
         marginBottom: 4,
-        fontFamily: 'Outfit_600SemiBold',
+        fontFamily: "Outfit_600SemiBold",
     },
     cleanAddressText: {
         fontSize: 15,
-        color: '#334155',
+        color: "#334155",
         lineHeight: 22,
-        fontFamily: 'Outfit_500Medium',
+        fontFamily: "Outfit_500Medium",
     },
     cleanChangeText: {
         fontSize: 12,
-        fontWeight: '700',
+        fontWeight: "700",
         color: COLORS.primary,
-        fontFamily: 'Outfit_700Bold',
+        fontFamily: "Outfit_700Bold",
         letterSpacing: 0.5,
     },
     detailText: {
@@ -1037,21 +1237,21 @@ const styles = StyleSheet.create({
     instructionText: {
         fontSize: 12,
         color: COLORS.textLight,
-        fontStyle: 'italic',
+        fontStyle: "italic",
     },
     removeButton: {
-        alignSelf: 'flex-end',
+        alignSelf: "flex-end",
         paddingHorizontal: 8,
         paddingVertical: 4,
     },
     removeButtonText: {
         color: COLORS.error,
         fontSize: 12,
-        fontWeight: '600',
+        fontWeight: "600",
     },
     billRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+        flexDirection: "row",
+        justifyContent: "space-between",
         marginBottom: 6,
     },
     billLabel: {
@@ -1061,13 +1261,13 @@ const styles = StyleSheet.create({
     billValue: {
         fontSize: 14,
         color: COLORS.text,
-        fontWeight: '500',
+        fontWeight: "500",
     },
     totalRow: {
         marginTop: 8,
         paddingTop: 8,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.2)',
+        borderTopColor: "rgba(255, 255, 255, 0.2)",
     },
     totalLabel: {
         ...TYPOGRAPHY.bodyBold,
@@ -1079,27 +1279,27 @@ const styles = StyleSheet.create({
         color: COLORS.primary,
     },
     couponCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         padding: SPACING.md,
         backgroundColor: COLORS.backgroundLight,
         borderRadius: RADIUS.md,
         borderWidth: 1,
-        borderColor: COLORS.primary + '30',
-        borderStyle: 'dashed',
+        borderColor: COLORS.primary + "30",
+        borderStyle: "dashed",
     },
     couponCardApplied: {
         backgroundColor: COLORS.primary,
         borderColor: COLORS.primary,
-        borderStyle: 'solid',
+        borderStyle: "solid",
     },
     couponIconContainer: {
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: COLORS.primary + '15',
-        justifyContent: 'center',
-        alignItems: 'center',
+        backgroundColor: COLORS.primary + "15",
+        justifyContent: "center",
+        alignItems: "center",
         marginRight: SPACING.md,
     },
     couponInfo: {
@@ -1116,27 +1316,27 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
     couponTextApplied: {
-        color: '#FFF',
+        color: "#FFF",
     },
     applyBadge: {
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: RADIUS.sm,
-        backgroundColor: COLORS.primary + '15',
+        backgroundColor: COLORS.primary + "15",
     },
     applyBadgeApplied: {
-        backgroundColor: 'rgba(255,255,255,0.2)',
+        backgroundColor: "rgba(255,255,255,0.2)",
     },
     applyText: {
         fontSize: 10,
-        fontWeight: '700',
+        fontWeight: "700",
         color: COLORS.primary,
     },
     applyTextApplied: {
-        color: '#FFF',
+        color: "#FFF",
     },
     pickupToggle: {
-        flexDirection: 'row',
+        flexDirection: "row",
         backgroundColor: COLORS.backgroundLight,
         padding: 4,
         borderRadius: RADIUS.lg,
@@ -1144,9 +1344,9 @@ const styles = StyleSheet.create({
     },
     toggleOption: {
         flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
         paddingVertical: 10,
         borderRadius: RADIUS.md,
         gap: 6,
@@ -1157,22 +1357,22 @@ const styles = StyleSheet.create({
     },
     toggleText: {
         fontSize: 13,
-        fontWeight: '600',
+        fontWeight: "600",
         color: COLORS.textSecondary,
     },
     toggleTextActive: {
-        color: '#FFF',
+        color: "#FFF",
     },
     toggleOptionDisabled: {
-        backgroundColor: '#F3F4F6',
+        backgroundColor: "#F3F4F6",
         opacity: 0.7,
     },
     toggleTextDisabled: {
-        color: '#9CA3AF',
+        color: "#9CA3AF",
     },
     disabledHint: {
         fontSize: 8,
-        color: '#9CA3AF',
+        color: "#9CA3AF",
         marginTop: 2,
     },
     scheduleContainer: {
@@ -1181,10 +1381,10 @@ const styles = StyleSheet.create({
     pickerLabel: {
         fontSize: 12,
         color: COLORS.textLight,
-        fontWeight: '600',
+        fontWeight: "600",
         marginBottom: 8,
         marginTop: 8,
-        textTransform: 'uppercase',
+        textTransform: "uppercase",
     },
     dateScroll: {
         marginBottom: SPACING.md,
@@ -1194,8 +1394,8 @@ const styles = StyleSheet.create({
         height: 70,
         backgroundColor: COLORS.backgroundLight,
         borderRadius: RADIUS.md,
-        alignItems: 'center',
-        justifyContent: 'center',
+        alignItems: "center",
+        justifyContent: "center",
         marginRight: 10,
         borderWidth: 1,
         borderColor: COLORS.borderLight,
@@ -1211,15 +1411,15 @@ const styles = StyleSheet.create({
     },
     dateNum: {
         fontSize: 18,
-        fontWeight: '700',
+        fontWeight: "700",
         color: COLORS.text,
     },
     dateTextSelected: {
-        color: '#FFF',
+        color: "#FFF",
     },
     timeGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
+        flexDirection: "row",
+        flexWrap: "wrap",
         gap: 10,
     },
     timeSlot: {
@@ -1235,8 +1435,8 @@ const styles = StyleSheet.create({
         borderColor: COLORS.primary,
     },
     timeSlotDisabled: {
-        backgroundColor: '#F3F4F6',
-        borderColor: '#E5E7EB',
+        backgroundColor: "#F3F4F6",
+        borderColor: "#E5E7EB",
         opacity: 0.6,
     },
     timeText: {
@@ -1244,20 +1444,20 @@ const styles = StyleSheet.create({
         color: COLORS.text,
     },
     timeTextSelected: {
-        color: '#FFF',
+        color: "#FFF",
     },
     timeTextDisabled: {
-        color: '#9CA3AF',
-        textDecorationLine: 'line-through',
+        color: "#9CA3AF",
+        textDecorationLine: "line-through",
     },
     addressRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
     },
     addressText: {
         color: COLORS.text,
-        fontWeight: '500',
+        fontWeight: "500",
         maxWidth: 250,
         marginTop: 4,
     },
@@ -1266,12 +1466,12 @@ const styles = StyleSheet.create({
     },
     changeAddressText: {
         color: COLORS.primary,
-        fontWeight: '700',
+        fontWeight: "700",
         fontSize: 12,
     },
     /* Redesigned Footer */
     footer: {
-        position: 'absolute',
+        position: "absolute",
         bottom: 0,
         left: 0,
         right: 0,
@@ -1280,13 +1480,13 @@ const styles = StyleSheet.create({
         // paddingBottom set dynamically via insets.bottom inline
     },
     footerGlass: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         padding: 16,
         paddingHorizontal: 20,
         borderRadius: 24,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.5)',
+        borderColor: "rgba(255,255,255,0.5)",
     },
     footerLabel: {
         ...TYPOGRAPHY.tiny,
@@ -1302,7 +1502,7 @@ const styles = StyleSheet.create({
         fontSize: 10,
         color: COLORS.textSecondary,
         marginTop: 2,
-        fontWeight: '500',
+        fontWeight: "500",
     },
     placeOrderBtn: {
         flex: 1,
@@ -1310,24 +1510,24 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.primary,
         paddingVertical: 14,
         borderRadius: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
         gap: 8,
         ...SHADOWS.primary,
     },
     placeOrderText: {
         ...TYPOGRAPHY.button,
-        color: '#FFF',
+        color: "#FFF",
         fontSize: 15,
     },
     footerAmountContainer: {
-        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+        backgroundColor: "rgba(255, 255, 255, 0.15)",
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.3)',
+        borderColor: "rgba(255, 255, 255, 0.3)",
     },
     billGlassCard: {
         marginHorizontal: 16,
@@ -1335,12 +1535,12 @@ const styles = StyleSheet.create({
         padding: 20,
         borderRadius: 24,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.5)',
+        borderColor: "rgba(255,255,255,0.5)",
     },
     emptyContainer: {
         flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
+        alignItems: "center",
+        justifyContent: "center",
         backgroundColor: COLORS.background,
         padding: SPACING.xl,
     },
@@ -1349,8 +1549,8 @@ const styles = StyleSheet.create({
         height: 120,
         borderRadius: 60,
         backgroundColor: COLORS.backgroundLight,
-        alignItems: 'center',
-        justifyContent: 'center',
+        alignItems: "center",
+        justifyContent: "center",
         marginBottom: SPACING.xl,
     },
     emptyText: {
@@ -1371,41 +1571,41 @@ const styles = StyleSheet.create({
         borderRadius: RADIUS.xl,
     },
     browseButtonText: {
-        color: '#FFF',
-        fontWeight: '700',
+        color: "#FFF",
+        fontWeight: "700",
         fontSize: 16,
     },
     creditBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: COLORS.primary + '10',
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: COLORS.primary + "10",
         paddingVertical: 8,
         borderRadius: RADIUS.md,
         marginTop: SPACING.md,
         gap: 6,
         borderWidth: 1,
-        borderColor: COLORS.primary + '20',
+        borderColor: COLORS.primary + "20",
     },
     creditBadgeText: {
         ...TYPOGRAPHY.caption,
         color: COLORS.primary,
-        fontWeight: '700',
+        fontWeight: "700",
     },
     guaranteeContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
         marginTop: 16,
         gap: 6,
         paddingTop: 12,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.2)',
+        borderTopColor: "rgba(255, 255, 255, 0.2)",
     },
     guaranteeText: {
         fontSize: 12,
         color: COLORS.success,
-        fontWeight: '600',
-        fontFamily: 'Outfit_600SemiBold',
+        fontWeight: "600",
+        fontFamily: "Outfit_600SemiBold",
     },
 });

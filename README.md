@@ -61,6 +61,7 @@ npx expo start --web
 ### 📦 EAS Builds (Cloud)
 
 #### Android
+
 ```bash
 # Build Android Preview APK (for testing)
 npx eas-cli build --platform android --profile preview --clear-cache
@@ -70,6 +71,7 @@ npx eas-cli build --platform android --profile production
 ```
 
 #### iOS
+
 ```bash
 # Build iOS Development Client
 npx eas-cli build --platform ios --profile development
@@ -83,7 +85,9 @@ npx eas-cli build --platform ios --profile production
 ## 🧹 Maintenance & Troubleshooting
 
 #### Deep Clean (Reset Native Projects)
+
 If you encounter weird native compilation errors, running a deep clean is recommended:
+
 ```bash
 rm -rf ios android node_modules
 npm install
@@ -91,6 +95,7 @@ npx expo prebuild --clean
 ```
 
 #### Sync Native Dependencies
+
 ```bash
 # Ensure all packages match the Expo SDK 54 versions
 npx expo install --check
@@ -113,6 +118,7 @@ npx expo install --fix
 ## 🔐 Configuration
 
 The project uses:
+
 - `app.json`: Central Expo configuration.
 - `GoogleService-Info.plist`: iOS Firebase configuration.
 - `google-services.json`: Android Firebase configuration.
@@ -129,3 +135,6 @@ pkill -9 node
 EAS_SKIP_AUTO_FINGERPRINT=1 npx eas build --platform android --profile production
 EAS_SKIP_AUTO_FINGERPRINT=1 eas build --platform ios --profile production --non-interactive
 eas submit --platform ios --profile production --latest
+
+----update----
+npx eas update --branch production --message "Per-kg pricing and analytics updates"

@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAdminAuthStore, useAdminStore } from '../../store';
+import { useAdminAuthStore, useAdminStore, useAdminPermissions } from '../../store';
 import { useUIStore } from '../../store';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 
@@ -33,29 +33,38 @@ export const AdminDashboardScreen: React.FC = () => {
     fetchRevenue,
     fetchUserStats,
   } = useAdminStore();
+  const { canViewUserStats, canViewRevenue, canViewQuickActions } = useAdminPermissions();
 
   const [dateRange, setDateRange] = useState<DateRangeOption>('today');
   const [exportLoading, setExportLoading] = useState(false);
 
   // Fetch stats on mount and set up polling
   useEffect(() => {
+    // Basic stats are usually needed for the dashboard overview
+    // but User Stats are restricted to super_admin
     fetchOrderStats();
-    fetchUserStats();
+    if (canViewUserStats) {
+      fetchUserStats();
+    }
 
     // Poll every 15 seconds for real-time updates
     const interval = setInterval(() => {
       fetchOrderStats(true);
-      fetchUserStats(true);
+      if (canViewUserStats) {
+        fetchUserStats(true);
+      }
     }, 15000);
 
     return () => clearInterval(interval);
-  }, [fetchOrderStats, fetchUserStats]);
+  }, [fetchOrderStats, fetchUserStats, canViewUserStats]);
 
   // Fetch revenue when date range changes
   useEffect(() => {
-    const { startDate, endDate } = getDateRange();
-    fetchRevenue(startDate, endDate);
-  }, [dateRange, fetchRevenue]);
+    if (canViewRevenue) {
+      const { startDate, endDate } = getDateRange();
+      fetchRevenue(startDate, endDate);
+    }
+  }, [dateRange, fetchRevenue, canViewRevenue]);
 
   const getDateRange = (): { startDate: Date; endDate: Date } => {
     const now = new Date();
@@ -264,35 +273,38 @@ export const AdminDashboardScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* User Statistics */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="people-outline" size={20} color={COLORS.primary} />
-            <Text style={styles.sectionTitle}>User Statistics</Text>
-          </View>
+        {canViewUserStats && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="people-outline" size={20} color={COLORS.primary} />
+              <Text style={styles.sectionTitle}>User Statistics</Text>
+            </View>
 
-          {userStatsLoading && userStats.totalUsers === 0 ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={COLORS.primary} />
-            </View>
-          ) : (
-            <View style={styles.userStatsGrid}>
-              <View style={styles.userStatCard}>
-                <View style={[styles.statIconContainer, { backgroundColor: COLORS.info + '20' }]}>
-                  <Ionicons name="people" size={24} color={COLORS.info} />
-                </View>
-                <Text style={styles.statValue}>{userStats.totalUsers}</Text>
-                <Text style={styles.statLabel}>Total Users</Text>
+            {userStatsLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
               </View>
-              <View style={styles.userStatCard}>
-                <View style={[styles.statIconContainer, { backgroundColor: COLORS.success + '20' }]}>
-                  <Ionicons name="checkmark-circle-outline" size={24} color={COLORS.success} />
+            ) : (
+              <View style={styles.userStatsGrid}>
+                <View style={styles.userStatCard}>
+                  <View style={[styles.statIconContainer, { backgroundColor: COLORS.info + '20' }]}>
+                    <Ionicons name="person-outline" size={24} color={COLORS.info} />
+                  </View>
+                  <Text style={styles.statValue}>{userStats.totalUsers}</Text>
+                  <Text style={styles.statLabel}>Total Users</Text>
                 </View>
-                <Text style={styles.statValue}>{userStats.activeUsers}</Text>
-                <Text style={styles.statLabel}>Active Users</Text>
+
+                <View style={styles.userStatCard}>
+                  <View style={[styles.statIconContainer, { backgroundColor: COLORS.success + '20' }]}>
+                    <Ionicons name="pulse-outline" size={24} color={COLORS.success} />
+                  </View>
+                  <Text style={styles.statValue}>{userStats.activeUsers}</Text>
+                  <Text style={styles.statLabel}>Active Users</Text>
+                </View>
               </View>
-            </View>
-          )}
-        </View>
+            )}
+          </View>
+        )}
 
         {/* Order Status Summary */}
         <View style={styles.section}>
@@ -321,121 +333,125 @@ export const AdminDashboardScreen: React.FC = () => {
         </View>
 
         {/* Revenue Analytics */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="cash-outline" size={20} color={COLORS.primary} />
-            <Text style={styles.sectionTitle}>Revenue Analytics</Text>
-          </View>
-
-          {/* Date Range Selector */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.dateRangeContainer}
-            contentContainerStyle={styles.dateRangeContent}
-          >
-            {dateRangeOptions.map((option) => (
-              <TouchableOpacity
-                key={option.value}
-                style={[
-                  styles.dateRangeButton,
-                  dateRange === option.value && styles.dateRangeButtonActive,
-                ]}
-                onPress={() => setDateRange(option.value)}
-              >
-                <Text
-                  style={[
-                    styles.dateRangeText,
-                    dateRange === option.value && styles.dateRangeTextActive,
-                  ]}
-                >
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {/* Revenue Card */}
-          <View style={styles.revenueCard}>
-            <View style={styles.revenueHeader}>
-              <Text style={styles.revenueLabel}>Total Revenue</Text>
-              <Ionicons name="checkmark-circle" size={20} color={COLORS.primary} />
+        {canViewRevenue && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="cash-outline" size={20} color={COLORS.primary} />
+              <Text style={styles.sectionTitle}>Revenue Analytics</Text>
             </View>
-            {revenueLoading ? (
-              <View style={styles.revenueLoading}>
-                <ActivityIndicator size="small" color={COLORS.primary} />
-                <Text style={styles.revenueLoadingText}>Loading...</Text>
-              </View>
-            ) : (
-              <>
-                <Text style={styles.revenueAmount}>
-                  ₹{revenue?.revenue.toLocaleString('en-IN') || '0'}
-                </Text>
-                <View style={styles.revenueBreakdown}>
-                  <Text style={styles.revenueBreakdownText}>
-                    Orders: ₹{revenue?.orderRevenue.toLocaleString('en-IN') || '0'} (
-                    {revenue?.orderCount || 0} order{revenue?.orderCount !== 1 ? 's' : ''})
-                  </Text>
-                  <Text style={styles.revenueBreakdownText}>
-                    Subscriptions: ₹{revenue?.subscriptionRevenue.toLocaleString('en-IN') || '0'} (
-                    {revenue?.subscriptionCount || 0} purchase
-                    {revenue?.subscriptionCount !== 1 ? 's' : ''})
-                  </Text>
-                </View>
-              </>
-            )}
-          </View>
 
-          {/* Export Button */}
-          <TouchableOpacity
-            style={[
-              styles.exportButton,
-              (exportLoading || !revenue?.orders || revenue.orders.length === 0) &&
-              styles.exportButtonDisabled,
-            ]}
-            onPress={handleExportCSV}
-            disabled={exportLoading || !revenue?.orders || revenue.orders.length === 0}
-          >
-            {exportLoading ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <>
-                <Ionicons name="download-outline" size={20} color="#FFFFFF" />
-                <Text style={styles.exportButtonText}>
-                  Export CSV Report ({revenue?.orders.length || 0} orders)
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
+            {/* Date Range Selector */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.dateRangeContainer}
+              contentContainerStyle={styles.dateRangeContent}
+            >
+              {dateRangeOptions.map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.dateRangeButton,
+                    dateRange === option.value && styles.dateRangeButtonActive,
+                  ]}
+                  onPress={() => setDateRange(option.value)}
+                >
+                  <Text
+                    style={[
+                      styles.dateRangeText,
+                      dateRange === option.value && styles.dateRangeTextActive,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Revenue Card */}
+            <View style={styles.revenueCard}>
+              <View style={styles.revenueHeader}>
+                <Text style={styles.revenueLabel}>Total Revenue</Text>
+                <Ionicons name="checkmark-circle" size={20} color={COLORS.primary} />
+              </View>
+              {revenueLoading ? (
+                <View style={styles.revenueLoading}>
+                  <ActivityIndicator size="small" color={COLORS.primary} />
+                  <Text style={styles.revenueLoadingText}>Loading...</Text>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.revenueAmount}>
+                    ₹{revenue?.revenue.toLocaleString('en-IN') || '0'}
+                  </Text>
+                  <View style={styles.revenueBreakdown}>
+                    <Text style={styles.revenueBreakdownText}>
+                      Orders: ₹{revenue?.orderRevenue.toLocaleString('en-IN') || '0'} (
+                      {revenue?.orderCount || 0} order{revenue?.orderCount !== 1 ? 's' : ''})
+                    </Text>
+                    <Text style={styles.revenueBreakdownText}>
+                      Subscriptions: ₹{revenue?.subscriptionRevenue.toLocaleString('en-IN') || '0'} (
+                      {revenue?.subscriptionCount || 0} purchase
+                      {revenue?.subscriptionCount !== 1 ? 's' : ''})
+                    </Text>
+                  </View>
+                </>
+              )}
+            </View>
+
+            {/* Export Button */}
+            <TouchableOpacity
+              style={[
+                styles.exportButton,
+                (exportLoading || !revenue?.orders || revenue.orders.length === 0) &&
+                styles.exportButtonDisabled,
+              ]}
+              onPress={handleExportCSV}
+              disabled={exportLoading || !revenue?.orders || revenue.orders.length === 0}
+            >
+              {exportLoading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="download-outline" size={20} color="#FFFFFF" />
+                  <Text style={styles.exportButtonText}>
+                    Export CSV Report ({revenue?.orders.length || 0} orders)
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Quick Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.quickActionsGrid}>
-            <TouchableOpacity
-              style={styles.quickActionCard}
-              onPress={() => (navigation as any).navigate('Admin', { screen: 'AdminTabs', params: { screen: 'Orders' } })}
-            >
-              <Ionicons name="bag" size={32} color={COLORS.primary} />
-              <Text style={styles.quickActionText}>Manage Orders</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.quickActionCard}
-              onPress={() => (navigation as any).navigate('Admin', { screen: 'AdminTabs', params: { screen: 'Subscriptions' } })}
-            >
-              <Ionicons name="card" size={32} color={COLORS.primary} />
-              <Text style={styles.quickActionText}>Subscriptions</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.quickActionCard}
-              onPress={() => (navigation as any).navigate('Admin', { screen: 'AdminDemand' })}
-            >
-              <Ionicons name="map" size={32} color={COLORS.primary} />
-              <Text style={styles.quickActionText}>Demand Heatmap</Text>
-            </TouchableOpacity>
+        {canViewQuickActions && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <View style={styles.quickActionsGrid}>
+              <TouchableOpacity
+                style={styles.quickActionCard}
+                onPress={() => (navigation as any).navigate('Admin', { screen: 'AdminTabs', params: { screen: 'Orders' } })}
+              >
+                <Ionicons name="bag" size={32} color={COLORS.primary} />
+                <Text style={styles.quickActionText}>Manage Orders</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quickActionCard}
+                onPress={() => (navigation as any).navigate('Admin', { screen: 'AdminTabs', params: { screen: 'Subscriptions' } })}
+              >
+                <Ionicons name="card" size={32} color={COLORS.primary} />
+                <Text style={styles.quickActionText}>Subscriptions</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quickActionCard}
+                onPress={() => (navigation as any).navigate('Admin', { screen: 'AdminDemand' })}
+              >
+                <Ionicons name="map" size={32} color={COLORS.primary} />
+                <Text style={styles.quickActionText}>Demand Heatmap</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        )}
       </ScrollView>
     </View>
   );

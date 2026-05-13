@@ -22,6 +22,7 @@ import { useUIStore } from '../../store/uiStore';
 import { format, addDays, startOfToday } from 'date-fns';
 import { BrandLoader } from '../../components/BrandLoader';
 import { subscribeToAllOrdersAdmin, checkSlotAvailabilityAdmin, scheduleOrderDeliveryAdmin } from '../../services/adminFirestore';
+import { useAdminPermissions } from '../../store/useAdminPermissions';
 
 // Status tabs configuration - mirroring SpinZo flow
 const STATUS_TABS = [
@@ -51,6 +52,22 @@ export const AdminOrdersScreen: React.FC = () => {
     updateOrderStatus
   } = useAdminStore();
   const { showAlert } = useUIStore();
+  const {
+    canViewDelivered,
+    canViewCancelled,
+    canViewCustomerPhone,
+    canViewCustomerLocation,
+    canViewCustomerWhatsApp
+  } = useAdminPermissions();
+
+  // Filter tabs based on role
+  const visibleTabs = useMemo(() => {
+    return STATUS_TABS.filter(tab => {
+      if (tab.id === 'delivered' && !canViewDelivered) return false;
+      if (tab.id === 'cancelled' && !canViewCancelled) return false;
+      return true;
+    });
+  }, [canViewDelivered, canViewCancelled]);
 
   // Local State
   const [activeTab, setActiveTab] = useState('confirmed');
@@ -657,36 +674,51 @@ export const AdminOrdersScreen: React.FC = () => {
           <TouchableOpacity
             style={styles.row}
             onPress={() => {
+              if (!canViewCustomerPhone) return;
               const phoneNumber = item.customerPhone?.replace(/\D/g, '');
               if (phoneNumber) {
                 Linking.openURL(`tel:${phoneNumber}`);
               }
             }}
+            disabled={!canViewCustomerPhone}
           >
-            <Ionicons name="call-outline" size={14} color={COLORS.primary} />
-            <Text style={[styles.customerPhone, { color: COLORS.primary, textDecorationLine: 'underline' }]}>{item.customerPhone || 'No Phone'}</Text>
+            <Ionicons name="call-outline" size={14} color={canViewCustomerPhone ? COLORS.primary : COLORS.textSecondary} />
+            <Text style={[styles.customerPhone, { 
+              color: canViewCustomerPhone ? COLORS.primary : COLORS.textSecondary, 
+              textDecorationLine: canViewCustomerPhone ? 'underline' : 'none' 
+            }]}>
+              {canViewCustomerPhone 
+                ? (item.customerPhone || 'No Phone') 
+                : (item.customerPhone ? `******${item.customerPhone.slice(-4)}` : 'No Phone')}
+            </Text>
           </TouchableOpacity>
           <View style={[styles.row, { alignItems: 'flex-start' }]}>
             <Ionicons name="location-outline" size={14} color={COLORS.textSecondary} style={{ marginTop: 2 }} />
             <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={[styles.addressText, { flex: 1 }]} numberOfLines={2}>
-                {typeof item.address === 'string' ? item.address : (item.address?.formattedAddress || 'No Address')}
+              <Text style={[styles.addressText, { flex: 1, color: canViewCustomerLocation ? COLORS.textSecondary : COLORS.text + '80' }]} numberOfLines={2}>
+                {canViewCustomerLocation 
+                  ? (typeof item.address === 'string' ? item.address : (item.address?.formattedAddress || 'No Address'))
+                  : 'Location hidden for privacy'}
               </Text>
               <View style={{ flexDirection: 'row', gap: 12 }}>
-                <TouchableOpacity
-                  onPress={() => handleWhatsAppContact(item)}
-                  style={styles.whatsappButton}
-                >
-                  <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
-                  <Text style={[styles.directionsText, { color: '#25D366' }]}>WhatsApp</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => handleGetDirections(item)}
-                  style={styles.directionsButton}
-                >
-                  <Ionicons name="navigate-circle" size={24} color={COLORS.primary} />
-                  <Text style={styles.directionsText}>Directions</Text>
-                </TouchableOpacity>
+                {canViewCustomerWhatsApp && (
+                  <TouchableOpacity
+                    onPress={() => handleWhatsAppContact(item)}
+                    style={styles.whatsappButton}
+                  >
+                    <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
+                    <Text style={[styles.directionsText, { color: '#25D366' }]}>WhatsApp</Text>
+                  </TouchableOpacity>
+                )}
+                {canViewCustomerLocation && (
+                  <TouchableOpacity
+                    onPress={() => handleGetDirections(item)}
+                    style={styles.directionsButton}
+                  >
+                    <Ionicons name="navigate-circle" size={24} color={COLORS.primary} />
+                    <Text style={styles.directionsText}>Directions</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           </View>
@@ -858,7 +890,7 @@ export const AdminOrdersScreen: React.FC = () => {
       }
     });
 
-    return STATUS_TABS.map(tab => ({
+    return visibleTabs.map(tab => ({
       ...tab,
       label: tab.id === 'confirmed' ? 'New' : tab.label, // Rename Confirmed -> New
       count: counts[tab.id] || 0

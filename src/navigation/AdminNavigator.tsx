@@ -5,7 +5,7 @@ import { View, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../utils/constants';
-import { useAdminAuthStore } from '../store';
+import { useAdminAuthStore, useAdminPermissions } from '../store';
 import { BrandLoader } from '../components/BrandLoader';
 
 // Admin screens (will be created)
@@ -35,6 +35,8 @@ const Tab = createBottomTabNavigator();
 
 // Admin Tab Navigator
 const AdminTabs = () => {
+  const { canViewSubscriptions } = useAdminPermissions();
+
   return (
     <Suspense fallback={<></>}>
       <Tab.Navigator
@@ -71,16 +73,18 @@ const AdminTabs = () => {
             ),
           }}
         />
-        <Tab.Screen
-          name="Subscriptions"
-          component={AdminSubscriptionsScreen}
-          options={{
-            tabBarLabel: 'Subscriptions',
-            tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-              <Ionicons name="card" size={size} color={color} />
-            ),
-          }}
-        />
+        {canViewSubscriptions && (
+          <Tab.Screen
+            name="Subscriptions"
+            component={AdminSubscriptionsScreen}
+            options={{
+              tabBarLabel: 'Subscriptions',
+              tabBarIcon: ({ color, size }: { color: string; size: number }) => (
+                <Ionicons name="card" size={size} color={color} />
+              ),
+            }}
+          />
+        )}
         <Tab.Screen
           name="Settings"
           component={AdminSettingsScreen}
@@ -98,7 +102,7 @@ const AdminTabs = () => {
 
 // Admin Stack Navigator
 export const AdminNavigator = () => {
-  const { adminPhone } = useAdminAuthStore();
+  const { adminPhone, adminRole } = useAdminAuthStore();
   const navigation = useNavigation<any>();
 
   React.useEffect(() => {
@@ -114,6 +118,16 @@ export const AdminNavigator = () => {
       </View>
     );
   }
+
+  // Ensure role is loaded before showing the dashboard to prevent "restricted view" flash on reload
+  if (!adminRole) {
+    return (
+      <View style={{ flex: 1, backgroundColor: COLORS.background, alignItems: 'center', justifyContent: 'center' }}>
+        <BrandLoader message="Verifying Admin Permissions..." />
+      </View>
+    );
+  }
+
 
   return (
     <Suspense fallback={<View style={{ flex: 1, backgroundColor: COLORS.background, alignItems: 'center', justifyContent: 'center' }}><BrandLoader /></View>}>

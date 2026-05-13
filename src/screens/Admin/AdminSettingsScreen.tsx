@@ -9,12 +9,14 @@ import { COLORS, SPACING, TYPOGRAPHY, RADIUS } from '../../utils/constants';
 export const AdminSettingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { adminPhone, logout } = useAdminAuthStore();
+  const { adminPhone, adminName, adminRole, logout } = useAdminAuthStore();
 
   const handleLogout = async () => {
     await logout();
     (navigation as any).navigate('AdminLogin');
   };
+
+  const displayRole = adminRole === 'super_admin' ? 'Super Administrator' : 'Restricted Admin';
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -25,7 +27,8 @@ export const AdminSettingsScreen: React.FC = () => {
       <View style={styles.content}>
         <View style={styles.profileCard}>
           <Ionicons name="shield-checkmark" size={48} color={COLORS.primary} />
-          <Text style={styles.profileTitle}>Administrator</Text>
+          <Text style={styles.profileTitle}>{adminName || 'Administrator'}</Text>
+          <Text style={styles.profilePhone}>{displayRole}</Text>
           <Text style={styles.profilePhone}>{adminPhone}</Text>
         </View>
 

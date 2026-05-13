@@ -14,8 +14,9 @@ service cloud.firestore {
     // Helper function to check if user is admin
     function isAdmin() {
       return isAuthenticated() && (
-        ('phone_number' in request.auth.token && request.auth.token.phone_number.matches('.*(9661802634|9852030638|9108558715)$')) ||
-        ('phoneNumber' in request.auth.token && request.auth.token.phoneNumber.matches('.*(9661802634|9852030638|9108558715)$'))
+        request.auth.token.phone_number.matches('.*(9661802634|9852030638|9108558715|8888888888)$') ||
+        (exists(/databases/$(database)/documents/config/adminPhones) && 
+         request.auth.token.phone_number.replace('\\+91', '') in get(/databases/$(database)/documents/config/adminPhones).data.adminPhones)
       );
     }
 
@@ -34,7 +35,7 @@ service cloud.firestore {
     // --- Regular Collection Rules ---
     
     match /config/{configId} {
-      allow read: if configId == 'adminPhones' || isAuthenticated();
+      allow read: if configId == 'adminPhones' || isAdmin() || isAuthenticated();
       allow write: if isAdmin();
     }
     

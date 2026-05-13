@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore, useSubscriptionStore, useAdminAuthStore, useUIStore } from '../store';
 import { getCart, saveCart, getUserAddresses, getUser } from '../services/firestore';
+import { getAdminRole } from '../services/adminFirestore';
 import { auth, adminAuth, onAuthStateChanged } from '../services/firebase';
 import { useCartStore, useAddressStore } from '../store';
 import { COLORS, TYPOGRAPHY, SHADOWS } from '../utils/constants';
@@ -268,17 +269,35 @@ export const RootNavigator: React.FC = () => {
     });
 
     // Listen to ADMIN App Auth
-    const unsubscribeAdmin = onAuthStateChanged(adminAuth, (adminUser) => {
+    const unsubscribeAdmin = onAuthStateChanged(adminAuth, async (adminUser) => {
       if (adminUser) {
         console.log('✅ Admin session detected on load:', adminUser.phoneNumber);
+        
+        // Update basic info immediately
         useAdminAuthStore.setState({
           isAdmin: true,
           adminPhone: adminUser.phoneNumber,
         });
+
+        // Fetch role and name to restore full permissions
+        try {
+          if (adminUser.phoneNumber) {
+            const roleInfo = await getAdminRole(adminUser.phoneNumber);
+            console.log('[ADMIN AUTH] Restored Role:', roleInfo.role);
+            useAdminAuthStore.setState({
+              adminRole: roleInfo.role,
+              adminName: roleInfo.name,
+            });
+          }
+        } catch (error) {
+          console.error('[ADMIN AUTH] Failed to restore admin role:', error);
+        }
       } else {
         useAdminAuthStore.setState({
           isAdmin: false,
           adminPhone: null,
+          adminRole: null,
+          adminName: null,
         });
       }
     });

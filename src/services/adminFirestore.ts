@@ -19,8 +19,17 @@ import { generateOTP } from '../utils/otpHelpers';
 import { SLOT_CONSTANTS } from '../utils/slotUtils';
 
 /**
+ * Admin role types for RBAC
+ * - super_admin: Full access to all features
+ * - store_admin: Limited dashboard, no revenue/stats, AND no customer PII (masked phone, hidden location/whatsapp)
+ * - delivery_partner: Limited dashboard, but HAS full access to customer PII for fulfillment
+ * - restricted: Legacy role (maps to delivery_partner)
+ */
+export type AdminRole = 'super_admin' | 'store_admin' | 'delivery_partner' | 'restricted';
+
+/**
  * Get list of admin phone numbers from Firestore config
- * Stored as a map for easy lookup in security rules: { "9108558715": true, "SECOND_NUMBER": true }
+ * Supports both legacy format ({ "phone": true }) and new role format ({ "phone": { role: "...", name: "..." } })
  */
 export const getAdminPhones = async (): Promise<string[]> => {
   try {
@@ -29,16 +38,21 @@ export const getAdminPhones = async (): Promise<string[]> => {
 
     if (configSnap.exists()) {
       const data = configSnap.data();
-      // Convert map to array
       if (data.adminPhones && typeof data.adminPhones === 'object') {
-        return Object.keys(data.adminPhones).filter(key => data.adminPhones[key] === true);
+        // Support both old format (value === true) and new format (value === object with role)
+        return Object.keys(data.adminPhones).filter(key => {
+          const val = data.adminPhones[key];
+          return val === true || (typeof val === 'object' && val !== null);
+        });
       }
       // Fallback to array format (legacy)
       return data.adminPhones || [];
     }
 
-    // If config doesn't exist, create it with default admin phones as a map
-    const defaultAdminPhones = { '9108558715': true }; // Add second number later
+    // If config doesn't exist, create it with default admin phones in new role format
+    const defaultAdminPhones = {
+      '9108558715': { role: 'super_admin', name: 'Admin' },
+    };
     await setDoc(configRef, {
       adminPhones: defaultAdminPhones,
       updatedAt: Timestamp.now(),
@@ -47,7 +61,6 @@ export const getAdminPhones = async (): Promise<string[]> => {
     return Object.keys(defaultAdminPhones);
   } catch (error) {
     console.error('Error getting admin phones:', error);
-    // Fallback to hardcoded list if Firestore fails
     return ['9108558715'];
   }
 };
@@ -66,16 +79,16 @@ export const isAdminPhone = async (phone: string): Promise<boolean> => {
     const cleanPhone = phone.replace(/^\+91/, '').replace(/\D/g, '').slice(-10);
 
     if (!configSnap.exists()) {
-      // Fallback to hardcoded check if config doesn't exist
       return AUTHORIZED_ADMINS.includes(cleanPhone);
     }
 
     const data = configSnap.data();
     const adminPhones = data.adminPhones || {};
 
-    // Check if phone exists in map (preferred)
+    // Check if phone exists in map — support both old (true) and new ({ role }) formats
     if (typeof adminPhones === 'object' && !Array.isArray(adminPhones)) {
-      if (adminPhones[cleanPhone] === true) return true;
+      const entry = adminPhones[cleanPhone];
+      if (entry === true || (typeof entry === 'object' && entry !== null)) return true;
     }
 
     // Fallback to array check or hardcoded list
@@ -88,9 +101,62 @@ export const isAdminPhone = async (phone: string): Promise<boolean> => {
     return isAuthorized || AUTHORIZED_ADMINS.indexOf(cleanPhone) !== -1;
   } catch (error) {
     console.error('Error checking admin phone:', error);
-    // Safe fallback to hardcoded list
     const cleanPhone = phone.replace(/^\+91/, '').replace(/\D/g, '').slice(-10);
     return AUTHORIZED_ADMINS.indexOf(cleanPhone) !== -1;
+  }
+};
+
+/**
+ * Get the admin role for a phone number.
+ * Returns 'super_admin' for legacy entries (value === true) and hardcoded admins.
+ * Returns the stored role for new format entries.
+ */
+export const getAdminRole = async (phone: string): Promise<{ role: AdminRole; name: string }> => {
+  const AUTHORIZED_ADMINS = ['9661802634', '9852030638', '9108558715'];
+  const cleanPhone = phone.replace(/^\+91/, '').replace(/\D/g, '').slice(-10);
+
+  try {
+    const configRef = doc(db, 'config', 'adminPhones');
+    const configSnap = await getDoc(configRef);
+
+    if (configSnap.exists()) {
+      const data = configSnap.data();
+      const adminPhones = data.adminPhones || {};
+
+      if (typeof adminPhones === 'object' && !Array.isArray(adminPhones)) {
+        const entry = adminPhones[cleanPhone];
+
+        // New format: { role: 'store_admin' | 'delivery_partner', name: 'Ramesh' }
+        if (typeof entry === 'object' && entry !== null && entry.role) {
+          // Map legacy 'restricted' to 'delivery_partner' to maintain their access
+          const mappedRole = entry.role === 'restricted' ? 'delivery_partner' : entry.role;
+          return {
+            role: mappedRole as AdminRole,
+            name: entry.name || 'Admin',
+          };
+        }
+
+        // Old format: true — treat as super_admin
+        if (entry === true) {
+          return { role: 'super_admin', name: 'Admin' };
+        }
+      }
+    }
+
+    // Hardcoded admins are always super_admin
+    if (AUTHORIZED_ADMINS.includes(cleanPhone)) {
+      return { role: 'super_admin', name: 'Admin' };
+    }
+
+    // Default fallback (shouldn't reach here if isAdminPhone was checked first)
+    return { role: 'delivery_partner', name: 'Unknown' };
+  } catch (error) {
+    console.error('Error getting admin role:', error);
+    // Hardcoded admins are always super_admin
+    if (AUTHORIZED_ADMINS.includes(cleanPhone)) {
+      return { role: 'super_admin', name: 'Admin' };
+    }
+    return { role: 'delivery_partner', name: 'Unknown' };
   }
 };
 

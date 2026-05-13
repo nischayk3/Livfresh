@@ -7,7 +7,8 @@ import {
 import { Platform } from 'react-native';
 // ConfirmationResult is a type-only import for cross-platform
 import type { ConfirmationResult } from 'firebase/auth';
-import { isAdminPhone } from '../services/adminFirestore';
+import { isAdminPhone, getAdminRole } from '../services/adminFirestore';
+import type { AdminRole } from '../services/adminFirestore';
 
 // Store OTP confirmation result during admin verification flow
 let currentAdminConfirmationResult: ConfirmationResult | null = null;
@@ -35,6 +36,8 @@ const getVerifier = () => {
 interface AdminAuthState {
   isAdmin: boolean;
   adminPhone: string | null;
+  adminRole: AdminRole | null;
+  adminName: string | null;
   loading: boolean;
   error: string | null;
 
@@ -57,6 +60,8 @@ interface AdminAuthState {
 export const useAdminAuthStore = create<AdminAuthState>((set, get) => ({
   isAdmin: false,
   adminPhone: null,
+  adminRole: null,
+  adminName: null,
   loading: false,
   error: null,
 
@@ -157,10 +162,15 @@ export const useAdminAuthStore = create<AdminAuthState>((set, get) => ({
       if (TEST_MODE && currentAdminConfirmationResult.verificationId === 'TEST_VERIFICATION_ID') {
         // Accept any 6-digit OTP in test mode
         if (otp.length === 6 && /^\d+$/.test(otp)) {
+          // Fetch role for test mode
+          const roleInfo = await getAdminRole(currentAdminPhoneNumber);
+
           // Set admin state with test phone
           set({
             isAdmin: true,
             adminPhone: currentAdminPhoneNumber,
+            adminRole: roleInfo.role,
+            adminName: roleInfo.name,
             loading: false
           });
 
@@ -193,10 +203,15 @@ export const useAdminAuthStore = create<AdminAuthState>((set, get) => ({
         throw new Error('This phone number is not authorized for admin access');
       }
 
-      // Set admin state
+      // Fetch role after successful auth
+      const roleInfo = await getAdminRole(user.phoneNumber);
+
+      // Set admin state with role
       set({
         isAdmin: true,
         adminPhone: user.phoneNumber,
+        adminRole: roleInfo.role,
+        adminName: roleInfo.name,
         loading: false
       });
 
@@ -226,6 +241,8 @@ export const useAdminAuthStore = create<AdminAuthState>((set, get) => ({
       set({
         isAdmin: false,
         adminPhone: null,
+        adminRole: null,
+        adminName: null,
         error: null
       });
 

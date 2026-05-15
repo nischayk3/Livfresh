@@ -36,6 +36,10 @@ export const useAdminPermissions = () => {
     /** Subscriptions tab in footer */
     canViewSubscriptions: isSuperAdmin,
 
+    // ── Settings & Configuration ──
+    /** Service Availability toggles (high demand pause) */
+    canManageServiceAvailability: isSuperAdmin,
+
     // ── Customer PII (Personally Identifiable Information) ──
     /** Can view full customer phone number (false = masked to last 4 digits) */
     canViewCustomerPhone: !isStoreAdmin,

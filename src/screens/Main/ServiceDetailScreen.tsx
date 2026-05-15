@@ -28,7 +28,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { COLORS, SPACING, SHADOWS, RADIUS, TYPOGRAPHY } from '../../utils/constants';
-import { useCartStore, useUIStore, useAuthStore } from '../../store';
+import { useCartStore, useUIStore, useAuthStore, useServiceAvailabilityStore, isActiveService } from '../../store';
 import { uploadServicePhotos } from '../../services/firestore';
 import { CartItem } from '../../store/cartStore';
 import { trackPixelEvent } from '../../utils/pixel';
@@ -106,6 +106,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   const insets = useSafeAreaInsets();
   const { addItem } = useCartStore();
   const { showAlert } = useUIStore();
+  const { availability, fetchAvailability } = useServiceAvailabilityStore();
 
   const [vendor, setVendor] = useState<any>(null);
   const [service, setService] = useState<any>(null);
@@ -183,6 +184,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   useEffect(() => {
     if (visible) {
       loadData();
+      fetchAvailability();
     }
   }, [visible, vendorId, serviceId]);
 
@@ -504,6 +506,19 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
   const handleAddToCart = async () => {
     if (!service) return;
+
+    // Check if service is available (only check for our 4 active services)
+    if (isActiveService(serviceId)) {
+      const isAvailable = availability[serviceId];
+      if (!isAvailable) {
+        showAlert({
+          title: 'Service Temporarily Unavailable',
+          message: 'Due to high demand, we are not currently accepting orders for this service. Please try again later.',
+          type: 'warning'
+        });
+        return;
+      }
+    }
 
     const totalPrice = calculateTotal();
 
@@ -1364,32 +1379,55 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
             </Animated.ScrollView>
 
             {/* Floating Premium Footer */}
-            <View style={[styles.floatingFooter, { bottom: insets.bottom + 16 }]}>
-              <View style={styles.footerGlass}>
-                <View style={styles.priceContainer}>
-                  <Text style={styles.priceLabel}>Estimated Total</Text>
-                  <Text style={styles.totalPrice}>₹{calculateTotal()}</Text>
+            {(() => {
+              // Only check availability for our 4 active services
+              const isServiceActive = isActiveService(serviceId);
+              const isServiceAvailable = !isServiceActive || availability[serviceId];
+              const canAddToCart = calculateTotal() > 0 && isServiceAvailable;
+
+              return (
+                <View style={[styles.floatingFooter, { bottom: insets.bottom + 16 }]}>
+                  <View style={[styles.footerGlass, !isServiceAvailable && styles.footerGlassDisabled]}>
+                    {isServiceAvailable ? (
+                      <>
+                        <View style={styles.priceContainer}>
+                          <Text style={styles.priceLabel}>Estimated Total</Text>
+                          <Text style={styles.totalPrice}>₹{calculateTotal()}</Text>
+                        </View>
+                        <AnimatedButton
+                          style={[
+                            styles.addToCartButton,
+                            !canAddToCart ? styles.addToCartButtonDisabled : {}
+                          ]}
+                          onPress={handleAddToCart}
+                          disabled={!canAddToCart}
+                        >
+                          <LinearGradient
+                            colors={canAddToCart ? [COLORS.primary, COLORS.primaryDark] : ['#9CA3AF', '#6B7280']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={styles.addToCartGradient}
+                          >
+                            <Text style={styles.addToCartText}>Add to Cart</Text>
+                            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                          </LinearGradient>
+                        </AnimatedButton>
+                      </>
+                    ) : (
+                      <View style={styles.unavailableContainer}>
+                        <View style={styles.unavailableInfo}>
+                          <Ionicons name="warning" size={20} color="#DC2626" />
+                          <View style={styles.unavailableTextContainer}>
+                            <Text style={styles.unavailableTitle}>High Demand</Text>
+                            <Text style={styles.unavailableText}>Currently not accepting orders</Text>
+                          </View>
+                        </View>
+                      </View>
+                    )}
+                  </View>
                 </View>
-                <AnimatedButton
-                  style={[
-                    styles.addToCartButton,
-                    calculateTotal() === 0 ? styles.addToCartButtonDisabled : {}
-                  ]}
-                  onPress={handleAddToCart}
-                  disabled={calculateTotal() === 0}
-                >
-                  <LinearGradient
-                    colors={calculateTotal() === 0 ? ['#9CA3AF', '#6B7280'] : [COLORS.primary, COLORS.primaryDark]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.addToCartGradient}
-                  >
-                    <Text style={styles.addToCartText}>Add to Cart</Text>
-                    <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-                  </LinearGradient>
-                </AnimatedButton>
-              </View>
-            </View>
+              );
+            })()}
           </View>
         </KeyboardAvoidingView>
       </View>
@@ -2093,6 +2131,37 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     marginVertical: SPACING.md,
+  },
+  footerGlassDisabled: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+  },
+  unavailableContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.sm,
+  },
+  unavailableInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  unavailableTextContainer: {
+    flex: 1,
+  },
+  unavailableTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#DC2626',
+    fontFamily: 'Outfit_700Bold',
+  },
+  unavailableText: {
+    fontSize: 12,
+    color: '#7F1D1D',
+    fontFamily: 'Outfit_500Medium',
   },
 });
 

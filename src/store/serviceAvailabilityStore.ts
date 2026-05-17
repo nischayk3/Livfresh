@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { doc, getDoc, setDoc, onSnapshot } from '../services/firebase';
-import { db } from '../services/firebase';
+import { db, adminDb, adminAuth } from '../services/firebase';
 
 /**
  * Only 4 active services that customers can order:
@@ -41,7 +41,8 @@ export const useServiceAvailabilityStore = create<ServiceAvailabilityState>((set
     try {
       set({ isLoading: true });
 
-      const configRef = doc(db, 'config', 'serviceAvailability');
+      const activeDb = adminAuth.currentUser ? adminDb : db;
+      const configRef = doc(activeDb, 'config', 'serviceAvailability');
       const configSnap = await getDoc(configRef);
 
       if (configSnap.exists()) {
@@ -76,7 +77,8 @@ export const useServiceAvailabilityStore = create<ServiceAvailabilityState>((set
       set({ availability: newAvailability });
 
       // Persist to Firestore - only save the 4 active services
-      await setDoc(doc(db, 'config', 'serviceAvailability'), newAvailability);
+      const activeDb = adminAuth.currentUser ? adminDb : db;
+      await setDoc(doc(activeDb, 'config', 'serviceAvailability'), newAvailability);
     } catch (error) {
       console.error('Error toggling service availability:', error);
       // Revert on error

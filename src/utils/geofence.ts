@@ -70,6 +70,23 @@ export const SERVICE_ZONES: ServiceZone[] = [
     },
 ];
 
+// Precise Polygon boundaries for SpinZo Service Area (Map Coordinates)
+export const NEW_MAP_POLYGON: Coordinate[] = [
+    { latitude: 12.923192293, longitude: 77.654096423 },
+    { latitude: 12.904117846, longitude: 77.654096423 },
+    { latitude: 12.903364877, longitude: 77.650663195 },
+    { latitude: 12.898010369, longitude: 77.637187777 },
+    { latitude: 12.899641831, longitude: 77.611824816 },
+    { latitude: 12.906376736, longitude: 77.585689372 },
+    { latitude: 12.916750645, longitude: 77.585689372 },
+    { latitude: 12.916750645, longitude: 77.580196208 },
+    { latitude: 12.943770981, longitude: 77.579938716 },
+    { latitude: 12.953934221, longitude: 77.5944441 },
+    { latitude: 12.944398355, longitude: 77.607576196 },
+    { latitude: 12.945234849, longitude: 77.629677594 },
+    { latitude: 12.923192293, longitude: 77.654096423 }, // closes loop
+];
+
 /**
  * Calculates the distance between two coordinates in meters using the Haversine formula.
  */
@@ -91,23 +108,38 @@ export const calculateDistance = (coord1: Coordinate, coord2: Coordinate): numbe
 };
 
 /**
- * Checks if a location is inside any of the defined service zones.
+ * Checks if a coordinate is inside a polygon using the Ray-Casting algorithm.
+ */
+export const isPointInPolygon = (point: Coordinate, polygon: Coordinate[]): boolean => {
+    const x = point.longitude;
+    const y = point.latitude;
+
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i].longitude;
+        const yi = polygon[i].latitude;
+        const xj = polygon[j].longitude;
+        const yj = polygon[j].latitude;
+
+        const intersect = ((yi > y) !== (yj > y))
+            && (x < ((xj - xi) * (y - yi)) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+    }
+
+    return inside;
+};
+
+/**
+ * Checks if a location is inside the defined polygon service zone.
  * @returns {boolean} True if serviceable, False otherwise.
  */
 export const isLocationServiceable = (location: Coordinate): boolean => {
-    return SERVICE_ZONES.some(zone => {
-        const distance = calculateDistance(location, zone.center);
-        return distance <= zone.radiusMeters;
-    });
+    return isPointInPolygon(location, NEW_MAP_POLYGON);
 };
 
 /**
  * Returns the name of the service zone the location belongs to, or null if unserviceable.
  */
 export const getServiceZoneName = (location: Coordinate): string | null => {
-    const zone = SERVICE_ZONES.find(z => {
-        const distance = calculateDistance(location, z.center);
-        return distance <= z.radiusMeters;
-    });
-    return zone ? zone.name : null;
+    return isLocationServiceable(location) ? 'SpinZo Service Area' : null;
 };

@@ -33,27 +33,27 @@ export const SubscriptionSuccessScreen: React.FC = () => {
 
         // Auto-navigate to Credits tab after 3 seconds
         const timer = setTimeout(() => {
-            navigation.navigate('Main' as never, {
+            (navigation as any).navigate('Main', {
                 screen: 'MainTabs',
                 params: { screen: 'Credits' }
-            } as never);
+            });
         }, 3000);
 
         return () => clearTimeout(timer);
     }, [navigation, scaleValue, fadeValue]);
 
     const handleBackHome = () => {
-        navigation.navigate('Main' as never, {
+        (navigation as any).navigate('Main', {
             screen: 'MainTabs',
             params: { screen: 'Home' }
-        } as never);
+        });
     };
 
     const handleViewCredits = () => {
-        navigation.navigate('Main' as never, {
+        (navigation as any).navigate('Main', {
             screen: 'MainTabs',
             params: { screen: 'Credits' }
-        } as never);
+        });
     };
 
     return (

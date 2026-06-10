@@ -138,3 +138,9 @@ eas submit --platform ios --profile production --latest
 
 ----update----
 npx eas update --branch production --message "Per-kg pricing and analytics updates"
+
+1st api key
+// "ANTHROPIC_API_KEY": "sk-vfoYXve2UdBhnHoDcKYeq77z6adaLmAhg8M1K9MZuUajcsA2lrdYQhtLsB98UzbD",
+
+2nd api key
+"ANTHROPIC_API_KEY": "sk-xh36vAT9ybTBWrlnIbtewbnBTw3SEMR7mHZrUzt7HunAAsQBCvjrNtGbsGtO89Mf",

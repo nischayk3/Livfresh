@@ -95,7 +95,7 @@ export const CartScreen: React.FC = () => {
     // Coupon Logic
     const isFirstOrder = orderCount === 0;
     const isNextTwoOrders = orderCount === 1 || orderCount === 2;
-    const MIN_CART_VALUE = 500;
+    const MIN_CART_VALUE = 700;
     const STANDARD_DISCOUNT = 100;
 
     const timeSlots = generateTimeSlots();
@@ -108,11 +108,11 @@ export const CartScreen: React.FC = () => {
 
     // Calculate potential discount based on rules
     const getPotentialDiscount = () => {
-        if (isFirstOrder) {
-            // Flat ₹100 off, but strictly not more than subtotal
-            return Math.min(subtotal, STANDARD_DISCOUNT);
+        if (subtotal >= MIN_CART_VALUE) {
+            if (isFirstOrder || isNextTwoOrders) {
+                return STANDARD_DISCOUNT;
+            }
         }
-        if (isNextTwoOrders && subtotal >= MIN_CART_VALUE) return STANDARD_DISCOUNT;
         return 0;
     };
 
@@ -173,7 +173,7 @@ export const CartScreen: React.FC = () => {
                     message: "Offers cannot be combined with Subscription Credits.",
                     type: "info",
                 });
-            } else if (isNextTwoOrders && subtotal < MIN_CART_VALUE) {
+            } else if ((isFirstOrder || isNextTwoOrders) && subtotal < MIN_CART_VALUE) {
                 setIsDiscountApplied(false);
                 setDiscountAmount(0);
                 showAlert({
@@ -779,7 +779,7 @@ export const CartScreen: React.FC = () => {
                                             return;
                                         }
 
-                                        if (isNextTwoOrders && subtotal < MIN_CART_VALUE) {
+                                        if ((isFirstOrder || isNextTwoOrders) && subtotal < MIN_CART_VALUE) {
                                             showAlert({
                                                 title: "Cart Value Too Low",
                                                 message: `Add items worth ₹${MIN_CART_VALUE - subtotal} more to apply this coupon!`,
@@ -825,7 +825,7 @@ export const CartScreen: React.FC = () => {
                                         {isDiscountApplied
                                             ? `Saved ₹${discountAmount} on this order`
                                             : isFirstOrder
-                                                ? "Get flat ₹100 OFF on your 1st order"
+                                                ? `Get flat ₹100 OFF on your 1st order above ₹${MIN_CART_VALUE}`
                                                 : `Get ₹${STANDARD_DISCOUNT} off over ₹${MIN_CART_VALUE}`}
                                     </Text>
                                 </View>

@@ -19,8 +19,9 @@ import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/consta
 import { createSubscription, cancelSubscription } from '../../services/firestore';
 import { useAuthStore, useUIStore } from '../../store';
 import { BrandLoader } from '../../components/BrandLoader';
+import { ASSET_URLS } from '../../utils/assetUrls';
 
-const subscriptionIllustration = require('../../../assets/subscription_illustration.png');
+const subscriptionIllustration = { uri: ASSET_URLS.subscription_illustration };
 
 type SubscriptionType = 'schedule' | 'credits';
 
@@ -28,17 +29,18 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 
 const generateTimeSlots = () => {
     const slots = [];
-    let startHour = 10; // 10 AM
-    const endHour = 20; // 8 PM
+    const startHour = 9; // 9 AM
+    const endHour = 21; // 9 PM
 
-    for (let hour = startHour; hour <= endHour; hour++) {
-        const period = hour >= 12 ? 'PM' : 'AM';
-        const displayHour = hour > 12 ? hour - 12 : hour;
+    for (let hour = startHour; hour < endHour; hour++) {
+        const startPeriod = hour >= 12 ? 'PM' : 'AM';
+        const displayStartHour = hour > 12 ? hour - 12 : (hour === 0 ? 12 : hour);
+        
+        const nextHour = hour + 1;
+        const endPeriod = nextHour >= 12 ? 'PM' : 'AM';
+        const displayEndHour = nextHour > 12 ? nextHour - 12 : (nextHour === 0 ? 12 : nextHour);
 
-        slots.push(`${displayHour}:00 ${period}`);
-        if (hour !== endHour) {
-            slots.push(`${displayHour}:30 ${period}`);
-        }
+        slots.push(`${displayStartHour}:00 ${startPeriod} - ${displayEndHour}:00 ${endPeriod}`);
     }
     return slots;
 };
@@ -57,9 +59,9 @@ export const SubscriptionScreen: React.FC = () => {
 
     // Form states for schedule
     const [pickupDay, setPickupDay] = useState('Monday');
-    const [pickupTime, setPickupTime] = useState('10:00 AM');
+    const [pickupTime, setPickupTime] = useState('10:00 AM - 11:00 AM');
     const [deliveryDay, setDeliveryDay] = useState('Tuesday');
-    const [deliveryTime, setDeliveryTime] = useState('6:00 PM');
+    const [deliveryTime, setDeliveryTime] = useState('6:00 PM - 7:00 PM');
 
     const CREDIT_PRICE = 399;
     const MONTHLY_PRICE = 1599;

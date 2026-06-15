@@ -47,13 +47,13 @@ export const AdminDashboardScreen: React.FC = () => {
       fetchUserStats();
     }
 
-    // Poll every 15 seconds for real-time updates
+    // Poll every 60 seconds for real-time updates (optimized from 15s to reduce API calls)
     const interval = setInterval(() => {
       fetchOrderStats(true);
       if (canViewUserStats) {
         fetchUserStats(true);
       }
-    }, 15000);
+    }, 60000);
 
     return () => clearInterval(interval);
   }, [fetchOrderStats, fetchUserStats, canViewUserStats]);

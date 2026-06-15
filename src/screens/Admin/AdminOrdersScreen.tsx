@@ -21,8 +21,21 @@ import { useAdminStore } from '../../store/adminStore';
 import { useUIStore } from '../../store/uiStore';
 import { format, addDays, startOfToday } from 'date-fns';
 import { BrandLoader } from '../../components/BrandLoader';
-import { subscribeToAllOrdersAdmin, checkSlotAvailabilityAdmin, scheduleOrderDeliveryAdmin } from '../../services/adminFirestore';
+import {
+  subscribeToActiveOrdersAdmin,
+  fetchOrdersByStatusPaginated,
+  getOrderStatusCounts,
+  searchOrdersAdmin,
+  clearFallbackOrdersCache,
+  checkSlotAvailabilityAdmin,
+  scheduleOrderDeliveryAdmin,
+  rescheduleOrderPickupAdmin,
+  updateOrderProcessingStepAdmin,
+  uploadOrderReadyProofAdmin
+} from '../../services/adminFirestore';
 import { useAdminPermissions } from '../../store/useAdminPermissions';
+import * as ImagePicker from 'expo-image-picker';
+import { Video, ResizeMode } from 'expo-av';
 
 // Status tabs configuration - mirroring SpinZo flow
 const STATUS_TABS = [
@@ -34,6 +47,125 @@ const STATUS_TABS = [
   { id: 'delivered', label: 'Delivered' },
   { id: 'cancelled', label: 'Cancelled' },
 ];
+
+const PROCESSING_STEP_LABELS: Record<string, string> = {
+  getting_washed: 'Getting Washed',
+  getting_folded: 'Getting Folded',
+  getting_ironed: 'Getting Ironed',
+  getting_dried: 'Getting Dried',
+};
+
+const getOrderProcessingSteps = (order: any): string[] => {
+  if (!order || !order.items || order.items.length === 0) {
+    return ['getting_washed', 'getting_folded'];
+  }
+
+  const serviceTypes = order.items.map((item: any) => item.serviceType);
+
+  const onlyIroning = serviceTypes.every((type: string) => type === 'ironing');
+  if (onlyIroning) {
+    return ['getting_ironed'];
+  }
+
+  const steps: string[] = [];
+
+  const needsWash = serviceTypes.some((type: string) => 
+    type === 'wash_fold' || 
+    type === 'wash_iron' || 
+    type === 'blanket_wash' || 
+    type === 'premium_laundry' || 
+    type === 'dry_clean' || 
+    type === 'shoe_clean'
+  );
+
+  if (needsWash) {
+    steps.push('getting_washed');
+  }
+
+  const needsDry = serviceTypes.some((type: string) => type === 'blanket_wash' || type === 'shoe_clean' || type === 'dry_clean');
+  const needsFold = serviceTypes.some((type: string) => type === 'wash_fold' || type === 'premium_laundry');
+  const needsIron = serviceTypes.some((type: string) => type === 'wash_iron' || type === 'ironing');
+
+  if (needsDry) {
+    steps.push('getting_dried');
+  }
+  if (needsFold) {
+    steps.push('getting_folded');
+  }
+  if (needsIron) {
+    steps.push('getting_ironed');
+  }
+
+  if (steps.length === 0) {
+    return ['getting_washed', 'getting_folded'];
+  }
+
+  return steps;
+};
+
+const getOrderSLADuration = (order: any): number => {
+  if (!order || !order.items || order.items.length === 0) {
+    return 8 * 60 * 60 * 1000;
+  }
+
+  const serviceTypes = order.items.map((item: any) => item.serviceType);
+
+  const has24hService = serviceTypes.some((type: string) => 
+    type === 'wash_iron' || 
+    type === 'ironing' || 
+    type === 'premium_laundry' || 
+    type === 'dry_clean' || 
+    type === 'shoe_clean'
+  );
+
+  return has24hService ? 24 * 60 * 60 * 1000 : 8 * 60 * 60 * 1000;
+};
+
+const getRemainingTimeMs = (order: any): number | null => {
+  if (!order.pickedUpAt) return null;
+  // Stop showing timer for terminal states
+  if (order.status === 'delivered' || order.status === 'cancelled') return null;
+
+  let pickedUpMs: number;
+  if (order.pickedUpAt.toDate && typeof order.pickedUpAt.toDate === 'function') {
+    pickedUpMs = order.pickedUpAt.toDate().getTime();
+  } else if (order.pickedUpAt.seconds) {
+    pickedUpMs = order.pickedUpAt.seconds * 1000;
+  } else {
+    pickedUpMs = new Date(order.pickedUpAt).getTime();
+  }
+
+  const slaDuration = getOrderSLADuration(order);
+  const deadline = pickedUpMs + slaDuration;
+  return deadline - Date.now();
+};
+
+const formatRemainingTime = (remainingMs: number): { text: string; color: string; isOverdue: boolean } => {
+  const isOverdue = remainingMs < 0;
+  const absMs = Math.abs(remainingMs);
+
+  const totalSeconds = Math.floor(absMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  const timeStr = `${hours}h ${minutes}m ${seconds}s`;
+
+  if (isOverdue) {
+    return {
+      text: `OVERDUE BY: ${timeStr}`,
+      color: '#EF4444',
+      isOverdue: true
+    };
+  } else {
+    const color = remainingMs > 2 * 60 * 60 * 1000 ? '#10B981' : '#F59E0B';
+    return {
+      text: `Remaining: ${timeStr}`,
+      color,
+      isOverdue: false
+    };
+  }
+};
 
 const CANCELLATION_REASONS = [
   "Customer didn’t pickup the call",
@@ -74,6 +206,26 @@ export const AdminOrdersScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
+  // Pagination & Optimization States
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({
+    confirmed: 0,
+    pickup_completed: 0,
+    processing: 0,
+    ready: 0,
+    out_for_delivery: 0,
+    delivered: 0,
+    cancelled: 0,
+  });
+  const [archivedOrders, setArchivedOrders] = useState<any[]>([]);
+  const [lastVisibleDoc, setLastVisibleDoc] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [isLocalLoading, setIsLocalLoading] = useState(false);
+
+  // Search Results States
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
+
   // OTP Modal State
   const [otpModalVisible, setOtpModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
@@ -103,6 +255,18 @@ export const AdminOrdersScreen: React.FC = () => {
   const [busySlotsForReschedule, setBusySlotsForReschedule] = useState<string[]>([]);
   const [isLoadingBusySlots, setIsLoadingBusySlots] = useState(false);
 
+  // Timer Tick State
+  const [tick, setTick] = useState(0);
+
+  // Proof Upload Modal States
+  const [proofModalVisible, setProofModalVisible] = useState(false);
+  const [selectedMedia, setSelectedMedia] = useState<{ uri: string; type: 'photo' | 'video' } | null>(null);
+  const [uploadingProof, setUploadingProof] = useState(false);
+  const [orderForProof, setOrderForProof] = useState<any>(null);
+
+  // Fullscreen video playback state
+  const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
+
   // Dynamic next 5 days for reschedule
   const RESCHEDULE_DATES = useMemo(() => {
     return Array.from({ length: 5 }, (_, i) => {
@@ -111,79 +275,176 @@ export const AdminOrdersScreen: React.FC = () => {
     });
   }, []);
 
-  // Initial Fetch & Real-time Listener
+  // Fetch server status counts
+  const fetchCounts = async () => {
+    try {
+      const counts = await getOrderStatusCounts();
+      setStatusCounts(counts);
+    } catch (error) {
+      console.error('Error fetching status counts:', error);
+    }
+  };
+
+  // Subscribe to ACTIVE orders in real-time
   useEffect(() => {
-    const unsubscribe = subscribeToAllOrdersAdmin((newOrders) => {
-      // Direct store update for real-time sync
+    useAdminStore.setState({ ordersLoading: true });
+    const unsubscribe = subscribeToActiveOrdersAdmin((newOrders) => {
       useAdminStore.setState({ orders: newOrders, ordersLoading: false });
     });
+    fetchCounts();
 
-    return () => unsubscribe();
+    const intervalId = setInterval(() => {
+      setTick(t => t + 1);
+    }, 1000);
+
+    return () => {
+      unsubscribe();
+      clearInterval(intervalId);
+    };
   }, []);
 
-
-
-  // Debug: Inspect raw order count
-  useEffect(() => {
-    console.log(`[UI DEBUG] Total Fetched Orders: ${orders.length}`);
-    if (orders.length > 0) {
-      // Check for any orders from today to verify "recent" fetch
-      const today = new Date().toISOString().split('T')[0];
-      const todayOrders = orders.filter(o => {
-        const created = (o.createdAt as any);
-        const d = created?.toDate ? created.toDate() : new Date(created);
-        try { return d.toISOString().split('T')[0] === today; } catch (e) { return false; }
-      });
-      console.log(`[UI DEBUG] Orders with date ${today}: ${todayOrders.length}`);
-
-      // Log top 5 orders to identify missing ones
-      console.log('[UI DEBUG] Top 5 Recent Orders:', orders.slice(0, 5).map(o => `${o.id} (${o.status})`));
+  // Load first page of archived orders
+  const loadFirstPageOfArchived = async (status: string) => {
+    setIsLocalLoading(true);
+    try {
+      const result = await fetchOrdersByStatusPaginated(status, 20, null);
+      setArchivedOrders(result.orders);
+      setLastVisibleDoc(result.lastVisible);
+      setHasMore(result.hasMore);
+    } catch (error) {
+      console.error('Error loading archived orders:', error);
+    } finally {
+      setIsLocalLoading(false);
     }
+  };
+
+  // Load more archived orders on scroll
+  const loadMoreArchived = async () => {
+    if (!hasMore || loadingMore || isLocalLoading || searchQuery) return;
+    if (activeTab !== 'delivered' && activeTab !== 'cancelled') return;
+
+    setLoadingMore(true);
+    try {
+      const result = await fetchOrdersByStatusPaginated(activeTab, 20, lastVisibleDoc);
+      setArchivedOrders(prev => [...prev, ...result.orders]);
+      setLastVisibleDoc(result.lastVisible);
+      setHasMore(result.hasMore);
+    } catch (error) {
+      console.error('Error loading more archived orders:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // Trigger paginated load when switching to Delivered or Cancelled tabs
+  useEffect(() => {
+    if (activeTab === 'delivered' || activeTab === 'cancelled') {
+      loadFirstPageOfArchived(activeTab);
+    }
+  }, [activeTab]);
+
+  // Debounced search database for Delivered/Cancelled tabs
+  useEffect(() => {
+    if (!searchQuery || searchQuery.trim().length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      if (activeTab === 'delivered' || activeTab === 'cancelled') {
+        setIsSearchLoading(true);
+        try {
+          const results = await searchOrdersAdmin(searchQuery);
+          // Filter results matching current tab status
+          const filteredResults = results.filter(order => {
+            if (activeTab === 'delivered') return order.status === 'delivered';
+            if (activeTab === 'cancelled') return order.status === 'cancelled';
+            return false;
+          });
+          setSearchResults(filteredResults);
+        } catch (error) {
+          console.error('Error searching database:', error);
+        } finally {
+          setIsSearchLoading(false);
+        }
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery, activeTab]);
+
+
+
+  // Refresh counts automatically when active orders update
+  useEffect(() => {
+    fetchCounts();
   }, [orders]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchAllOrders();
+    clearFallbackOrdersCache();
+    await fetchCounts();
+    if (activeTab === 'delivered' || activeTab === 'cancelled') {
+      await loadFirstPageOfArchived(activeTab);
+    }
     setRefreshing(false);
   };
 
-  // Filter Orders
-  const filteredOrders = useMemo(() => {
-    console.log(`[UI] Filtering ${orders.length} orders. ActiveTab: ${activeTab}`);
-
-    // Log available statuses
-    if (orders.length > 0) {
-      const statuses = [...new Set(orders.map(o => o.status))];
-      console.log('[UI] Available statuses in orders:', statuses);
+  // Filter and display orders (Active tabs from store, Archived from local state/search)
+  const displayOrders = useMemo(() => {
+    if (activeTab === 'delivered' || activeTab === 'cancelled') {
+      if (searchQuery) {
+        return searchResults;
+      }
+      return archivedOrders;
     }
 
-    let filtered = orders;
-
-    // 1. Filter by Tab Status
-    // Special handling for 'pickup_completed' tab which might show 'pickup_completed' status
-    filtered = filtered.filter(order => {
-      // DEBUG: If you want to see ALL orders regardless of tab, comment the return logic below temporarily
+    // Active tabs
+    let filtered = orders.filter(order => {
       if (activeTab === 'confirmed') return order.status === 'confirmed' || order.status === 'placed';
       if (activeTab === 'pickup_completed') return order.status === 'pickup_completed';
       if (activeTab === 'out_for_delivery') return order.status === 'out_for_delivery';
       return order.status === activeTab;
     });
 
-    // 2. Filter by Search Query
     if (searchQuery) {
       const lowerQuery = searchQuery.toLowerCase();
       filtered = filtered.filter(order =>
         order.id.toLowerCase().includes(lowerQuery) ||
-        order.id.toLowerCase().includes(lowerQuery) ||
         (order.customerPhone || '').includes(lowerQuery) ||
         (order.customerName || '').toLowerCase().includes(lowerQuery) ||
-        (order.pickupOTP || '').includes(lowerQuery)
+        (order.pickupOTP || '').includes(lowerQuery) ||
+        (order.tokenNumber || '').includes(lowerQuery)
       );
     }
 
-    console.log(`[UI] Returning ${filtered.length} filtered orders for ${activeTab}`);
+    // Sort active orders: ascending order based on the remaining SLA timer
+    filtered.sort((a, b) => {
+      const remainingA = getRemainingTimeMs(a);
+      const remainingB = getRemainingTimeMs(b);
+
+      if (remainingA !== null && remainingB !== null) {
+        return remainingA - remainingB;
+      }
+      if (remainingA !== null && remainingB === null) {
+        return -1; // a has timer, b does not, so a comes first
+      }
+      if (remainingA === null && remainingB !== null) {
+        return 1; // b has timer, a does not, so b comes first
+      }
+
+      // Default fallback: sort by creation date (oldest first so longest waiting is at the top)
+      const getMs = (val: any) => {
+        if (!val) return 0;
+        if (typeof val.toDate === 'function') return val.toDate().getTime();
+        if (typeof val.seconds === 'number') return val.seconds * 1000;
+        return new Date(val).getTime() || 0;
+      };
+      return getMs(a.createdAt) - getMs(b.createdAt);
+    });
+
     return filtered;
-  }, [orders, activeTab, searchQuery]);
+  }, [activeTab, orders, archivedOrders, searchQuery, searchResults, tick]);
 
   // Action Handlers
   const handleVerifyPickup = (order: any) => {
@@ -214,7 +475,13 @@ export const AdminOrdersScreen: React.FC = () => {
           onPress: async () => {
             setProcessing(true);
             try {
-              await updateOrderStatus(order.userId, order.id, 'processing');
+              const steps = getOrderProcessingSteps(order);
+              const initialStep = steps[0];
+              await updateOrderStatus(order.userId, order.id, 'processing', {
+                additionalData: {
+                  processingStep: initialStep
+                }
+              });
             } catch (error) {
               showAlert({ title: "Error", message: "Failed to update status", type: 'error' });
             } finally {
@@ -268,28 +535,118 @@ export const AdminOrdersScreen: React.FC = () => {
 
 
   const handleMarkReady = (order: any) => {
-    showAlert({
-      title: "Confirm Ready",
-      message: "Is the order packed and ready for delivery? A delivery OTP will be generated.",
-      type: 'warning',
-      buttons: [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Mark Ready",
-          style: "default",
-          onPress: async () => {
-            setProcessing(true);
-            try {
-              await updateOrderStatus(order.userId, order.id, 'ready');
-            } catch (error) {
-              showAlert({ title: "Error", message: "Failed to update status", type: 'error' });
-            } finally {
-              setProcessing(false);
-            }
-          }
-        }
-      ]
-    });
+    setOrderForProof(order);
+    setSelectedMedia(null);
+    setProofModalVisible(true);
+  };
+
+  const handleAdvanceProcessingStep = async (order: any, nextStep: string) => {
+    setProcessing(true);
+    const previousOrders = useAdminStore.getState().orders;
+    
+    // Optimistic update
+    useAdminStore.setState((state) => ({
+      orders: state.orders.map((o) =>
+        o.id === order.id && o.userId === order.userId
+          ? { ...o, processingStep: nextStep }
+          : o
+      ),
+    }));
+
+    try {
+      await updateOrderProcessingStepAdmin(order.userId, order.id, nextStep);
+    } catch (error) {
+      console.error("Error advancing processing step:", error);
+      // Revert optimistic update
+      useAdminStore.setState({ orders: previousOrders });
+      Alert.alert("Error", "Failed to advance processing step");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleUploadProofAndConfirm = async () => {
+    if (!orderForProof || !selectedMedia) {
+      Alert.alert("Error", "Please capture or select a photo/video first.");
+      return;
+    }
+
+    setUploadingProof(true);
+    try {
+      const downloadURL = await uploadOrderReadyProofAdmin(
+        selectedMedia.uri,
+        orderForProof.id,
+        selectedMedia.type === 'video'
+      );
+
+      const additionalData = {
+        readyProofUrl: downloadURL,
+        readyProofType: selectedMedia.type,
+      };
+
+      await updateOrderStatus(orderForProof.userId, orderForProof.id, 'ready', {
+        additionalData
+      });
+
+      setProofModalVisible(false);
+      setSelectedMedia(null);
+      setOrderForProof(null);
+      Alert.alert("Success", "Order proof uploaded and order marked ready!");
+    } catch (error) {
+      console.error("Error uploading proof and completing order:", error);
+      Alert.alert("Error", "Failed to upload proof. Please try again.");
+    } finally {
+      setUploadingProof(false);
+    }
+  };
+
+  const handleSelectMedia = async (source: 'camera_photo' | 'camera_video' | 'gallery_photo' | 'gallery_video') => {
+    try {
+      let permissionResult;
+      if (source.startsWith('camera')) {
+        permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      } else {
+        permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      }
+
+      if (!permissionResult.granted) {
+        Alert.alert("Permission Denied", "Camera/Gallery permissions are required to upload proof.");
+        return;
+      }
+
+      let result;
+      if (source === 'camera_photo') {
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.8,
+        });
+      } else if (source === 'camera_video') {
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+          videoMaxDuration: 15,
+        });
+      } else if (source === 'gallery_photo') {
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.8,
+        });
+      } else {
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        });
+      }
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        setSelectedMedia({
+          uri: asset.uri,
+          type: asset.type === 'video' || asset.uri.endsWith('.mp4') || asset.uri.endsWith('.mov') ? 'video' : 'photo',
+        });
+      }
+    } catch (error) {
+      console.error("Error picking media:", error);
+      Alert.alert("Error", "Failed to select or capture media");
+    }
   };
 
   const handleMarkOutForDelivery = (order: any) => {
@@ -506,19 +863,63 @@ export const AdminOrdersScreen: React.FC = () => {
     if (!selectedOrderForOptions || !selectedRescheduleSlot) return;
 
     setProcessing(true);
+    const isReschedulingPickup = selectedOrderForOptions.status === 'placed' || selectedOrderForOptions.status === 'confirmed';
+    const previousOrders = useAdminStore.getState().orders;
+    const dateStr = format(RESCHEDULE_DATES[selectedRescheduleDateIndex], 'yyyy-MM-dd');
+
+    // Optimistic update
+    useAdminStore.setState((state) => ({
+      orders: state.orders.map((o) => {
+        if (o.id === selectedOrderForOptions.id && o.userId === selectedOrderForOptions.userId) {
+          if (isReschedulingPickup) {
+            return {
+              ...o,
+              pickupDetails: {
+                ...(o.pickupDetails || {}),
+                type: 'scheduled',
+                scheduledDate: dateStr,
+                scheduledTime: selectedRescheduleSlot,
+              },
+              updatedAt: new Date(),
+            };
+          } else {
+            return {
+              ...o,
+              deliveryDate: dateStr,
+              deliveryTime: selectedRescheduleSlot,
+              deliveryScheduledAt: new Date(),
+              updatedAt: new Date(),
+            };
+          }
+        }
+        return o;
+      }),
+    }));
+
     try {
-      const dateStr = format(RESCHEDULE_DATES[selectedRescheduleDateIndex], 'yyyy-MM-dd');
-      await scheduleOrderDeliveryAdmin(
-        selectedOrderForOptions.userId,
-        selectedOrderForOptions.id,
-        dateStr,
-        selectedRescheduleSlot
-      );
+      if (isReschedulingPickup) {
+        await rescheduleOrderPickupAdmin(
+          selectedOrderForOptions.userId,
+          selectedOrderForOptions.id,
+          dateStr,
+          selectedRescheduleSlot
+        );
+        Alert.alert("Success", "Pickup rescheduled successfully");
+      } else {
+        await scheduleOrderDeliveryAdmin(
+          selectedOrderForOptions.userId,
+          selectedOrderForOptions.id,
+          dateStr,
+          selectedRescheduleSlot
+        );
+        Alert.alert("Success", "Delivery rescheduled successfully");
+      }
       setRescheduleModalVisible(false);
-      Alert.alert("Success", "Delivery rescheduled successfully");
     } catch (error) {
       console.error('Reschedule error:', error);
-      Alert.alert("Error", "Failed to reschedule delivery");
+      // Revert optimistic update
+      useAdminStore.setState({ orders: previousOrders });
+      Alert.alert("Error", `Failed to reschedule ${isReschedulingPickup ? 'pickup' : 'delivery'}`);
     } finally {
       setProcessing(false);
     }
@@ -527,31 +928,24 @@ export const AdminOrdersScreen: React.FC = () => {
   const generateTimeSlots = () => {
     const slots = [];
     for (let i = 9; i < 21; i++) {
-      const p1 = `${i.toString().padStart(2, '0')}:00`;
-      const p2 = `${i.toString().padStart(2, '0')}:30`;
-      const p3 = `${(i + 1).toString().padStart(2, '0')}:00`;
-      slots.push(`${p1} - ${p2}`);
-      slots.push(`${p2} - ${p3}`);
+      const start = `${i.toString().padStart(2, '0')}:00`;
+      const end = `${(i + 1).toString().padStart(2, '0')}:00`;
+      slots.push(`${start} - ${end}`);
     }
     return slots;
   };
 
   const getSlotFromDate = (date: Date) => {
     const hours = date.getHours();
-    const minutes = date.getMinutes();
 
     // If before 9 AM, use first slot
-    if (hours < 9) return "09:00 - 09:30";
-    // If after 9 PM, use last slot (or indicate day shift over)
-    if (hours >= 21) return "20:30 - 21:00";
+    if (hours < 9) return "09:00 - 10:00";
+    // If after 9 PM, use last slot
+    if (hours >= 21) return "20:00 - 21:00";
 
     const startHour = hours.toString().padStart(2, '0');
-    if (minutes < 30) {
-      return `${startHour}:00 - ${startHour}:30`;
-    } else {
-      const nextHour = (hours + 1).toString().padStart(2, '0');
-      return `${startHour}:30 - ${nextHour}:00`;
-    }
+    const nextHour = (hours + 1).toString().padStart(2, '0');
+    return `${startHour}:00 - ${nextHour}:00`;
   };
 
   // Render Item
@@ -627,6 +1021,29 @@ export const AdminOrdersScreen: React.FC = () => {
                   <Text style={[styles.tokenText, { color: COLORS.primary }]}>Subscription Credit</Text>
                 </View>
               )}
+              {/* SLA Timer Badge */}
+              {(() => {
+                const remainingMs = getRemainingTimeMs(item);
+                if (remainingMs === null) return null;
+                const timerInfo = formatRemainingTime(remainingMs);
+                return (
+                  <View style={[styles.tokenBadge, { backgroundColor: timerInfo.isOverdue ? '#EF4444' + '15' : timerInfo.color + '15' }]}>
+                    <Ionicons name="alarm-outline" size={12} color={timerInfo.isOverdue ? '#EF4444' : timerInfo.color} />
+                    <Text style={[styles.tokenText, { color: timerInfo.isOverdue ? '#EF4444' : timerInfo.color, fontWeight: '700' }]}>
+                      {timerInfo.text}
+                    </Text>
+                  </View>
+                );
+              })()}
+              {/* Processing Sub-status Badge */}
+              {item.status === 'processing' && (
+                <View style={[styles.tokenBadge, { backgroundColor: COLORS.warning + '15' }]}>
+                  <Ionicons name="cog-outline" size={12} color={COLORS.warning} />
+                  <Text style={[styles.tokenText, { color: COLORS.warning, fontWeight: '700' }]}>
+                    Step: {PROCESSING_STEP_LABELS[item.processingStep || getOrderProcessingSteps(item)[0]] || 'Processing'}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -652,8 +1069,8 @@ export const AdminOrdersScreen: React.FC = () => {
               </TouchableOpacity>
             )}
 
-            {/* Options Button for Ready status */}
-            {item.status === 'ready' && (
+            {/* Options Button */}
+            {['placed', 'confirmed', 'pickup_completed', 'processing', 'ready'].includes(item.status) && (
               <TouchableOpacity
                 onPress={() => handleShowOptions(item)}
                 style={[styles.cancelButtonSmall, { backgroundColor: COLORS.primary + '15' }]}
@@ -757,6 +1174,55 @@ export const AdminOrdersScreen: React.FC = () => {
           </View>
         )}
 
+        {/* Garment Proof Section */}
+        {item.readyProofUrl && (
+          <View style={{ marginBottom: SPACING.md }}>
+            <Text style={{ ...TYPOGRAPHY.caption, color: COLORS.textSecondary, marginBottom: SPACING.sm, fontWeight: '600' }}>
+              📦 Ready Proof ({item.readyProofType === 'video' ? 'Video' : 'Photo'})
+            </Text>
+            <View style={{ flexDirection: 'row' }}>
+              {item.readyProofType === 'video' ? (
+                <TouchableOpacity
+                  style={{
+                    width: 100,
+                    height: 100,
+                    borderRadius: 8,
+                    overflow: 'hidden',
+                    backgroundColor: '#1E1B4B',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    borderWidth: 1,
+                    borderColor: COLORS.border,
+                  }}
+                  onPress={() => setSelectedVideo(item.readyProofUrl)}
+                >
+                  <Ionicons name="play-circle-outline" size={40} color="white" />
+                  <Text style={{ color: 'white', fontSize: 10, marginTop: 4 }}>Play Video Proof</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={{
+                    width: 100,
+                    height: 100,
+                    borderRadius: 8,
+                    overflow: 'hidden',
+                    backgroundColor: COLORS.backgroundLight,
+                    borderWidth: 1,
+                    borderColor: COLORS.border,
+                  }}
+                  onPress={() => setSelectedImage(item.readyProofUrl)}
+                >
+                  <Image
+                    source={{ uri: item.readyProofUrl }}
+                    style={{ width: '100%', height: '100%' }}
+                    contentFit="cover"
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+
         {/* Detailed Items (SpinZo Style) */}
         <View style={styles.itemsContainer}>
           {item.items && item.items.length > 0 ? (
@@ -838,14 +1304,39 @@ export const AdminOrdersScreen: React.FC = () => {
             </TouchableOpacity>
           )}
 
-          {item.status === 'processing' && (
-            <TouchableOpacity
-              style={[styles.actionButtonFull, { backgroundColor: COLORS.success }]}
-              onPress={() => handleMarkReady(item)}
-            >
-              <Text style={styles.actionButtonTextFull}>Mark Ready</Text>
-            </TouchableOpacity>
-          )}
+          {item.status === 'processing' && (() => {
+            const steps = getOrderProcessingSteps(item);
+            const currentStep = item.processingStep || steps[0];
+            const currentIndex = steps.indexOf(currentStep);
+
+            // If there's a next step in the sequence
+            if (currentIndex !== -1 && currentIndex < steps.length - 1) {
+              const nextStep = steps[currentIndex + 1];
+              const nextStepLabel = nextStep === 'getting_folded' ? 'Folding'
+                : nextStep === 'getting_ironed' ? 'Ironing'
+                : nextStep === 'getting_dried' ? 'Drying'
+                : 'Next Step';
+
+              return (
+                <TouchableOpacity
+                  style={[styles.actionButtonFull, { backgroundColor: COLORS.primary }]}
+                  onPress={() => handleAdvanceProcessingStep(item, nextStep)}
+                >
+                  <Text style={styles.actionButtonTextFull}>Move to {nextStepLabel}</Text>
+                </TouchableOpacity>
+              );
+            }
+
+            // Otherwise, this is the final step: show "Mark Ready"
+            return (
+              <TouchableOpacity
+                style={[styles.actionButtonFull, { backgroundColor: COLORS.success }]}
+                onPress={() => handleMarkReady(item)}
+              >
+                <Text style={styles.actionButtonTextFull}>Mark Ready</Text>
+              </TouchableOpacity>
+            );
+          })()}
 
           {item.status === 'ready' && (
             <TouchableOpacity
@@ -869,33 +1360,29 @@ export const AdminOrdersScreen: React.FC = () => {
     );
   };
 
-  // Calculate Status Counts
+  // Calculate Status Counts (Active from store, Archived from server statusCounts)
   const tabsWithCounts = useMemo(() => {
-    const counts: Record<string, number> = {
-      confirmed: 0,
-      pickup_completed: 0,
-      processing: 0,
-      ready: 0,
-      out_for_delivery: 0,
-      delivered: 0,
-      cancelled: 0,
-    };
-
-    orders.forEach(order => {
-      const status = order.status || 'placed';
-      if (status === 'placed') {
-        counts.confirmed++; // Map placed to confirmed/New
-      } else if (counts[status] !== undefined) {
-        counts[status]++;
+    return visibleTabs.map(tab => {
+      let count = 0;
+      if (tab.id === 'confirmed') {
+        count = orders.filter(o => o.status === 'confirmed' || o.status === 'placed').length;
+      } else if (tab.id === 'delivered' || tab.id === 'cancelled') {
+        count = statusCounts[tab.id] || 0;
+      } else {
+        count = orders.filter(o => o.status === tab.id).length;
       }
-    });
 
-    return visibleTabs.map(tab => ({
-      ...tab,
-      label: tab.id === 'confirmed' ? 'New' : tab.label, // Rename Confirmed -> New
-      count: counts[tab.id] || 0
-    }));
-  }, [orders]);
+      return {
+        ...tab,
+        label: tab.id === 'confirmed' ? 'New' : tab.label, // Rename Confirmed -> New
+        count
+      };
+    });
+  }, [orders, statusCounts, visibleTabs]);
+
+  const totalAllOrdersCount = useMemo(() => {
+    return Object.values(statusCounts).reduce((sum, val) => sum + val, 0);
+  }, [statusCounts]);
 
   if (isLoading) {
     return (
@@ -910,7 +1397,7 @@ export const AdminOrdersScreen: React.FC = () => {
       {/* Header */}
       <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? SPACING.lg : insets.top + SPACING.md }]}>
         <Text style={styles.headerTitle}>Orders Management</Text>
-        <Text style={styles.headerSubtitle}>{orders.length} total orders</Text>
+        <Text style={styles.headerSubtitle}>{totalAllOrdersCount} total orders</Text>
         <TouchableOpacity onPress={onRefresh} style={styles.refreshButton}>
           <Ionicons name="refresh" size={20} color={COLORS.text} />
         </TouchableOpacity>
@@ -955,19 +1442,37 @@ export const AdminOrdersScreen: React.FC = () => {
       </ScrollView>
 
       {/* Orders List */}
-      <FlatList
-        data={filteredOrders}
-        renderItem={renderOrderItem}
-        keyExtractor={(item, index) => item.id ? `${item.id}-${index}` : `order-${index}`}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No orders found</Text>
-          </View>
-        }
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-      />
+      {(isLocalLoading || isSearchLoading) ? (
+        <View style={styles.emptyState}>
+          <ActivityIndicator color={COLORS.primary} size="large" />
+          <Text style={[styles.emptyText, { marginTop: 8 }]}>
+            {isSearchLoading ? 'Searching database...' : 'Loading orders...'}
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={displayOrders}
+          renderItem={renderOrderItem}
+          keyExtractor={(item, index) => item.id ? `${item.id}-${index}` : `order-${index}`}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>No orders found</Text>
+            </View>
+          }
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          onEndReached={loadMoreArchived}
+          onEndReachedThreshold={0.3}
+          ListFooterComponent={
+            loadingMore ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <ActivityIndicator color={COLORS.primary} size="small" />
+              </View>
+            ) : null
+          }
+        />
+      )}
 
       {/* OTP/Verification Modal */}
       <Modal
@@ -1168,16 +1673,25 @@ export const AdminOrdersScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.optionItem} onPress={handleRescheduleOption}>
-              <View style={[styles.optionIcon, { backgroundColor: COLORS.primary + '15' }]}>
-                <Ionicons name="calendar-outline" size={20} color={COLORS.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.optionLabel}>Reschedule Delivery</Text>
-                <Text style={styles.optionSub}>Change the delivery date or time</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-            </TouchableOpacity>
+            {(() => {
+              const isReschedulingPickup = selectedOrderForOptions?.status === 'placed' || selectedOrderForOptions?.status === 'confirmed';
+              return (
+                <TouchableOpacity style={styles.optionItem} onPress={handleRescheduleOption}>
+                  <View style={[styles.optionIcon, { backgroundColor: COLORS.primary + '15' }]}>
+                    <Ionicons name="calendar-outline" size={20} color={COLORS.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.optionLabel}>
+                      {isReschedulingPickup ? 'Reschedule Pickup' : 'Reschedule Delivery'}
+                    </Text>
+                    <Text style={styles.optionSub}>
+                      {isReschedulingPickup ? 'Change the pickup date or time' : 'Change the delivery date or time'}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+              );
+            })()}
 
             <TouchableOpacity style={styles.optionItem} onPress={handleCancelOption}>
               <View style={[styles.optionIcon, { backgroundColor: COLORS.error + '15' }]}>
@@ -1203,7 +1717,11 @@ export const AdminOrdersScreen: React.FC = () => {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { height: '85%' }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Reschedule Delivery</Text>
+              <Text style={styles.modalTitle}>
+                {selectedOrderForOptions && (selectedOrderForOptions.status === 'placed' || selectedOrderForOptions.status === 'confirmed')
+                  ? 'Reschedule Pickup'
+                  : 'Reschedule Delivery'}
+              </Text>
               <TouchableOpacity onPress={() => setRescheduleModalVisible(false)}>
                 <Ionicons name="close" size={24} color={COLORS.text} />
               </TouchableOpacity>
@@ -1242,21 +1760,37 @@ export const AdminOrdersScreen: React.FC = () => {
                   {generateTimeSlots().map((slot) => {
                     const isBusy = busySlotsForReschedule.includes(slot);
                     const isSelected = selectedRescheduleSlot === slot;
+                    
+                    let isPast = false;
+                    const selectedDateStr = format(RESCHEDULE_DATES[selectedRescheduleDateIndex], 'yyyy-MM-dd');
+                    const todayStr = format(new Date(), 'yyyy-MM-dd');
+                    
+                    if (selectedDateStr === todayStr) {
+                      const now = new Date();
+                      const [startStr] = slot.split(' - ');
+                      const [h, m] = startStr.split(':').map(Number);
+                      const slotStartTime = new Date();
+                      slotStartTime.setHours(h, m, 0, 0);
+                      isPast = slotStartTime <= now;
+                    }
+                    
+                    const isDisabled = isBusy || isPast;
+
                     return (
                       <TouchableOpacity
                         key={slot}
                         style={[
                           styles.timeSlotPill,
                           isSelected && styles.timeSlotSelected,
-                          isBusy && styles.timeSlotDisabled
+                          isDisabled && styles.timeSlotDisabled
                         ]}
-                        disabled={isBusy}
+                        disabled={isDisabled}
                         onPress={() => setSelectedRescheduleSlot(slot)}
                       >
                         <Text style={[
                           styles.timeText,
                           isSelected && styles.timeTextSelected,
-                          isBusy && styles.timeTextDisabled
+                          isDisabled && styles.timeTextDisabled
                         ]}>
                           {slot}
                         </Text>
@@ -1283,6 +1817,168 @@ export const AdminOrdersScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
         </View>
+      </Modal>
+      {/* Proof Upload Modal */}
+      <Modal
+        visible={proofModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          if (!uploadingProof) {
+            setProofModalVisible(false);
+            setSelectedMedia(null);
+          }
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Garment Proof Required</Text>
+              {!uploadingProof && (
+                <TouchableOpacity onPress={() => { setProofModalVisible(false); setSelectedMedia(null); }}>
+                  <Ionicons name="close" size={24} color={COLORS.text} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1, paddingVertical: SPACING.md }}>
+              <Text style={[styles.sectionTitle, { marginTop: 0 }]}>
+                Capture or upload proof of garments before marking ready:
+              </Text>
+
+              {selectedMedia ? (
+                <View style={{ marginBottom: SPACING.lg, alignItems: 'center' }}>
+                  <Text style={{ ...TYPOGRAPHY.caption, color: COLORS.textSecondary, marginBottom: SPACING.sm }}>
+                    Preview of selected {selectedMedia.type}:
+                  </Text>
+                  {selectedMedia.type === 'video' ? (
+                    <Video
+                      source={{ uri: selectedMedia.uri }}
+                      style={{ width: '100%', height: 200, borderRadius: 12, backgroundColor: '#000' }}
+                      useNativeControls
+                      resizeMode={ResizeMode.CONTAIN}
+                      isMuted
+                      shouldPlay
+                    />
+                  ) : (
+                    <Image
+                      source={{ uri: selectedMedia.uri }}
+                      style={{ width: '100%', height: 200, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border }}
+                      contentFit="contain"
+                    />
+                  )}
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      marginTop: SPACING.sm,
+                      paddingVertical: 6,
+                      paddingHorizontal: 12,
+                      borderRadius: 16,
+                      backgroundColor: COLORS.error + '15',
+                    }}
+                    onPress={() => setSelectedMedia(null)}
+                    disabled={uploadingProof}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={COLORS.error} style={{ marginRight: 4 }} />
+                    <Text style={{ color: COLORS.error, ...TYPOGRAPHY.button, fontSize: 12 }}>Remove Media</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={{ gap: SPACING.md, marginBottom: SPACING.lg }}>
+                  <Text style={{ ...TYPOGRAPHY.caption, color: COLORS.textSecondary, textAlign: 'center', marginVertical: SPACING.md }}>
+                    No file selected yet. Choose an option below:
+                  </Text>
+
+                  <View style={{ flexDirection: 'row', gap: SPACING.md }}>
+                    <TouchableOpacity
+                      style={[styles.confirmButton, { flex: 1, backgroundColor: COLORS.primary }]}
+                      onPress={() => handleSelectMedia('camera_photo')}
+                    >
+                      <Ionicons name="camera-outline" size={20} color="white" style={{ marginRight: 6 }} />
+                      <Text style={styles.confirmButtonText}>Take Photo</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.confirmButton, { flex: 1, backgroundColor: COLORS.primary }]}
+                      onPress={() => handleSelectMedia('camera_video')}
+                    >
+                      <Ionicons name="videocam-outline" size={20} color="white" style={{ marginRight: 6 }} />
+                      <Text style={styles.confirmButtonText}>Record Video</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', gap: SPACING.md }}>
+                    <TouchableOpacity
+                      style={[styles.confirmButton, { flex: 1, backgroundColor: COLORS.backgroundLight, borderWidth: 1, borderColor: COLORS.primary }]}
+                      onPress={() => handleSelectMedia('gallery_photo')}
+                    >
+                      <Ionicons name="images-outline" size={20} color={COLORS.primary} style={{ marginRight: 6 }} />
+                      <Text style={[styles.confirmButtonText, { color: COLORS.primary }]}>Gallery Photo</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.confirmButton, { flex: 1, backgroundColor: COLORS.backgroundLight, borderWidth: 1, borderColor: COLORS.primary }]}
+                      onPress={() => handleSelectMedia('gallery_video')}
+                    >
+                      <Ionicons name="folder-open-outline" size={20} color={COLORS.primary} style={{ marginRight: 6 }} />
+                      <Text style={[styles.confirmButtonText, { color: COLORS.primary }]}>Gallery Video</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[
+                styles.confirmButton,
+                { backgroundColor: COLORS.success, marginTop: SPACING.md },
+                (!selectedMedia || uploadingProof) && { opacity: 0.6 }
+              ]}
+              disabled={!selectedMedia || uploadingProof}
+              onPress={handleUploadProofAndConfirm}
+            >
+              {uploadingProof ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                  <ActivityIndicator color="#FFF" size="small" style={{ marginRight: 8 }} />
+                  <Text style={styles.confirmButtonText}>Uploading Proof...</Text>
+                </View>
+              ) : (
+                <Text style={styles.confirmButtonText}>Confirm & Mark Ready</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Fullscreen Video Modal */}
+      <Modal
+        visible={!!selectedVideo}
+        transparent={true}
+        onRequestClose={() => setSelectedVideo(null)}
+        animationType="fade"
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' }}
+          activeOpacity={1}
+          onPress={() => setSelectedVideo(null)}
+        >
+          <TouchableOpacity
+            style={{ position: 'absolute', top: 40, right: 20, zIndex: 10, padding: 10 }}
+            onPress={() => setSelectedVideo(null)}
+          >
+            <Ionicons name="close" size={30} color="white" />
+          </TouchableOpacity>
+          {selectedVideo && (
+            <Video
+              source={{ uri: selectedVideo }}
+              style={{ width: '90%', height: '80%' }}
+              useNativeControls
+              resizeMode={ResizeMode.CONTAIN}
+              shouldPlay
+            />
+          )}
+        </TouchableOpacity>
       </Modal>
     </View>
   );
@@ -1314,7 +2010,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
   const calculateItemPrice = (item: any) => {
     if (item.serviceId === 'wash_fold') {
       const base = (item.weight || 5) * 85;
-      const ironing = (item.ironingEnabled && item.ironingCount) ? (item.ironingCount * 15) : 0;
+      const ironing = (item.ironingEnabled && item.ironingCount) ? (item.ironingCount * 18) : 0;
       if (item.isCreditItem) return item.totalPrice;
       return base + ironing;
     }
@@ -1323,7 +2019,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
     }
     if (item.serviceId === 'ironing_addon' || item.serviceName?.toLowerCase().includes('ironing')) {
       const count = item.clothesCount || item.ironingCount || 0;
-      return count * 15;
+      return count * 18;
     }
     if (item.serviceId === 'blanket_wash') {
       const single = item.singleBlanketCount || 0;
@@ -1333,19 +2029,61 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
 
     if (item.serviceId === 'ironing') {
       const count = item.ironingCount || item.clothesCount || 0;
-      return count * 15;
+      return count * 18;
     }
 
     // Default fallback to existing price if logic unknown
     return item.totalPrice;
   };
 
+  // Dynamic delivery fee calculation matching CartScreen
+  const calculateDeliveryFee = (orderItems: any[]) => {
+    if (!orderItems || orderItems.length === 0) return 0;
+
+    const hasWashFoldOrWashIron = orderItems.some(
+      (item) =>
+        item.serviceId === 'wash_fold' ||
+        item.serviceId === 'wash_iron' ||
+        item.serviceId === 'premium_laundry'
+    );
+    const hasIroning = orderItems.some((item) => item.serviceId === 'ironing');
+    const hasBlanketWash = orderItems.some((item) => item.serviceId === 'blanket_wash');
+
+    // Wash services take precedence -> free delivery
+    if (hasWashFoldOrWashIron) {
+      return 0;
+    }
+
+    // Steam Ironing rules apply next
+    if (hasIroning) {
+      const totalIroningPieces = orderItems.reduce((sum, item) => {
+        if (item.serviceId === 'ironing') {
+          return sum + (item.ironingCount || item.clothesCount || 0);
+        }
+        return sum;
+      }, 0);
+      return totalIroningPieces >= 20 ? 50 : 80;
+    }
+
+    // Standalone Blanket Wash
+    if (hasBlanketWash) {
+      return 50;
+    }
+
+    return 0;
+  };
+
   useEffect(() => {
-    // Recalculate total whenever items change — preserve deliveryFee and other fees
+    // Recalculate total whenever items change
     const newItemTotal = items.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
     setItemTotal(newItemTotal);
-    setGrandTotal(newItemTotal + deliveryFee - discount);
-  }, [items, discount, deliveryFee]);
+
+    // Recalculate delivery fee dynamically
+    const newDeliveryFee = calculateDeliveryFee(items);
+    setDeliveryFee(newDeliveryFee);
+
+    setGrandTotal(newItemTotal + newDeliveryFee - discount);
+  }, [items, discount]);
 
   const updateItem = (index: number, updates: any) => {
     const newItems = [...items];
@@ -1363,7 +2101,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
 
     // Keep ironingPrice in sync for standalone ironing service
     if (updatedItem.serviceId === 'ironing') {
-      updatedItem.ironingPrice = (updatedItem.ironingCount || 0) * 15;
+      updatedItem.ironingPrice = (updatedItem.ironingCount || 0) * 18;
     }
 
     // Recalculate price for this item
@@ -1434,7 +2172,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
                   {/* Ironing Toggle/Count for Wash & Fold */}
                   {(item.ironingEnabled || item.ironingCount > 0) && (
                     <View style={{ marginTop: 8 }}>
-                      <Text style={TYPOGRAPHY.caption}>Ironing Count (₹15/pc)</Text>
+                      <Text style={TYPOGRAPHY.caption}>Ironing Count (₹18/pc)</Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 }}>
                         <TouchableOpacity
                           style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
@@ -1485,7 +2223,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
               {/* Standalone Steam Press / Ironing Editing */}
               {item.serviceId === 'ironing' && (
                 <View style={{ marginTop: 8 }}>
-                  <Text style={TYPOGRAPHY.caption}>Number of Pieces (₹15/pc)</Text>
+                  <Text style={TYPOGRAPHY.caption}>Number of Pieces (₹18/pc)</Text>
                   <Text style={{ fontSize: 11, color: COLORS.textSecondary, marginBottom: 4 }}>
                     Admin can adjust piece count (original customer limit does not apply)
                   </Text>
@@ -1518,7 +2256,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
               {/* Ironing Add-on Editing */}
               {(item.serviceId === 'ironing_addon' || item.serviceName?.toLowerCase().includes('ironing')) && (
                 <View style={{ marginTop: 8 }}>
-                  <Text style={TYPOGRAPHY.caption}>Number of Clothes (₹15/pc)</Text>
+                  <Text style={TYPOGRAPHY.caption}>Number of Clothes (₹18/pc)</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 }}>
                     <TouchableOpacity
                       style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}

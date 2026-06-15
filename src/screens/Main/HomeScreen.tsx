@@ -6,26 +6,26 @@ import {
   TouchableOpacity,
   StyleSheet,
   Platform,
-  StatusBar,
   Dimensions,
   LayoutChangeEvent,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Bell, MapPin, Wallet, ChevronDown, ChevronRight, ArrowRight, Sparkles, ShieldCheck } from 'lucide-react-native';
 import Animated, {
   useSharedValue,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   interpolate,
-  Extrapolation
+  Extrapolation,
 } from 'react-native-reanimated';
-import { useAuthStore, useSubscriptionStore } from '../../store';
-import { useAddressStore } from '../../store';
+import { useAuthStore, useAddressStore } from '../../store';
 import { useCartStore } from '../../store';
+import { useSubscriptionStore } from '../../store';
 import AnalyticsService from '../../services/analytics';
 import { ServiceDetailScreen } from './ServiceDetailScreen';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
@@ -48,51 +48,41 @@ const HOME_FAQS = [
   { question: "Where is SpinZo's store located?", answer: "SpinZo operates through trusted partner laundry units instead of walk-in stores to ensure faster doorstep service." },
 ];
 
-// Import assets
-// Premium 3D Assets
-const promoOffer = require('../../../assets/banner_offer_3d.png');
-const promoDelivery = require('../../../assets/banner_delivery_3d.png');
-const promoRelax = require('../../../assets/banner_relax_3d.png');
-const promoPickup = require('../../../assets/onboarding_pickup_v2.png');
-
-// Service Images
-const serviceWashFold = require('../../../assets/services/wash_fold.png');
-const serviceWashIron = require('../../../assets/onboarding_screen_2.png'); // Updated as per user request
-const serviceIroning = require('../../../assets/services/ironing.png');
-const serviceBlanket = require('../../../assets/services/blanket_wash.png');
+// Remote CDN asset URLs (Firebase Storage with 1-year cache)
+import { ASSET_URLS } from '../../utils/assetUrls';
 
 const PROMOS = [
   {
     id: '1',
-    title: 'Save ₹300 Total!',
-    subtitle: '₹100 OFF on first 3 orders',
-    image: promoOffer,
+    title: '₹300 OFF',
+    subtitle: 'on your first 3 orders',
+    image: { uri: ASSET_URLS.banner_offer_3d },
     gradient: ['#FFF7ED', '#FFEDD5'],
-    badge: 'LIMITED OFFER',
+    badge: 'WELCOME OFFER',
   },
   {
     id: '4',
-    title: 'Quick Pickup',
-    subtitle: 'We come to your doorstep',
-    image: promoPickup,
-    gradient: ['#EEF2FF', '#E0E7FF'], // Soft Blue
-    badge: 'WHY SPINZO?',
+    title: '30-min Pickup',
+    subtitle: 'Free doorstep collection',
+    image: { uri: ASSET_URLS.onboarding_pickup_v2 },
+    gradient: ['#EEF2FF', '#E0E7FF'],
+    badge: 'SPINZO PRO',
   },
   {
     id: '2',
-    title: 'Same Day Delivery',
-    subtitle: 'Fresh clothes, fast',
-    image: promoDelivery,
+    title: 'Same-day Delivery',
+    subtitle: 'Back by 9 PM, every time',
+    image: { uri: ASSET_URLS.banner_delivery_3d },
     gradient: ['#F5F3FF', '#EDE9FE'],
     badge: 'FAST SERVICE',
   },
   {
     id: '3',
-    title: 'Relax & Unwind',
-    subtitle: 'We handle everything',
-    image: promoRelax,
+    title: 'Premium Care',
+    subtitle: 'Certified cleaning experts',
+    image: { uri: ASSET_URLS.banner_relax_3d },
     gradient: ['#F3E8FF', '#E9D5FF'],
-    badge: 'HASSLE FREE',
+    badge: '100% SAFE',
   },
 ];
 
@@ -100,31 +90,31 @@ const SERVICES = [
   {
     id: 'wash_fold',
     name: 'Wash & Fold',
-    image: serviceWashFold,
-    // Keep identifiers if needed later
+    image: { uri: ASSET_URLS.services_wash_fold },
+    gradient: ['#F5F3FF', '#EDE9FE'] as [string, string],
   },
   {
     id: 'wash_iron',
     name: 'Wash & Iron',
-    image: serviceWashIron,
+    image: { uri: ASSET_URLS.services_wash_iron },
+    gradient: ['#EEF2FF', '#E0E7FF'] as [string, string],
   },
   {
     id: 'ironing',
     name: 'Steam Iron',
-    image: serviceIroning,
+    image: { uri: ASSET_URLS.services_ironing },
+    gradient: ['#ECFDF5', '#D1FAE5'] as [string, string],
   },
   {
     id: 'blanket_wash',
     name: 'Blanket Wash',
-    image: serviceBlanket,
+    image: { uri: ASSET_URLS.services_blanket_wash },
+    gradient: ['#FFF7ED', '#FFEDD5'] as [string, string],
   },
   {
     id: 'subscription',
     name: 'Subscribe',
-    icon: 'sparkles-sharp',
-    color: COLORS.primary,
-    gradient: ['#F5F3FF', '#EDE9FE'],
-    disabled: false,
+    gradient: ['#F5F3FF', '#EDE9FE'] as [string, string],
   },
 ];
 
@@ -134,7 +124,7 @@ export const HomeScreen: React.FC = () => {
   const { user } = useAuthStore();
   const { currentAddress } = useAddressStore();
   const { items, getTotalAmount } = useCartStore();
-  const { activeSubscription, fetchSubscriptions, getTotalCredits } = useSubscriptionStore();
+  const { fetchSubscriptions, getTotalCredits } = useSubscriptionStore();
   const flatListRef = useRef<FlatList>(null);
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -230,13 +220,6 @@ export const HomeScreen: React.FC = () => {
     return () => clearInterval(timer);
   }, [currentIndex]);
 
-  const getGreeting = (): string => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) return 'Good Morning';
-    if (hour >= 12 && hour < 17) return 'Good Afternoon';
-    return 'Good Evening';
-  };
-
   const handleServicePress = (serviceId: string) => {
     if (serviceId === 'subscription') {
       AnalyticsService.logEvent('select_item', {
@@ -270,17 +253,21 @@ export const HomeScreen: React.FC = () => {
     navigation.navigate('Cart' as never);
   };
 
-  const renderPromoItem = ({ item }: { item: typeof PROMOS[0] }) => (
-    <View style={styles.promoCard}>
-      <TouchableOpacity 
-        activeOpacity={0.9} 
+  const renderPromoItem = ({ item, index }: { item: (typeof PROMOS)[0], index: number }) => (
+    <MotiView
+      from={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay: index * 100, type: 'timing', duration: 400 }}
+      style={styles.promoCard}
+    >
+      <TouchableOpacity
+        activeOpacity={0.9}
         onPress={() => {
           AnalyticsService.logEvent('select_promotion', {
             promotion_id: item.id,
             promotion_name: item.title,
             creative_name: item.badge
           });
-          // In future, navigate to a specific offer page
         }}
         style={{ flex: 1 }}
       >
@@ -292,7 +279,7 @@ export const HomeScreen: React.FC = () => {
         >
           <View style={styles.promoContent}>
             <View style={styles.promoBadge}>
-              <Text style={styles.promoBadgeText}>{item.badge || 'Why SpinZo?'}</Text>
+              <Text style={styles.promoBadgeText}>{item.badge}</Text>
             </View>
             <Text style={styles.promoTitle}>{item.title}</Text>
             <Text style={styles.promoSubtitle}>{item.subtitle}</Text>
@@ -305,7 +292,7 @@ export const HomeScreen: React.FC = () => {
           />
         </LinearGradient>
       </TouchableOpacity>
-    </View>
+    </MotiView>
   );
 
   const [initialLoading, setInitialLoading] = useState(true);
@@ -333,42 +320,46 @@ export const HomeScreen: React.FC = () => {
         style={StyleSheet.absoluteFill}
       />
 
-      {/* Sticky Header (Address & Wallet) - Always on Top */}
-      <View style={[
-        styles.stickyHeader,
-        {
-          paddingTop: insets.top + 10,
-          height: STICKY_HEADER_HEIGHT
-        }
-      ]}>
+      {/* Sticky Header (Address & Wallet) - Glass Effect */}
+      <View style={[styles.stickyHeader, { paddingTop: insets.top + 10, height: STICKY_HEADER_HEIGHT }]}>
+        <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill} />
+        <View style={styles.stickyHeaderBorder} />
         <View style={styles.headerTopArea}>
           <AnimatedButton style={styles.addressPill} onPress={handleAddressPress}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="location" size={16} color={COLORS.primary} />
-            </View>
+            <MapPin size={16} color={COLORS.primary} strokeWidth={2.5} />
             <View style={styles.addressInfo}>
               <Text style={styles.addressLabel}>DELIVER TO</Text>
               <Text style={styles.addressText} numberOfLines={1}>
                 {currentAddress || 'Set address'}
               </Text>
             </View>
-            <Ionicons name="chevron-down" size={14} color={COLORS.textSecondary} />
+            <ChevronDown size={14} color={COLORS.textSecondary} strokeWidth={2.5} />
           </AnimatedButton>
 
-          <AnimatedButton
-            style={styles.walletBadge}
-            onPress={() => (navigation as any).navigate('Main', { screen: 'Credits' })}
-          >
-            <LinearGradient
-              colors={[COLORS.primary, COLORS.primaryDark]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.walletGradient}
+          <View style={styles.headerRight}>
+            <AnimatedButton
+              style={styles.notificationBtn}
+              onPress={() => {}}
             >
-              <Ionicons name="wallet" size={14} color="#FFF" />
-              <Text style={styles.walletAmount}>{getTotalCredits()}</Text>
-            </LinearGradient>
-          </AnimatedButton>
+              <Bell size={18} color={COLORS.text} strokeWidth={1.5} />
+              <View style={styles.notificationDot} />
+            </AnimatedButton>
+
+            <AnimatedButton
+              style={styles.walletBadge}
+              onPress={() => (navigation as any).navigate('Main', { screen: 'Credits' })}
+            >
+              <LinearGradient
+                colors={[COLORS.primary, COLORS.primaryDark]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.walletGradient}
+              >
+                <Wallet size={13} color="#FFF" strokeWidth={2.5} />
+                <Text style={styles.walletAmount}>{getTotalCredits()}</Text>
+              </LinearGradient>
+            </AnimatedButton>
+          </View>
         </View>
       </View>
 
@@ -381,30 +372,25 @@ export const HomeScreen: React.FC = () => {
         ]}
         onLayout={handleHeaderLayout}
       >
-        {/* Greeting Section */}
-        <View style={[
-          styles.premiumHeader,
-          {
-            paddingTop: STICKY_HEADER_HEIGHT + 10, // Push down below sticky header
-            marginTop: 0,
-            paddingBottom: 20 // Reduced spacing above banners
-          }
-        ]}>
-          <View style={styles.greetingSection}>
-            <View>
-              <MotiView
-                key={`greeting-${user?.name}`}
-                from={{ opacity: 0, translateX: -10 }}
-                animate={{ opacity: 1, translateX: 0 }}
-                transition={{ type: 'timing', duration: 600 }}
-              >
-                <Text style={styles.welcomeText}>
-                  {getGreeting()}, <Text style={styles.userName}>{user?.name?.split(' ')[0] || 'Guest'}</Text> 👋
-                </Text>
-              </MotiView>
-              <Text style={styles.brandTagline}>Ready for fresh clothes?</Text>
+        {/* Greeting Section - Premium Compact */}
+        <View style={[styles.greetingContainer, { paddingTop: STICKY_HEADER_HEIGHT + 16 }]}>
+          <MotiView
+            from={{ opacity: 0, translateY: 8 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'timing', duration: 600 }}
+            style={styles.greetingRow}
+          >
+            <View style={styles.greetingTextWrap}>
+              <Text style={styles.welcomeText}>
+                Hey <Text style={styles.userName}>{user?.name?.split(' ')[0] || 'there'}</Text>
+              </Text>
+              <Text style={styles.brandTagline}>Premium laundry, delivered fresh</Text>
             </View>
-          </View>
+            <View style={styles.availabilityBadge}>
+              <View style={styles.liveDot} />
+              <Text style={styles.availabilityText}>9 AM - 10 PM</Text>
+            </View>
+          </MotiView>
         </View>
 
         {/* Promo Section */}
@@ -420,7 +406,7 @@ export const HomeScreen: React.FC = () => {
             snapToAlignment="center"
             decelerationRate="fast"
             contentContainerStyle={styles.promoList}
-            getItemLayout={(data, index) => ({
+            getItemLayout={(_data, index) => ({
               length: Dimensions.get('window').width - 32 + 12, // width + marginRight
               offset: (Dimensions.get('window').width - 32 + 12) * index,
               index,
@@ -437,15 +423,17 @@ export const HomeScreen: React.FC = () => {
               setCurrentIndex(newIndex);
             }}
           />
-          {/* Pagination dots */}
+          {/* Animated Pagination Dots */}
           <View style={styles.paginationDots}>
             {PROMOS.map((_, index) => (
-              <View
+              <MotiView
                 key={index}
-                style={[
-                  styles.dot,
-                  currentIndex === index && styles.dotActive
-                ]}
+                style={styles.dot}
+                animate={{
+                  width: currentIndex === index ? 22 : 6,
+                  backgroundColor: currentIndex === index ? COLORS.primary : '#E2E8F0',
+                }}
+                transition={{ type: 'timing', duration: 300 }}
               />
             ))}
           </View>
@@ -463,12 +451,14 @@ export const HomeScreen: React.FC = () => {
       >
         <View style={styles.servicesSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Our Services</Text>
-            <View style={styles.trustBadgeCompact}>
-              <Ionicons name="shield-checkmark" size={12} color={COLORS.primary} />
-              <Text style={styles.trustBadgeText}>Trusted in Bangalore</Text>
+            <View style={styles.sectionHeaderLeft}>
+              <Text style={styles.sectionTitle}>Our Services</Text>
+              <Text style={styles.sectionSubtitle}>Premium laundry care</Text>
             </View>
-
+            <View style={styles.trustBadgeCompact}>
+              <ShieldCheck size={12} color={COLORS.primary} strokeWidth={2.5} />
+              <Text style={styles.trustBadgeText}>Trusted</Text>
+            </View>
           </View>
 
           <View style={styles.bentoGrid}>
@@ -479,23 +469,25 @@ export const HomeScreen: React.FC = () => {
                   key={service.id}
                   from={{ opacity: 0, translateY: 20 }}
                   animate={{ opacity: 1, translateY: 0 }}
-                  transition={{ delay: 200 + index * 100 }}
+                  transition={{ delay: 200 + index * 100, type: 'spring', damping: 18 }}
                   style={{ width: '48.5%' }}
                 >
                   <AnimatedButton
                     onPress={() => handleServicePress(service.id)}
-                    style={styles.bentoCardSquare}
+                    style={styles.serviceCard}
                   >
-                    <View style={styles.serviceImageBox}>
+                    <LinearGradient colors={service.gradient} style={styles.serviceCardGradient}>
                       <Image
-                        source={(service as any).image}
-                        style={StyleSheet.absoluteFill}
+                        source={service.image}
+                        style={styles.serviceCardImage}
                         contentFit="cover"
                         transition={300}
                       />
-                    </View>
-                    <View style={styles.serviceNameBar}>
-                      <Text style={styles.serviceNameLabel}>{service.name}</Text>
+                      <View style={styles.serviceCardOverlay} />
+                    </LinearGradient>
+                    <View style={styles.serviceCardFooter}>
+                      <Text style={styles.serviceCardName}>{service.name}</Text>
+                      <ChevronRight size={14} color={COLORS.primaryLight} strokeWidth={2} />
                     </View>
                   </AnimatedButton>
                 </MotiView>
@@ -509,37 +501,39 @@ export const HomeScreen: React.FC = () => {
                   key={service.id}
                   from={{ opacity: 0, translateY: 20 }}
                   animate={{ opacity: 1, translateY: 0 }}
-                  transition={{ delay: 400 + index * 100 }}
+                  transition={{ delay: 400 + index * 100, type: 'spring', damping: 18 }}
                   style={{ width: '48.5%' }}
                 >
                   <AnimatedButton
                     onPress={() => handleServicePress(service.id)}
-                    style={styles.bentoCardSquare}
+                    style={styles.serviceCard}
                   >
-                    <View style={styles.serviceImageBox}>
+                    <LinearGradient colors={service.gradient} style={styles.serviceCardGradient}>
                       <Image
-                        source={(service as any).image}
-                        style={StyleSheet.absoluteFill}
+                        source={service.image}
+                        style={styles.serviceCardImage}
                         contentFit="cover"
                         transition={300}
                       />
-                    </View>
-                    <View style={styles.serviceNameBar}>
-                      <Text style={styles.serviceNameLabel}>{service.name}</Text>
+                      <View style={styles.serviceCardOverlay} />
+                    </LinearGradient>
+                    <View style={styles.serviceCardFooter}>
+                      <Text style={styles.serviceCardName}>{service.name}</Text>
+                      <ChevronRight size={14} color={COLORS.primaryLight} strokeWidth={2} />
                     </View>
                   </AnimatedButton>
                 </MotiView>
               ))}
             </View>
 
-            {/* Row 3: Subscribe Feature Card (Kept as is/dark gradient) */}
+            {/* Row 3: Subscribe Feature Card */}
             <MotiView
               from={{ opacity: 0, translateY: 20 }}
               animate={{ opacity: 1, translateY: 0 }}
-              transition={{ delay: 500 }}
+              transition={{ delay: 500, type: 'spring', damping: 18 }}
               style={styles.bentoRowFull}
             >
-              <GlassCard cornerRadius="xl" style={styles.subscribeBentoCard}>
+              <GlassCard cornerRadius="xl" style={styles.subscribeCard}>
                 <LinearGradient
                   colors={['rgba(124, 94, 237, 0.9)', 'rgba(76, 29, 149, 0.9)']}
                   start={{ x: 0, y: 0 }}
@@ -550,16 +544,16 @@ export const HomeScreen: React.FC = () => {
                   onPress={() => handleServicePress('subscription')}
                   style={styles.subscribeContent}
                 >
-                  <View>
+                  <View style={styles.subscribeLeft}>
                     <View style={styles.exclusiveBadge}>
                       <Text style={styles.exclusiveBadgeText}>EXCLUSIVE</Text>
                     </View>
                     <Text style={styles.subscribeTitle}>Smart Care Subscription</Text>
-                    <Text style={styles.subscribeSubtitle}>Save 20% on every wash ✨</Text>
+                    <Text style={styles.subscribeSubtitle}>Save 20% on every wash</Text>
                   </View>
                   <View style={styles.subscribeIconGroup}>
-                    <Ionicons name="sparkles" size={26} color="#FDE047" />
-                    <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.5)" />
+                    <Sparkles size={24} color="#FDE047" strokeWidth={1.5} />
+                    <ChevronRight size={16} color="rgba(255,255,255,0.4)" strokeWidth={2} />
                   </View>
                 </AnimatedButton>
               </GlassCard>
@@ -586,9 +580,14 @@ export const HomeScreen: React.FC = () => {
         <View style={{ height: 100 }} />
       </Animated.ScrollView>
 
-      {/* Floating Cart Button */}
+      {/* Floating Cart Button - Animated Entrance */}
       {cartItemCount > 0 && (
-        <View style={[styles.cartButtonContainer, { bottom: insets.bottom + 16 }]}>
+        <MotiView
+          from={{ translateY: 100, opacity: 0, scale: 0.9 }}
+          animate={{ translateY: 0, opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', damping: 15, stiffness: 200 }}
+          style={[styles.cartButtonContainer, { bottom: insets.bottom + 16 }]}
+        >
           <TouchableOpacity style={styles.cartButton} onPress={handleViewCart} activeOpacity={0.9}>
             <View style={styles.cartInfo}>
               <View style={styles.cartCountBadge}>
@@ -599,9 +598,9 @@ export const HomeScreen: React.FC = () => {
                 <Text style={styles.cartButtonSubtext}>{cartItemCount} items • ₹{cartTotal}</Text>
               </View>
             </View>
-            <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+            <ArrowRight size={20} color="#FFFFFF" strokeWidth={2} />
           </TouchableOpacity>
-        </View>
+        </MotiView>
       )}
 
       {/* Service Detail Modal */}
@@ -622,47 +621,102 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.pageBg,
   },
-  premiumHeader: {
+  greetingContainer: {
     paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.headerTop + 4,
-    paddingBottom: SPACING.lg, // Reduced from XL for compactness
-    backgroundColor: '#FFFFFF',
-    borderBottomLeftRadius: 36,
-    borderBottomRightRadius: 36,
-    ...SHADOWS.md,
-    marginBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    paddingBottom: SPACING.sm,
+  },
+  greetingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  greetingTextWrap: {
+    flex: 1,
+    marginRight: 12,
+  },
+  welcomeText: {
+    fontSize: 22,
+    color: '#1E1B4B',
+    fontFamily: 'Outfit_600SemiBold',
+    letterSpacing: -0.5,
+  },
+  userName: {
+    color: COLORS.primary,
+    fontFamily: 'Outfit_700Bold',
+  },
+  brandTagline: {
+    fontSize: 14,
+    color: '#64748B',
+    fontFamily: 'Outfit_400Regular',
+    marginTop: 2,
+  },
+  availabilityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+  },
+  availabilityText: {
+    fontSize: 11,
+    fontFamily: 'Outfit_600SemiBold',
+    color: '#475569',
   },
   headerTopArea: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    // marginBottom: 20, // Removed to let fixed height handle spacing
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  notificationBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
   addressPill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F8FAFC',
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 24,
     flex: 1,
-    marginRight: 12,
+    marginRight: 8,
+    gap: 10,
     borderWidth: 1,
     borderColor: '#F1F5F9',
   },
-  iconCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...SHADOWS.sm,
-  },
   addressInfo: {
-    marginLeft: 12,
     flex: 1,
   },
   addressLabel: {
@@ -693,30 +747,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: 'Outfit_600SemiBold',
   },
-  greetingSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-  },
-  welcomeText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#64748B',
-    fontFamily: 'Outfit_600SemiBold',
-    letterSpacing: -0.5,
-  },
-  userName: {
-    color: COLORS.primary,
-    fontFamily: 'Outfit_600SemiBold',
-  },
-  brandTagline: {
-    fontSize: 13,
-    color: '#94A3B8',
-    fontWeight: '500',
-    fontFamily: 'Outfit_500Medium',
-    marginTop: 2,
-  },
   scrollContent: {
     paddingBottom: 140,
   },
@@ -729,8 +759,8 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
   },
   promoCard: {
-    width: Dimensions.get('window').width - 32, // Slightly narrower to show peek
-    height: 180, // Taller for more impact
+    width: Dimensions.get('window').width - 32,
+    height: 148,
     borderRadius: RADIUS.xl,
     marginRight: 12,
     overflow: 'hidden',
@@ -744,8 +774,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 20,
-    paddingRight: 16,
+    paddingLeft: 18,
+    paddingRight: 12,
   },
   promoContent: {
     flex: 1,
@@ -754,11 +784,11 @@ const styles = StyleSheet.create({
   },
   promoBadge: {
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderRadius: 20,
     alignSelf: 'flex-start',
-    marginBottom: 14,
+    marginBottom: 10,
     ...SHADOWS.sm,
   },
   promoBadgeText: {
@@ -770,48 +800,62 @@ const styles = StyleSheet.create({
     fontFamily: 'Outfit_800ExtraBold',
   },
   promoTitle: {
-    fontSize: 24,
+    fontSize: 22,
     color: '#1E293B',
     fontFamily: 'Outfit_700Bold',
-    lineHeight: 28,
-    marginBottom: 4,
+    lineHeight: 26,
+    marginBottom: 3,
   },
   promoSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#64748B',
-    fontWeight: '500',
     fontFamily: 'Outfit_500Medium',
   },
   promoImage: {
-    width: 145,
-    height: 145,
-    marginRight: -8,
+    width: 120,
+    height: 120,
+    marginRight: -4,
+  },
+  promoCTA: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 4,
+  },
+  promoCTAText: {
+    fontSize: 12,
+    fontFamily: 'Outfit_700Bold',
+    color: COLORS.primary,
   },
   paginationDots: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 8,
+    marginTop: 6,
   },
   dot: {
-    width: 6,
     height: 6,
     borderRadius: 3,
     backgroundColor: '#E2E8F0',
     marginHorizontal: 3,
   },
-  dotActive: {
-    backgroundColor: COLORS.primary,
-    width: 18,
-  },
   servicesSection: {
     paddingHorizontal: SPACING.md,
-    marginTop: 16, // Reduced from 24
+    marginTop: 12,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'column',
+  },
+  sectionSubtitle: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontFamily: 'Outfit_400Regular',
+    marginTop: 1,
   },
   sectionTitle: {
     ...TYPOGRAPHY.subheading,
@@ -822,25 +866,49 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontFamily: 'Outfit_600SemiBold',
   },
-  serviceImageBox: {
-    height: 110,
-    backgroundColor: '#EDE9FE',
+  serviceCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.08)',
+    ...Platform.OS === 'web'
+      ? { boxShadow: '0px 8px 24px rgba(124, 58, 237, 0.08), 0px 2px 4px rgba(0, 0, 0, 0.02)' }
+      : {
+        shadowColor: '#7C3AED',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 4,
+      },
+  },
+  serviceCardGradient: {
+    height: 100,
     position: 'relative',
     overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  serviceNameBar: {
+  serviceCardImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: undefined,
+    height: undefined,
+  },
+  serviceCardOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  serviceCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: '#FFFFFF',
-    alignItems: 'center',
   },
-  serviceNameLabel: {
+  serviceCardName: {
     fontSize: 13,
     fontFamily: 'Outfit_700Bold',
     color: COLORS.text,
-    textAlign: 'center',
+    flex: 1,
   },
   bentoGrid: {
     gap: 12,
@@ -851,43 +919,6 @@ const styles = StyleSheet.create({
   },
   bentoRowFull: {
     width: '100%',
-  },
-  bentoCardSquare: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    overflow: 'hidden',
-    ...SHADOWS.md,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-  },
-  bentoCardRectangle: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 20,
-    height: 100,
-    ...SHADOWS.md,
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-    overflow: 'hidden',
-  },
-  bentoContentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  bentoTextContent: {
-    flex: 1,
-  },
-  bentoTitle: {
-    ...TYPOGRAPHY.subheading,
-    fontSize: 18,
-    color: COLORS.text,
-    marginBottom: 2,
-  },
-  bentoSubtitle: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textSecondary,
   },
   trustBadgeCompact: {
     flexDirection: 'row',
@@ -907,9 +938,13 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  subscribeBentoCard: {
+  subscribeCard: {
     height: 120,
     ...SHADOWS.primary,
+  },
+  subscribeLeft: {
+    flex: 1,
+    marginRight: 12,
   },
   subscribeContent: {
     flex: 1,
@@ -943,34 +978,9 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.bodySmall,
     color: 'rgba(255, 255, 255, 0.8)',
   },
-  subscribePricing: {
-    fontSize: 11,
-    fontFamily: 'Outfit_500Medium',
-    color: 'rgba(255, 255, 255, 0.55)',
-    marginTop: 3,
-  },
   subscribeIconGroup: {
     alignItems: 'center',
     gap: 6,
-  },
-  serviceOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.08,
-  },
-  serviceIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    ...SHADOWS.sm,
-  },
-  serviceName: {
-    ...TYPOGRAPHY.bodyBold,
-    color: COLORS.text,
-    textAlign: 'center',
   },
   section: {
     marginTop: 32,
@@ -1032,11 +1042,16 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)', // Slightly translucent
-    zIndex: 100, // Above everything
+    zIndex: 100,
     paddingHorizontal: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    ...SHADOWS.sm,
+    overflow: 'hidden',
+  },
+  stickyHeaderBorder: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(0,0,0,0.05)',
   },
 });

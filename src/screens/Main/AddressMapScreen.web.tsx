@@ -1,808 +1,384 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    Dimensions,
-    TextInput,
-    ScrollView,
-    KeyboardAvoidingView,
-    Platform,
-    ActivityIndicator,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Dimensions,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
-import { BrandLoader } from '../../components/BrandLoader';
 import { GoogleMap, useJsApiLoader, Autocomplete } from '@react-google-maps/api';
-import AnalyticsService from '../../services/analytics';
 import * as Location from 'expo-location';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
-import { addAddress, updateUserAddress } from '../../services/firestore';
-import { useAuthStore, useAddressStore, useUIStore } from '../../store';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowLeft, MapPin, Navigation2, CheckCircle, ArrowRight, Search } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { MotiView } from 'moti';
+import { reverseGeocode, GeocodedAddress } from '../../utils/geocoding';
 
-// Google Maps API Configuration
+const { width, height } = Dimensions.get('window');
+const MAP_HEIGHT = height * 0.52;
+
 const GOOGLE_MAPS_API_KEY = 'AIzaSyADDmG-kNKYDNa0eBoamy6nin03XkkcvWs';
 const LIBRARIES: ("places")[] = ['places'];
 
-// Default coordinates (Bangalore)
-const DEFAULT_CENTER = {
-    lat: 12.9716,
-    lng: 77.5946,
-};
+const DEFAULT_CENTER = { lat: 12.9716, lng: 77.5946 };
 
-const { width } = Dimensions.get('window');
-
-// Map container style
-const mapContainerStyle = {
-    width: '100%',
-    height: '100%',
-};
-
-// Map options for a clean look
 const mapOptions: google.maps.MapOptions = {
-    disableDefaultUI: false,
-    zoomControl: true,
-    streetViewControl: false,
-    mapTypeControl: false,
-    fullscreenControl: false,
-    gestureHandling: 'greedy',
-    styles: [
-        {
-            featureType: 'poi',
-            elementType: 'labels',
-            stylers: [{ visibility: 'off' }],
-        },
-    ],
-};
-
-type Region = {
-    latitude: number;
-    longitude: number;
-    latitudeDelta: number;
-    longitudeDelta: number;
+  disableDefaultUI: false,
+  zoomControl: true,
+  streetViewControl: false,
+  mapTypeControl: false,
+  fullscreenControl: false,
+  gestureHandling: 'greedy',
+  styles: [{ featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }],
 };
 
 export const AddressMapScreen: React.FC = () => {
-    const navigation = useNavigation();
-    const route = useRoute();
-    const { user } = useAuthStore();
-    const { setCurrentAddress, addAddress: addAddressToStore, updateAddress: updateAddressInStore } = useAddressStore();
-    const { showAlert } = useUIStore();
-    const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
+  const route = useRoute();
+  const insets = useSafeAreaInsets();
 
-    // Load Google Maps API
-    const { isLoaded, loadError } = useJsApiLoader({
-        googleMapsApiKey: GOOGLE_MAPS_API_KEY,
-        libraries: LIBRARIES,
-    });
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: LIBRARIES,
+  });
 
-    // Params
-    const { initialLat, initialLng, editingAddress } = route.params as {
-        initialLat?: number;
-        initialLng?: number;
-        editingAddress?: any;
-    } || {};
+  const params = route.params as { initialLat?: number; initialLng?: number; editingAddress?: any } || {};
 
-    // Map reference
-    const mapRef = useRef<google.maps.Map | null>(null);
-    const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
 
-    // Current center coordinates
-    const [center, setCenter] = useState({
-        lat: initialLat || (editingAddress ? editingAddress.latitude : DEFAULT_CENTER.lat),
-        lng: initialLng || (editingAddress ? editingAddress.longitude : DEFAULT_CENTER.lng),
-    });
+  const [center, setCenter] = useState({
+    lat: params.initialLat || (params.editingAddress?.latitude || DEFAULT_CENTER.lat),
+    lng: params.initialLng || (params.editingAddress?.longitude || DEFAULT_CENTER.lng),
+  });
+  const [selectedAddress, setSelectedAddress] = useState<GeocodedAddress | null>(
+    params.editingAddress
+      ? { formattedAddress: params.editingAddress.address || params.editingAddress.formattedAddress || '' }
+      : null,
+  );
+  const [isDragging, setIsDragging] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
+  const [searchValue, setSearchValue] = useState('');
 
-    // Region ref for saving
-    const currentRegionRef = useRef<Region>({
-        latitude: center.lat,
-        longitude: center.lng,
-        latitudeDelta: 0.005,
-        longitudeDelta: 0.005,
-    });
+  const geocodeSeqRef = useRef(0);
 
-    const [addressDetails, setAddressDetails] = useState({
-        houseNo: editingAddress ? (editingAddress.address.split(',')[0] || '') : '',
-        landmark: '',
-        tag: editingAddress?.label || 'Home',
-        formattedAddress: editingAddress
-            ? (typeof editingAddress.address === 'string' ? editingAddress.address : editingAddress.address.formattedAddress)
-            : 'Fetching location...',
-    });
+  const doGeocode = useCallback(async (lat: number, lng: number) => {
+    const seq = ++geocodeSeqRef.current;
+    setGeocoding(true);
+    try {
+      const result = await reverseGeocode(lat, lng);
+      if (seq === geocodeSeqRef.current) {
+        setSelectedAddress(result);
+      }
+    } finally {
+      if (seq === geocodeSeqRef.current) {
+        setGeocoding(false);
+      }
+    }
+  }, []);
 
-    const [searchValue, setSearchValue] = useState('');
-    const [isDragging, setIsDragging] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const [isLocating, setIsLocating] = useState(false);
-
-    // Reverse geocode using Google Geocoding API
-    const fetchAddress = useCallback(async (lat: number, lng: number) => {
+  useEffect(() => {
+    if (!isLoaded) return;
+    const init = async () => {
+      let lat = center.lat;
+      let lng = center.lng;
+      if (!params.initialLat && !params.initialLng && !params.editingAddress) {
         try {
-            const response = await fetch(
-                `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`
-            );
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === 'granted') {
+            const loc = await Location.getCurrentPositionAsync({});
+            lat = loc.coords.latitude;
+            lng = loc.coords.longitude;
+            setCenter({ lat, lng });
+          }
+        } catch { /* defaults */ }
+      }
+      if (!params.editingAddress) doGeocode(lat, lng);
+    };
+    init();
+  }, [isLoaded]);
 
-            if (!response.ok) throw new Error('Geocoding failed');
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false);
+    if (mapRef.current) {
+      const c = mapRef.current.getCenter();
+      if (c) {
+        const lat = c.lat();
+        const lng = c.lng();
+        setCenter({ lat, lng });
+        doGeocode(lat, lng);
+      }
+    }
+  }, [doGeocode]);
 
-            const data = await response.json();
-            if (data.status === 'OK' && data.results && data.results.length > 0) {
-                // Get the best formatted address
-                const result = data.results[0];
-                setAddressDetails(prev => ({
-                    ...prev,
-                    formattedAddress: result.formatted_address,
-                }));
-            }
-        } catch (error) {
-            console.warn('Geocoding error:', error);
-            // Fallback to Nominatim if Google fails
-            try {
-                const fallbackResponse = await fetch(
-                    `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`
-                );
-                const fallbackData = await fallbackResponse.json();
-                if (fallbackData?.display_name) {
-                    setAddressDetails(prev => ({
-                        ...prev,
-                        formattedAddress: fallbackData.display_name,
-                    }));
-                }
-            } catch (fallbackError) {
-                console.warn('Fallback geocoding error:', fallbackError);
-            }
-        }
-    }, []);
-
-    // Initialize location on mount
-    useEffect(() => {
-        const initLocation = async () => {
-            let lat = center.lat;
-            let lng = center.lng;
-
-            // Only fetch current location if NO params provided and NOT editing
-            if (!initialLat && !initialLng && !editingAddress) {
-                try {
-                    const { status } = await Location.requestForegroundPermissionsAsync();
-                    if (status === 'granted') {
-                        const loc = await Location.getCurrentPositionAsync({});
-                        lat = loc.coords.latitude;
-                        lng = loc.coords.longitude;
-
-                        setCenter({ lat, lng });
-                        currentRegionRef.current = {
-                            latitude: lat,
-                            longitude: lng,
-                            latitudeDelta: 0.005,
-                            longitudeDelta: 0.005,
-                        };
-                    }
-                } catch (e: any) {
-                    if (e?.code === 2) {
-                        // Position update unavailable (common on desktop/web without GPS)
-                        console.warn('Location info unavailable. Defaulting to fallback coordinates.');
-                    } else {
-                        console.warn('Could not determine precise location:', e?.message || e);
-                    }
-                }
-            }
-
-            // Fetch address for initial location
-            if (!editingAddress) {
-                fetchAddress(lat, lng);
-            }
-        };
-
-        if (isLoaded) {
-            initLocation();
-        }
-    }, [isLoaded]);
-
-    // Handle map drag end
-    const handleDragEnd = useCallback(() => {
-        setIsDragging(false);
-
+  const handleUseMyLocation = async () => {
+    setIsLocating(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const loc = await Location.getCurrentPositionAsync({});
+        const { latitude: lat, longitude: lng } = loc.coords;
+        setCenter({ lat, lng });
         if (mapRef.current) {
-            const newCenter = mapRef.current.getCenter();
-            if (newCenter) {
-                const lat = newCenter.lat();
-                const lng = newCenter.lng();
-
-                currentRegionRef.current = {
-                    latitude: lat,
-                    longitude: lng,
-                    latitudeDelta: 0.005,
-                    longitudeDelta: 0.005,
-                };
-
-                fetchAddress(lat, lng);
-            }
+          mapRef.current.panTo({ lat, lng });
+          mapRef.current.setZoom(17);
         }
-    }, [fetchAddress]);
+        doGeocode(lat, lng);
+      }
+    } catch { /* silent */ }
+    setIsLocating(false);
+  };
 
-    // Handle map drag start
-    const handleDragStart = useCallback(() => {
-        setIsDragging(true);
-    }, []);
+  const handleConfirm = () => {
+    (navigation as any).navigate('AddressForm', {
+      latitude: center.lat,
+      longitude: center.lng,
+      formattedAddress: selectedAddress?.formattedAddress || '',
+      city: selectedAddress?.city || '',
+      pincode: selectedAddress?.pincode || '',
+      state: selectedAddress?.state || '',
+      street: selectedAddress?.street || '',
+      suburb: selectedAddress?.suburb || '',
+      editingAddress: params.editingAddress || null,
+    });
+  };
 
-    // Handle map load
-    const onMapLoad = useCallback((map: google.maps.Map) => {
-        mapRef.current = map;
-    }, []);
+  const onMapLoad = useCallback((map: google.maps.Map) => { mapRef.current = map; }, []);
 
-    // Handle autocomplete load
-    const onAutocompleteLoad = useCallback((autocomplete: google.maps.places.Autocomplete) => {
-        autocompleteRef.current = autocomplete;
-    }, []);
+  const onAutocompleteLoad = useCallback((ac: google.maps.places.Autocomplete) => {
+    autocompleteRef.current = ac;
+  }, []);
 
-    // Handle place selection from autocomplete
-    const onPlaceChanged = useCallback(() => {
-        if (autocompleteRef.current) {
-            const place = autocompleteRef.current.getPlace();
-
-            if (place.geometry?.location) {
-                const lat = place.geometry.location.lat();
-                const lng = place.geometry.location.lng();
-
-                // Update center and move map
-                setCenter({ lat, lng });
-                currentRegionRef.current = {
-                    latitude: lat,
-                    longitude: lng,
-                    latitudeDelta: 0.005,
-                    longitudeDelta: 0.005,
-                };
-
-                // Update address
-                setAddressDetails(prev => ({
-                    ...prev,
-                    formattedAddress: place.formatted_address || place.name || 'Selected Location',
-                }));
-
-                // Clear search input
-                setSearchValue('');
-
-                // Pan map to new location
-                if (mapRef.current) {
-                    mapRef.current.panTo({ lat, lng });
-                    mapRef.current.setZoom(17);
-                }
-
-                // Log search event
-                AnalyticsService.logEvent('search', {
-                    search_term: place.name || place.formatted_address || 'unknown_location'
-                });
-            }
+  const onPlaceChanged = useCallback(() => {
+    if (autocompleteRef.current) {
+      const place = autocompleteRef.current.getPlace();
+      if (place.geometry?.location) {
+        const lat = place.geometry.location.lat();
+        const lng = place.geometry.location.lng();
+        setCenter({ lat, lng });
+        if (mapRef.current) {
+          mapRef.current.panTo({ lat, lng });
+          mapRef.current.setZoom(17);
         }
-    }, []);
-
-    // Use current location button handler
-    const handleUseCurrentLocation = async () => {
-        setIsLocating(true);
-        try {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status === 'granted') {
-                const loc = await Location.getCurrentPositionAsync({
-                    accuracy: Location.Accuracy.High,
-                });
-
-                const lat = loc.coords.latitude;
-                const lng = loc.coords.longitude;
-
-                setCenter({ lat, lng });
-                currentRegionRef.current = {
-                    latitude: lat,
-                    longitude: lng,
-                    latitudeDelta: 0.005,
-                    longitudeDelta: 0.005,
-                };
-
-                if (mapRef.current) {
-                    mapRef.current.panTo({ lat, lng });
-                    mapRef.current.setZoom(17);
-                }
-
-                fetchAddress(lat, lng);
-            } else {
-                showAlert({
-                    title: 'Location Permission',
-                    message: 'Location permission denied. Please enable it in your browser settings.',
-                    type: 'warning'
-                });
-            }
-        } catch (error) {
-            console.error('Error getting current location:', error);
-            showAlert({
-                title: 'Error',
-                message: 'Could not get your current location. Please try again.',
-                type: 'error'
-            });
-        } finally {
-            setIsLocating(false);
-        }
-    };
-
-    // Save address handler
-    const handleSaveAddress = async () => {
-        if (!addressDetails.houseNo.trim()) {
-            showAlert({
-                title: 'Details Missing',
-                message: 'Please enter House/Flat Number',
-                type: 'warning'
-            });
-            return;
-        }
-
-        if (!user?.uid) {
-            showAlert({
-                title: 'Error',
-                message: 'User not logged in',
-                type: 'error'
-            });
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const fullAddress = `${addressDetails.houseNo}, ${addressDetails.landmark ? addressDetails.landmark + ', ' : ''}${addressDetails.formattedAddress}`;
-            const regionToSave = currentRegionRef.current;
-            const isPrimary = editingAddress ? editingAddress.isPrimary : true;
-
-            const addressData = {
-                id: editingAddress?.id,
-                label: addressDetails.tag,
-                address: fullAddress,
-                latitude: regionToSave.latitude,
-                longitude: regionToSave.longitude,
-                isPrimary: isPrimary
-            };
-
-            if (editingAddress) {
-                await updateUserAddress(user.uid, addressData as any);
-                updateAddressInStore(addressData as any);
-                setCurrentAddress(fullAddress, regionToSave.latitude, regionToSave.longitude);
-                showAlert({
-                    title: 'Success',
-                    message: 'Address updated!',
-                    type: 'success',
-                    onClose: () => navigation.goBack()
-                });
-            } else {
-                const newAddress = await addAddress(
-                    user.uid,
-                    addressDetails.tag,
-                    fullAddress,
-                    regionToSave.latitude,
-                    regionToSave.longitude,
-                    true
-                );
-                addAddressToStore(newAddress as any);
-                setCurrentAddress(fullAddress, regionToSave.latitude, regionToSave.longitude);
-                showAlert({
-                    title: 'Success',
-                    message: 'Address saved!',
-                    type: 'success',
-                    onClose: () => {
-                        const returnTo = (route.params as any)?.returnTo;
-                        if (returnTo) {
-                            (navigation as any).reset({
-                                index: 0,
-                                routes: [
-                                    {
-                                        name: 'Main',
-                                        state: {
-                                            routes: [
-                                                { name: 'MainTabs' },
-                                                { name: returnTo }
-                                            ]
-                                        }
-                                    }
-                                ],
-                            });
-                        } else {
-                            (navigation as any).reset({
-                                index: 0,
-                                routes: [{ name: 'Main' }],
-                            });
-                        }
-                    }
-                });
-            }
-
-        } catch (error: any) {
-            console.error('Save address error:', error);
-            showAlert({
-                title: 'Error',
-                message: 'Failed to save address: ' + (error.message || 'Unknown error'),
-                type: 'error'
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Loading state
-    if (loadError) {
-        return (
-            <View style={styles.container}>
-                <View style={styles.errorContainer}>
-                    <Ionicons name="alert-circle" size={48} color={COLORS.error} />
-                    <Text style={styles.errorText}>Failed to load Google Maps</Text>
-                    <Text style={styles.errorSubtext}>Please check your internet connection</Text>
-                </View>
-            </View>
-        );
+        doGeocode(lat, lng);
+        setSearchValue('');
+      }
     }
+  }, [doGeocode]);
 
-    if (!isLoaded) {
-        return (
-            <View style={styles.container}>
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={COLORS.primary} />
-                    <Text style={styles.loadingText}>Loading map...</Text>
-                </View>
-            </View>
-        );
-    }
-
+  if (loadError) {
     return (
-        <View style={styles.container}>
-            {/* Map Section */}
-            <View style={styles.mapContainer}>
-                <GoogleMap
-                    mapContainerStyle={mapContainerStyle}
-                    center={center}
-                    zoom={17}
-                    options={mapOptions}
-                    onLoad={onMapLoad}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                />
-
-                {/* Fixed Center Marker */}
-                <View style={styles.markerFixed}>
-                    <View style={[styles.markerShadow, isDragging && styles.markerDragging]} />
-                    <Ionicons
-                        name="location"
-                        size={48}
-                        color={COLORS.primary}
-                        style={isDragging ? styles.markerIconDragging : undefined}
-                    />
-                </View>
-
-                {/* Search Bar */}
-                <View style={styles.searchContainer}>
-                    <Autocomplete
-                        onLoad={onAutocompleteLoad}
-                        onPlaceChanged={onPlaceChanged}
-                        options={{
-                            componentRestrictions: { country: 'in' },
-                            types: ['geocode', 'establishment'],
-                        }}
-                    >
-                        <View style={styles.searchInputWrapper}>
-                            <Ionicons name="search" size={20} color={COLORS.textSecondary} style={styles.searchIcon} />
-                            <input
-                                type="text"
-                                placeholder="Search for area, street name..."
-                                value={searchValue}
-                                onChange={(e) => setSearchValue(e.target.value)}
-                                style={{
-                                    width: '100%',
-                                    height: 44,
-                                    border: 'none',
-                                    outline: 'none',
-                                    fontSize: 16,
-                                    fontFamily: 'inherit',
-                                    backgroundColor: 'transparent',
-                                    paddingLeft: 8,
-                                }}
-                            />
-                        </View>
-                    </Autocomplete>
-                </View>
-
-                {/* Back Button */}
-                <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-                    <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-                </TouchableOpacity>
-
-                {/* Current Location Button */}
-                <TouchableOpacity
-                    style={styles.currentLocationButton}
-                    onPress={handleUseCurrentLocation}
-                    disabled={isLocating}
-                >
-                    {isLocating ? (
-                        <ActivityIndicator size="small" color={COLORS.primary} />
-                    ) : (
-                        <Ionicons name="locate" size={24} color={COLORS.primary} />
-                    )}
-                </TouchableOpacity>
-            </View>
-
-            {/* Form Section */}
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                style={styles.formContainer}
-            >
-                <ScrollView
-                    style={styles.scrollView}
-                    showsVerticalScrollIndicator={true}
-                    contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 40) + 60 }]}
-                >
-                    <Text style={styles.heading}>Select Location</Text>
-
-                    <View style={styles.currentLocationContainer}>
-                        <Ionicons name="navigate-circle" size={24} color={COLORS.primary} style={styles.icon} />
-                        <View style={styles.textContainer}>
-                            <Text style={styles.locationTitle}>
-                                {isDragging ? 'Locating...' : 'Selected Location'}
-                            </Text>
-                            <Text style={styles.locationText} numberOfLines={2}>
-                                {isDragging ? 'Release to select' : addressDetails.formattedAddress}
-                            </Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.divider} />
-
-                    <Text style={styles.inputLabel}>House / Flat / Block No.</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="e.g. Flat 302, Sushant Apt"
-                        value={addressDetails.houseNo}
-                        onChangeText={(text) => setAddressDetails(prev => ({ ...prev, houseNo: text }))}
-                    />
-
-                    <Text style={styles.inputLabel}>Landmark (Optional)</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="e.g. Near City Center Mall"
-                        value={addressDetails.landmark}
-                        onChangeText={(text) => setAddressDetails(prev => ({ ...prev, landmark: text }))}
-                    />
-
-                    <Text style={styles.inputLabel}>Save As</Text>
-                    <View style={styles.tagsContainer}>
-                        {['Home', 'Work', 'Other'].map((tag) => (
-                            <TouchableOpacity
-                                key={tag}
-                                style={[styles.tag, addressDetails.tag === tag && styles.tagSelected]}
-                                onPress={() => setAddressDetails(prev => ({ ...prev, tag }))}
-                            >
-                                <Ionicons
-                                    name={tag === 'Home' ? 'home' : tag === 'Work' ? 'briefcase' : 'location'}
-                                    size={18}
-                                    color={addressDetails.tag === tag ? '#FFF' : COLORS.textSecondary}
-                                />
-                                <Text style={[styles.tagText, addressDetails.tag === tag && styles.tagTextSelected]}>{tag}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-
-                    <TouchableOpacity
-                        style={styles.saveButton}
-                        onPress={handleSaveAddress}
-                        disabled={loading || isDragging}
-                    >
-                        {loading ? (
-                            <ActivityIndicator color="#FFF" />
-                        ) : (
-                            <Text style={styles.saveButtonText}>Confirm & Save Address</Text>
-                        )}
-                    </TouchableOpacity>
-                </ScrollView>
-            </KeyboardAvoidingView>
+      <View style={styles.container}>
+        <View style={styles.centered}>
+          <Text style={{ fontSize: 16, fontFamily: 'Outfit_600SemiBold', color: '#EF4444' }}>Failed to load map</Text>
         </View>
+      </View>
     );
+  }
+
+  if (!isLoaded) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#7C3AED" />
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+          <ArrowLeft size={20} color="#09090B" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Pin Your Location</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      {/* Map Section */}
+      <View style={styles.mapWrapper}>
+        <GoogleMap
+          mapContainerStyle={{ width: '100%', height: '100%' }}
+          center={center}
+          zoom={17}
+          options={mapOptions}
+          onLoad={onMapLoad}
+          onDragStart={() => setIsDragging(true)}
+          onDragEnd={handleDragEnd}
+        />
+
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Autocomplete
+            onLoad={onAutocompleteLoad}
+            onPlaceChanged={onPlaceChanged}
+            options={{ componentRestrictions: { country: 'in' }, types: ['geocode', 'establishment'] }}
+          >
+            <View style={styles.searchInputWrap}>
+              <Search size={18} color="#71717A" />
+              <input
+                type="text"
+                placeholder="Search for area, street name..."
+                value={searchValue}
+                onChange={(e) => setSearchValue(e.target.value)}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  border: 'none',
+                  outline: 'none',
+                  fontSize: 15,
+                  fontFamily: 'Outfit_400Regular, sans-serif',
+                  backgroundColor: 'transparent',
+                  paddingLeft: 8,
+                }}
+              />
+            </View>
+          </Autocomplete>
+        </View>
+
+        {/* Center Pin */}
+        <View style={styles.pinContainer}>
+          <View style={styles.pinGlow} />
+          <View style={styles.pinRing} />
+          <View style={styles.dragTooltip}>
+            <Text style={styles.dragTooltipText}>Drag to adjust</Text>
+          </View>
+          <MapPin size={40} color="#7C3AED" fill="#7C3AED" />
+        </View>
+
+        {/* My Location Button */}
+        <TouchableOpacity onPress={handleUseMyLocation} disabled={isLocating} style={styles.myLocationBtn}>
+          {isLocating ? (
+            <ActivityIndicator size="small" color="#7C3AED" />
+          ) : (
+            <Navigation2 size={20} color="#7C3AED" />
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Sheet */}
+      <MotiView
+        from={{ translateY: 40, opacity: 0 }}
+        animate={{ translateY: 0, opacity: 1 }}
+        transition={{ type: 'spring', damping: 20 }}
+        style={styles.sheet}
+      >
+        <View style={styles.sheetHandle} />
+        <View style={styles.sheetContent}>
+          <View style={styles.locationRow}>
+            <View style={styles.locationTextWrap}>
+              <Text style={styles.sectionLabel}>SELECTED LOCATION</Text>
+              {geocoding ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <ActivityIndicator size="small" color="#7C3AED" />
+                  <Text style={{ fontSize: 14, fontFamily: 'Outfit_400Regular', color: '#71717A' }}>Resolving address...</Text>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.addressMain} numberOfLines={2}>
+                    {selectedAddress?.street || selectedAddress?.city || selectedAddress?.formattedAddress?.split(',').slice(0, 3).join(',') || 'Move the pin'}
+                  </Text>
+                  <Text style={styles.addressFull} numberOfLines={2}>
+                    {selectedAddress?.formattedAddress || ''}
+                  </Text>
+                </>
+              )}
+            </View>
+            <TouchableOpacity style={styles.changeBtn} onPress={handleUseMyLocation}>
+              <Text style={styles.changeBtnText}>Change</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            onPress={handleConfirm}
+            disabled={geocoding || !selectedAddress?.formattedAddress}
+            style={styles.confirmBtn}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={geocoding || !selectedAddress?.formattedAddress ? ['#A1A1AA', '#D4D4D8'] : ['#7C3AED', '#6D28D9']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <CheckCircle size={20} color="#FFFFFF" />
+            <Text style={styles.confirmBtnText}>{geocoding ? 'Resolving...' : 'Confirm Location'}</Text>
+            <ArrowRight size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      </MotiView>
+    </View>
+  );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: COLORS.background,
-    },
-    mapContainer: {
-        flex: 0.5,
-        position: 'relative',
-        alignItems: 'center',
-        justifyContent: 'center',
-        overflow: 'hidden',
-    },
-    markerFixed: {
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        marginLeft: -24,
-        marginTop: -48,
-        zIndex: 10,
-        pointerEvents: 'none',
-        alignItems: 'center',
-    },
-    markerShadow: {
-        position: 'absolute',
-        bottom: -8,
-        width: 20,
-        height: 8,
-        backgroundColor: 'rgba(0,0,0,0.2)',
-        borderRadius: 10,
-    },
-    markerDragging: {
-        width: 30,
-        height: 12,
-        bottom: -4,
-    },
-    markerIconDragging: {
-        transform: [{ translateY: -10 }, { scale: 1.1 }],
-    },
-    searchContainer: {
-        position: 'absolute',
-        top: 12,
-        left: 60,
-        right: 20,
-        zIndex: 30,
-    },
-    searchInputWrapper: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FFF',
-        borderRadius: 12,
-        paddingHorizontal: 12,
-        ...SHADOWS.md,
-    },
-    searchIcon: {
-        marginRight: 4,
-    },
-    backButton: {
-        position: 'absolute',
-        top: 12,
-        left: 12,
-        backgroundColor: COLORS.background,
-        padding: 10,
-        borderRadius: 50,
-        ...SHADOWS.md,
-        zIndex: 20,
-    },
-    currentLocationButton: {
-        position: 'absolute',
-        bottom: 30,
-        right: 20,
-        backgroundColor: '#FFF',
-        padding: 12,
-        borderRadius: 50,
-        ...SHADOWS.md,
-        zIndex: 20,
-    },
-    formContainer: {
-        flex: 1,
-        backgroundColor: COLORS.background,
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        padding: SPACING.md,
-        marginTop: -20,
-        ...SHADOWS.lg,
-    },
-    scrollView: {
-        flex: 1,
-        // @ts-ignore - web-specific
-        overflow: 'auto',
-    },
-    scrollContent: {
-        flexGrow: 1,
-    },
-    heading: {
-        ...TYPOGRAPHY.subheading,
-        marginBottom: SPACING.md,
-        textAlign: 'center',
-    },
-    currentLocationContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: SPACING.sm,
-        backgroundColor: COLORS.backgroundLight,
-        borderRadius: RADIUS.md,
-    },
-    icon: {
-        marginRight: SPACING.sm,
-    },
-    textContainer: {
-        flex: 1,
-    },
-    locationTitle: {
-        ...TYPOGRAPHY.bodyBold,
-        color: COLORS.primary,
-    },
-    locationText: {
-        ...TYPOGRAPHY.caption,
-        color: COLORS.textSecondary,
-    },
-    divider: {
-        height: 1,
-        backgroundColor: COLORS.borderLight,
-        marginVertical: SPACING.md,
-    },
-    inputLabel: {
-        ...TYPOGRAPHY.body,
-        fontWeight: '600',
-        marginBottom: SPACING.xs,
-        color: COLORS.text,
-    },
-    input: {
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        borderRadius: RADIUS.md,
-        padding: SPACING.md,
-        marginBottom: SPACING.md,
-        ...TYPOGRAPHY.body,
-        backgroundColor: '#FFF',
-    },
-    tagsContainer: {
-        flexDirection: 'row',
-        marginBottom: SPACING.xl,
-    },
-    tag: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        marginRight: SPACING.sm,
-        backgroundColor: '#FFF',
-    },
-    tagSelected: {
-        backgroundColor: COLORS.primary,
-        borderColor: COLORS.primary,
-    },
-    tagText: {
-        marginLeft: 6,
-        ...TYPOGRAPHY.bodySmall,
-        fontWeight: '600',
-        color: COLORS.textSecondary,
-    },
-    tagTextSelected: {
-        color: '#FFF',
-    },
-    saveButton: {
-        backgroundColor: COLORS.primary,
-        paddingVertical: SPACING.md,
-        borderRadius: RADIUS.lg,
-        alignItems: 'center',
-        marginBottom: SPACING.xl,
-        ...SHADOWS.primary,
-    },
-    saveButtonText: {
-        ...TYPOGRAPHY.button,
-        color: '#FFF',
-    },
-    loadingContainer: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    loadingText: {
-        ...TYPOGRAPHY.body,
-        marginTop: SPACING.md,
-        color: COLORS.textSecondary,
-    },
-    errorContainer: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: SPACING.xl,
-    },
-    errorText: {
-        ...TYPOGRAPHY.subheading,
-        marginTop: SPACING.md,
-        color: COLORS.error,
-    },
-    errorSubtext: {
-        ...TYPOGRAPHY.body,
-        marginTop: SPACING.sm,
-        color: COLORS.textSecondary,
-        textAlign: 'center',
-    },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingBottom: 12,
+    borderBottomWidth: 1, borderBottomColor: '#F1F5F9', zIndex: 20,
+  },
+  headerBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 17, fontFamily: 'Outfit_600SemiBold', color: '#09090B', letterSpacing: -0.4 },
+  mapWrapper: { height: MAP_HEIGHT, position: 'relative', overflow: 'hidden' },
+  searchContainer: { position: 'absolute', top: 12, left: 56, right: 16, zIndex: 30 },
+  searchInputWrap: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF',
+    borderRadius: 14, paddingHorizontal: 14, shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 6,
+  },
+  pinContainer: {
+    position: 'absolute', top: '50%', left: '50%', marginLeft: -20, marginTop: -40,
+    alignItems: 'center', zIndex: 10, pointerEvents: 'none',
+  },
+  pinGlow: {
+    position: 'absolute', bottom: -20, width: 96, height: 96, borderRadius: 48,
+    backgroundColor: 'rgba(124,58,237,0.15)',
+  },
+  pinRing: {
+    position: 'absolute', bottom: -10, width: 64, height: 64, borderRadius: 32,
+    borderWidth: 1, borderColor: 'rgba(124,58,237,0.25)',
+  },
+  dragTooltip: {
+    position: 'absolute', top: -32, backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
+    borderWidth: 1, borderColor: '#F1F5F9',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4,
+  },
+  dragTooltipText: { fontSize: 11, fontFamily: 'Outfit_500Medium', color: '#71717A' },
+  myLocationBtn: {
+    position: 'absolute', top: 16, left: 12, width: 44, height: 44, borderRadius: 14,
+    backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: '#F1F5F9',
+    shadowColor: '#5B21B6', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.12, shadowRadius: 30, elevation: 6,
+    zIndex: 20,
+  },
+  sheet: {
+    flex: 1, backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, marginTop: -5,
+    shadowColor: '#5B21B6', shadowOffset: { width: 0, height: -10 }, shadowOpacity: 0.08, shadowRadius: 30, elevation: 8,
+  },
+  sheetHandle: { width: 48, height: 6, borderRadius: 3, backgroundColor: '#F1F5F9', alignSelf: 'center', marginTop: 14, marginBottom: 8 },
+  sheetContent: { flex: 1, paddingHorizontal: 24, paddingTop: 8, justifyContent: 'space-between', paddingBottom: 24 },
+  locationRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  locationTextWrap: { flex: 1, marginRight: 12 },
+  sectionLabel: { fontSize: 12, fontFamily: 'Outfit_500Medium', color: '#71717A', letterSpacing: 2.88, marginBottom: 6 },
+  addressMain: { fontSize: 17, fontFamily: 'Outfit_600SemiBold', color: '#09090B', lineHeight: 22, marginBottom: 4 },
+  addressFull: { fontSize: 13, fontFamily: 'Outfit_400Regular', color: '#71717A', lineHeight: 20 },
+  changeBtn: {
+    backgroundColor: 'rgba(124,58,237,0.08)', paddingHorizontal: 16, paddingVertical: 8,
+    borderRadius: 999, borderWidth: 1, borderColor: 'rgba(124,58,237,0.12)',
+  },
+  changeBtnText: { fontSize: 14, fontFamily: 'Outfit_500Medium', color: '#7C3AED' },
+  confirmBtn: {
+    height: 56, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden', gap: 8,
+    shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 18 }, shadowOpacity: 0.28, shadowRadius: 40, elevation: 10,
+  },
+  confirmBtnText: { fontSize: 16, fontFamily: 'Outfit_600SemiBold', color: '#FFFFFF' },
 });

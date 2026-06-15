@@ -13,10 +13,19 @@ import {
   collectionGroup,
   onSnapshot,
   runTransaction,
+  limit,
+  startAfter,
+  getCountFromServer,
 } from './firebase';
 import { adminDb as db } from './firebase';
 import { generateOTP } from '../utils/otpHelpers';
 import { SLOT_CONSTANTS } from '../utils/slotUtils';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+
+// Global cache for user profiles to minimize Firestore reads across all admin services
+const userCache: Record<string, any> = {};
+
 
 /**
  * Admin role types for RBAC
@@ -169,26 +178,36 @@ export const getUserStats = async (): Promise<{
   currentUser: any | null;
 }> => {
   try {
+    // 1. Get total users count efficiently using getCountFromServer (0 document reads)
     const usersRef = collection(db, 'users');
-    const usersSnap = await getDocs(usersRef);
+    const totalUsersSnap = await getCountFromServer(usersRef);
+    const totalUsers = totalUsersSnap.data().count;
 
-    const totalUsers = usersSnap.size;
     let activeUsers = 0;
 
-    // We can use collectionGroup for orders to find active users more efficiently?
-    // Actually, iterating users is okay for small scale, but let's try to be safe.
-    // If permission denied on list users, we might get 0.
+    // 2. Query orders from the last 90 days to find active users (fewer documents to download)
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const ninetyDaysAgoTimestamp = Timestamp.fromDate(ninetyDaysAgo);
 
-    // Attempting to calculate active users via orders collection group
-    // This requires reading ALL orders which is also expensive, but safe.
-    const ordersQuery = query(collectionGroup(db, 'orders'));
-    const ordersSnap = await getDocs(ordersQuery);
+    let ordersSnap;
+    try {
+      const q = query(
+        collectionGroup(db, 'orders'),
+        where('createdAt', '>=', ninetyDaysAgoTimestamp)
+      );
+      ordersSnap = await getDocs(q);
+      console.log(`[UserStats] Successfully queried recent orders. Count: ${ordersSnap.size}`);
+    } catch (e) {
+      console.warn('[UserStats] Missing index or query failed. Falling back to all orders.', e);
+      const ordersQuery = query(collectionGroup(db, 'orders'));
+      ordersSnap = await getDocs(ordersQuery);
+    }
 
     const activeUserIds = new Set();
     ordersSnap.docs.forEach(doc => {
       const order = doc.data();
       if (order.status && order.status !== 'cancelled') {
-        // The order doc might have userId, or we can look at ref.parent.parent.id
         const userId = order.userId || doc.ref.parent.parent?.id;
         if (userId) activeUserIds.add(userId);
       }
@@ -210,6 +229,7 @@ export const getUserStats = async (): Promise<{
     };
   }
 };
+
 
 /**
  * Get order statistics for today
@@ -237,9 +257,21 @@ export const getOrderStats = async (): Promise<{
     let out_for_delivery = 0;
     let delivered = 0;
 
-    // Use Collection Group Query to get ALL orders across the system
-    const ordersQuery = query(collectionGroup(db, 'orders'));
-    const ordersSnap = await getDocs(ordersQuery);
+    // Attempt range query to get only today's orders
+    let ordersSnap;
+    try {
+      const q = query(
+        collectionGroup(db, 'orders'),
+        where('createdAt', '>=', todayStart),
+        where('createdAt', '<', todayEnd)
+      );
+      ordersSnap = await getDocs(q);
+      console.log(`[Stats] Successfully queried today's orders. Count: ${ordersSnap.size}`);
+    } catch (e) {
+      console.warn('[Stats] Missing index for today\'s orders collectionGroup query. Falling back to loading all orders.', e);
+      const ordersQuery = query(collectionGroup(db, 'orders'));
+      ordersSnap = await getDocs(ordersQuery);
+    }
 
     const todayStartTime = todayStart.toMillis ? todayStart.toMillis() : (todayStart instanceof Date ? todayStart.getTime() : 0);
     const todayEndTime = todayEnd.toMillis ? todayEnd.toMillis() : (todayEnd instanceof Date ? todayEnd.getTime() : 0);
@@ -344,7 +376,6 @@ export const getAllOrders = async (): Promise<any[]> => {
     });
 
     const allOrders: any[] = [];
-    const userCache: Record<string, any> = {};
 
     for (const orderDoc of Array.from(uniqueDocsMap.values())) {
       const order = orderDoc.data();
@@ -374,6 +405,11 @@ export const getAllOrders = async (): Promise<any[]> => {
               // Enriched data
               userName = userData.name || userName;
               userPhone = userData.phone || userPhone;
+            } else {
+              // Cache a placeholder for missing/deleted users
+              userCache[userId] = { name: 'Deleted User', phone: '' };
+              userName = 'Deleted User';
+              userPhone = '';
             }
           } catch (e) {
             console.warn(`[Admin] Failed to fetch user ${userId} for order ${orderDoc.id}`);
@@ -418,13 +454,572 @@ export const getAllOrders = async (): Promise<any[]> => {
 };
 
 /**
+ * Enrich a list of order documents with user name and phone number if missing.
+ * Uses a memory cache to minimize Firestore reads.
+ */
+export const enrichOrders = async (docs: any[]): Promise<any[]> => {
+  const enrichedOrders: any[] = [];
+
+  for (const docObj of docs) {
+    const orderData = docObj.data ? docObj.data() : docObj;
+    const docId = docObj.id || orderData.id;
+    
+    // Robust userId extraction
+    let userId = orderData.userId;
+    if (!userId && docObj.ref && docObj.ref.parent && docObj.ref.parent.parent) {
+      userId = docObj.ref.parent.parent.id;
+    }
+
+    let userName = orderData.customerName || orderData.userName || 'Unknown';
+    let userPhone = orderData.customerPhone || orderData.userPhone || '';
+
+    // If user details are missing, fetch from user doc
+    if (userId && (userName === 'Unknown' || !userPhone)) {
+      if (userCache[userId]) {
+        userName = userCache[userId].name || userName;
+        userPhone = userCache[userId].phone || userPhone;
+      } else {
+        try {
+          const userDocSnap = await getDoc(doc(db, 'users', userId));
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            userCache[userId] = userData;
+            userName = userData.name || userName;
+            userPhone = userData.phone || userPhone;
+          } else {
+            // Cache a placeholder for missing/deleted users to prevent redundant getDoc calls
+            userCache[userId] = { name: 'Deleted User', phone: '' };
+            userName = 'Deleted User';
+            userPhone = '';
+          }
+        } catch (e) {
+          console.warn(`[Admin] Enrichment failed for user ${userId} in order ${docId}`);
+        }
+      }
+    }
+
+    enrichedOrders.push({
+      ...orderData,
+      id: docId,
+      userId: userId,
+      customerName: userName,
+      customerPhone: userPhone,
+      address: orderData.address || orderData.deliveryAddress || null,
+    });
+  }
+
+  return enrichedOrders;
+};
+
+/**
+ * Fallback cache and fetcher for when collectionGroup indices are missing on status.
+ * This loads all orders in memory once, then queries them client-side.
+ */
+/**
+ * Fallback cache and fetcher for when collectionGroup indices are missing on status.
+ * This loads all orders in memory once, then queries them client-side.
+ */
+let fallbackOrdersCache: any[] | null = null;
+let isStatusIndexAvailable = true;
+let isIndexCheckDone = false;
+let indexCheckPromise: Promise<boolean> | null = null;
+const INDEX_CHECK_STORAGE_KEY = '@admin_is_status_index_available_v2';
+
+export const checkStatusIndex = async (): Promise<boolean> => {
+  if (isIndexCheckDone) return isStatusIndexAvailable;
+  if (indexCheckPromise) return indexCheckPromise;
+
+  indexCheckPromise = (async () => {
+    try {
+      // 1. Try reading from AsyncStorage first to avoid network probe call entirely
+      const cachedValue = await AsyncStorage.getItem(INDEX_CHECK_STORAGE_KEY);
+      if (cachedValue !== null) {
+        isStatusIndexAvailable = cachedValue === 'true';
+        isIndexCheckDone = true;
+        console.log(`[Admin] Cached status index availability: ${isStatusIndexAvailable}`);
+        return isStatusIndexAvailable;
+      }
+
+      console.log('[Admin] No cached status index state. Probing status collectionGroup index availability...');
+      // 2. Run a tiny query with limit(1) to test if status index is available
+      const q = query(collectionGroup(db, 'orders'), where('status', '==', 'placed'), limit(1));
+      await getDocs(q);
+      isStatusIndexAvailable = true;
+      console.log('[Admin] Status collectionGroup index is AVAILABLE.');
+      await AsyncStorage.setItem(INDEX_CHECK_STORAGE_KEY, 'true');
+    } catch (error: any) {
+      const errStr = String(error).toLowerCase();
+      if (
+        error.code === 'failed-precondition' ||
+        errStr.includes('index') ||
+        errStr.includes('400') ||
+        errStr.includes('precondition')
+      ) {
+        console.warn('[Admin] Status collectionGroup index is NOT available. Falling back to client-side logic.', error.message);
+        isStatusIndexAvailable = false;
+        await AsyncStorage.setItem(INDEX_CHECK_STORAGE_KEY, 'false');
+      } else {
+        console.error('[Admin] Index probe failed with non-index error:', error);
+        // Do not cache as false for generic/network errors so we retry
+        isStatusIndexAvailable = true;
+      }
+    }
+    isIndexCheckDone = true;
+    indexCheckPromise = null;
+    return isStatusIndexAvailable;
+  })();
+
+  return indexCheckPromise;
+};
+
+export const clearFallbackOrdersCache = async () => {
+  fallbackOrdersCache = null;
+  isStatusIndexAvailable = true; // Retry index queries on manual pull-to-refresh
+  isIndexCheckDone = false;
+  try {
+    await AsyncStorage.removeItem(INDEX_CHECK_STORAGE_KEY);
+    console.log('[Admin] Cleared status index availability cache from AsyncStorage.');
+  } catch (error) {
+    console.error('[Admin] Failed to clear status index cache from AsyncStorage:', error);
+  }
+};
+
+export const getAllOrdersFallback = async (): Promise<any[]> => {
+  if (fallbackOrdersCache) return fallbackOrdersCache;
+
+  try {
+    console.log('[Admin] Fallback: Fetching all orders via collectionGroup...');
+    const q = query(collectionGroup(db, 'orders'));
+    const snapshot = await getDocs(q);
+
+    const uniqueDocsMap = new Map();
+    snapshot.docs.forEach(doc => {
+      if (!uniqueDocsMap.has(doc.id)) {
+        uniqueDocsMap.set(doc.id, doc);
+      }
+    });
+
+    const docs = Array.from(uniqueDocsMap.values());
+    const enriched = await enrichOrders(docs);
+
+    // Client-side sorting: Newest first
+    enriched.sort((a, b) => {
+      const getTime = (date: any) => {
+        if (!date) return 0;
+        if (typeof date === 'number') return date;
+        if (typeof date === 'string') return new Date(date).getTime();
+        if (date.toDate && typeof date.toDate === 'function') return date.toDate().getTime();
+        if (date.seconds) return date.seconds * 1000;
+        return 0;
+      };
+      return getTime(b.createdAt) - getTime(a.createdAt);
+    });
+
+    fallbackOrdersCache = enriched;
+    return enriched;
+  } catch (error) {
+    console.error('[Admin] Fallback fetch failed:', error);
+    return [];
+  }
+};
+
+/**
+ * Subscribe to active orders (placed, confirmed, pickup_completed, processing, ready, out_for_delivery)
+ * in real-time. If it fails due to missing index, automatically falls back to all orders subscription.
+ */
+export const subscribeToActiveOrdersAdmin = (callback: (orders: any[]) => void) => {
+  let unsubscribeActive: (() => void) | null = null;
+  let unsubscribeAll: (() => void) | null = null;
+  let active = true;
+
+  const setupActiveListener = async () => {
+    const isAvailable = await checkStatusIndex();
+    if (!isAvailable) {
+      setupAllListener();
+      return;
+    }
+
+    if (!active) return;
+
+    console.log('[Admin] Subscribing to active orders via collectionGroup...');
+    const q = query(
+      collectionGroup(db, 'orders'),
+      where('status', 'in', ['placed', 'confirmed', 'pickup_completed', 'processing', 'ready', 'out_for_delivery'])
+    );
+
+    unsubscribeActive = onSnapshot(q, async (snapshot) => {
+      const uniqueDocsMap = new Map();
+      snapshot.docs.forEach(doc => {
+        if (!uniqueDocsMap.has(doc.id)) {
+          uniqueDocsMap.set(doc.id, doc);
+        }
+      });
+
+      const activeDocs = Array.from(uniqueDocsMap.values());
+      const enriched = await enrichOrders(activeDocs);
+
+      // Client-side sorting: Newest first
+      enriched.sort((a, b) => {
+        const getTime = (date: any) => {
+          if (!date) return 0;
+          if (typeof date === 'number') return date;
+          if (typeof date === 'string') return new Date(date).getTime();
+          if (date.toDate && typeof date.toDate === 'function') return date.toDate().getTime();
+          if (date.seconds) return date.seconds * 1000;
+          return 0;
+        };
+        return getTime(b.createdAt) - getTime(a.createdAt);
+      });
+
+      if (active) callback(enriched);
+    }, async (error: any) => {
+      console.warn('[Admin] subscribeToActiveOrdersAdmin failed. Falling back to subscribeToAllOrdersAdmin.', error.message);
+      isStatusIndexAvailable = false; // Disable status-filtered queries to prevent 400s
+      try {
+        await AsyncStorage.setItem(INDEX_CHECK_STORAGE_KEY, 'false');
+      } catch (e) {}
+      if (active) {
+        setupAllListener();
+      }
+    });
+  };
+
+  const setupAllListener = () => {
+    console.log('[Admin] Fallback: Subscribing to ALL orders via collectionGroup...');
+    const q = query(collectionGroup(db, 'orders'));
+
+    unsubscribeAll = onSnapshot(q, async (snapshot) => {
+      const uniqueDocsMap = new Map();
+      snapshot.docs.forEach(doc => {
+        if (!uniqueDocsMap.has(doc.id)) {
+          uniqueDocsMap.set(doc.id, doc);
+        }
+      });
+
+      const allDocs = Array.from(uniqueDocsMap.values());
+      const enriched = await enrichOrders(allDocs);
+
+      // Filter to active statuses in memory
+      const activeStatuses = ['placed', 'confirmed', 'pickup_completed', 'processing', 'ready', 'out_for_delivery'];
+      const activeOrders = enriched.filter(order => activeStatuses.includes(order.status));
+
+      // Client-side sorting: Newest first
+      activeOrders.sort((a, b) => {
+        const getTime = (date: any) => {
+          if (!date) return 0;
+          if (typeof date === 'number') return date;
+          if (typeof date === 'string') return new Date(date).getTime();
+          if (date.toDate && typeof date.toDate === 'function') return date.toDate().getTime();
+          if (date.seconds) return date.seconds * 1000;
+          return 0;
+        };
+        return getTime(b.createdAt) - getTime(a.createdAt);
+      });
+
+      if (active) callback(activeOrders);
+    }, (error) => {
+      console.error('[Admin] Fallback subscriber failed:', error);
+    });
+  };
+
+  setupActiveListener();
+
+  return () => {
+    active = false;
+    if (unsubscribeActive) unsubscribeActive();
+    if (unsubscribeAll) unsubscribeAll();
+  };
+};
+
+/**
+ * Fetch orders for a specific status with pagination support.
+ * Useful for archived tabs (delivered, cancelled) to prevent fetching all data.
+ * Falls back to in-memory pagination if collection group index fails.
+ */
+export const fetchOrdersByStatusPaginated = async (
+  status: string,
+  pageSize: number = 20,
+  lastVisibleDoc: any = null
+): Promise<{ orders: any[]; lastVisible: any; hasMore: boolean }> => {
+  const isAvailable = await checkStatusIndex();
+  if (!isAvailable) {
+    return await fetchOrdersByStatusPaginatedFallback(status, pageSize, lastVisibleDoc);
+  }
+
+  try {
+    console.log(`[Admin] Fetching paginated orders for status: ${status}, limit: ${pageSize}`);
+    
+    let baseQuery;
+    if (status === 'confirmed') {
+      baseQuery = query(
+        collectionGroup(db, 'orders'),
+        where('status', 'in', ['placed', 'confirmed'])
+      );
+    } else {
+      baseQuery = query(
+        collectionGroup(db, 'orders'),
+        where('status', '==', status)
+      );
+    }
+
+    // Try ordered query (requires composite index)
+    let orderedQuery = query(baseQuery, orderBy('createdAt', 'desc'), limit(pageSize));
+    if (lastVisibleDoc) {
+      orderedQuery = query(orderedQuery, startAfter(lastVisibleDoc));
+    }
+
+    let snapshot;
+    let fallbackUsed = false;
+    
+    try {
+      snapshot = await getDocs(orderedQuery);
+    } catch (indexError: any) {
+      if (indexError.code === 'failed-precondition' || indexError.message?.includes('index')) {
+        console.warn(`[Admin] Firestore index not found for status ${status}. Falling back to unordered query. Link: ${indexError.message}`);
+        
+        let fallbackQuery = query(baseQuery, limit(pageSize));
+        if (lastVisibleDoc) {
+          fallbackQuery = query(fallbackQuery, startAfter(lastVisibleDoc));
+        }
+        snapshot = await getDocs(fallbackQuery);
+        fallbackUsed = true;
+      } else {
+        throw indexError;
+      }
+    }
+
+    if (snapshot.empty) {
+      return { orders: [], lastVisible: null, hasMore: false };
+    }
+
+    // Deduplicate docs immediately
+    const uniqueDocsMap = new Map();
+    snapshot.docs.forEach(doc => {
+      if (!uniqueDocsMap.has(doc.id)) {
+        uniqueDocsMap.set(doc.id, doc);
+      }
+    });
+
+    const docsList = Array.from(uniqueDocsMap.values());
+    const enriched = await enrichOrders(docsList);
+
+    // If fallback query was used, sort page results client-side by date
+    if (fallbackUsed) {
+      enriched.sort((a, b) => {
+        const getTime = (date: any) => {
+          if (!date) return 0;
+          if (typeof date === 'number') return date;
+          if (typeof date === 'string') return new Date(date).getTime();
+          if (date.toDate && typeof date.toDate === 'function') return date.toDate().getTime();
+          if (date.seconds) return date.seconds * 1000;
+          return 0;
+        };
+        return getTime(b.createdAt) - getTime(a.createdAt);
+      });
+    }
+
+    const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+    const hasMore = snapshot.docs.length === pageSize;
+
+    return {
+      orders: enriched,
+      lastVisible: lastDoc,
+      hasMore,
+    };
+  } catch (error: any) {
+    const errStr = String(error).toLowerCase();
+    if (error.code === 'failed-precondition' || errStr.includes('index') || errStr.includes('400') || errStr.includes('precondition')) {
+      console.warn('[Admin] fetchOrdersByStatusPaginated failed because status index is missing. Disabling index queries.');
+      isStatusIndexAvailable = false;
+      try {
+        await AsyncStorage.setItem(INDEX_CHECK_STORAGE_KEY, 'false');
+      } catch (e) {}
+    }
+    return await fetchOrdersByStatusPaginatedFallback(status, pageSize, lastVisibleDoc);
+  }
+};
+
+const fetchOrdersByStatusPaginatedFallback = async (
+  status: string,
+  pageSize: number = 20,
+  lastVisibleDoc: any = null
+): Promise<{ orders: any[]; lastVisible: any; hasMore: boolean }> => {
+  // In-memory fallback pagination
+  const allOrders = await getAllOrdersFallback();
+  
+  let filtered;
+  if (status === 'confirmed') {
+    filtered = allOrders.filter(o => o.status === 'confirmed' || o.status === 'placed');
+  } else {
+    filtered = allOrders.filter(o => o.status === status);
+  }
+
+  let startIndex = 0;
+  if (lastVisibleDoc) {
+    const index = filtered.findIndex(o => o.id === lastVisibleDoc.id);
+    if (index !== -1) {
+      startIndex = index + 1;
+    }
+  }
+
+  const pageOrders = filtered.slice(startIndex, startIndex + pageSize);
+  const lastDoc = pageOrders.length > 0 ? pageOrders[pageOrders.length - 1] : null;
+  const hasMore = startIndex + pageSize < filtered.length;
+
+  return {
+    orders: pageOrders,
+    lastVisible: lastDoc,
+    hasMore
+  };
+};
+
+/**
+ * Fetch total counts for all statuses from the server.
+ * Falls back to in-memory counting if index is missing.
+ */
+export const getOrderStatusCounts = async (): Promise<Record<string, number>> => {
+  const isAvailable = await checkStatusIndex();
+  if (!isAvailable) {
+    return await getOrderStatusCountsFallback();
+  }
+
+  try {
+    const statuses = ['placed', 'confirmed', 'pickup_completed', 'processing', 'ready', 'out_for_delivery', 'delivered', 'cancelled'];
+    const counts: Record<string, number> = {};
+    
+    await Promise.all(statuses.map(async (status) => {
+      let q;
+      if (status === 'confirmed') {
+        q = query(collectionGroup(db, 'orders'), where('status', 'in', ['placed', 'confirmed']));
+      } else if (status === 'placed') {
+        return;
+      } else {
+        q = query(collectionGroup(db, 'orders'), where('status', '==', status));
+      }
+      const snap = await getCountFromServer(q);
+      counts[status] = snap.data().count;
+    }));
+
+    return {
+      confirmed: counts['confirmed'] || 0,
+      pickup_completed: counts['pickup_completed'] || 0,
+      processing: counts['processing'] || 0,
+      ready: counts['ready'] || 0,
+      out_for_delivery: counts['out_for_delivery'] || 0,
+      delivered: counts['delivered'] || 0,
+      cancelled: counts['cancelled'] || 0,
+    };
+  } catch (error: any) {
+    const errStr = String(error).toLowerCase();
+    if (error.code === 'failed-precondition' || errStr.includes('index') || errStr.includes('400') || errStr.includes('precondition')) {
+      console.warn('[Admin] getOrderStatusCounts failed because status index is missing. Disabling index queries.');
+      isStatusIndexAvailable = false;
+      try {
+        await AsyncStorage.setItem(INDEX_CHECK_STORAGE_KEY, 'false');
+      } catch (e) {}
+    }
+    return await getOrderStatusCountsFallback();
+  }
+};
+
+const getOrderStatusCountsFallback = async (): Promise<Record<string, number>> => {
+  const allOrders = await getAllOrdersFallback();
+  const counts: Record<string, number> = {
+    confirmed: 0,
+    pickup_completed: 0,
+    processing: 0,
+    ready: 0,
+    out_for_delivery: 0,
+    delivered: 0,
+    cancelled: 0,
+  };
+
+  allOrders.forEach(order => {
+    const status = order.status || 'placed';
+    if (status === 'placed' || status === 'confirmed') {
+      counts.confirmed++;
+    } else if (counts[status] !== undefined) {
+      counts[status]++;
+    }
+  });
+
+  return counts;
+};
+
+/**
+ * Search all orders on the server by phone, name, ID, or token.
+ * Falls back to in-memory filter if index is missing.
+ */
+export const searchOrdersAdmin = async (queryText: string): Promise<any[]> => {
+  const isAvailable = await checkStatusIndex();
+  if (!isAvailable) {
+    return await searchOrdersAdminFallback(queryText);
+  }
+
+  if (!queryText) return [];
+  const cleanQuery = queryText.trim();
+  
+  try {
+    // Queries to run in parallel
+    const queries = [
+      query(collectionGroup(db, 'orders'), where('userPhone', '==', cleanQuery)),
+      query(collectionGroup(db, 'orders'), where('customerPhone', '==', cleanQuery)),
+      query(collectionGroup(db, 'orders'), where('userName', '==', cleanQuery)),
+      query(collectionGroup(db, 'orders'), where('customerName', '==', cleanQuery)),
+      query(collectionGroup(db, 'orders'), where('id', '==', cleanQuery)),
+      query(collectionGroup(db, 'orders'), where('tokenNumber', '==', cleanQuery)),
+      query(collectionGroup(db, 'orders'), where('pickupOTP', '==', cleanQuery)),
+    ];
+    
+    const snaps = await Promise.all(queries.map(q => getDocs(q)));
+    const allDocs: any[] = [];
+    const seen = new Set<string>();
+    
+    snaps.forEach(snap => {
+      snap.docs.forEach(docSnap => {
+        if (!seen.has(docSnap.id)) {
+          seen.add(docSnap.id);
+          allDocs.push(docSnap);
+        }
+      });
+    });
+    
+    return await enrichOrders(allDocs);
+  } catch (error: any) {
+    const errStr = String(error).toLowerCase();
+    if (error.code === 'failed-precondition' || errStr.includes('index') || errStr.includes('400') || errStr.includes('precondition')) {
+      console.warn('[Admin] searchOrdersAdmin failed because status index is missing. Disabling index queries.');
+      isStatusIndexAvailable = false;
+      try {
+        await AsyncStorage.setItem(INDEX_CHECK_STORAGE_KEY, 'false');
+      } catch (e) {}
+    }
+    return await searchOrdersAdminFallback(queryText);
+  }
+};
+
+const searchOrdersAdminFallback = async (queryText: string): Promise<any[]> => {
+  if (!queryText) return [];
+  const cleanQuery = queryText.trim();
+  const lowerQuery = cleanQuery.toLowerCase();
+  
+  const allOrders = await getAllOrdersFallback();
+  return allOrders.filter(order =>
+    order.id.toLowerCase().includes(lowerQuery) ||
+    (order.customerPhone || '').includes(cleanQuery) ||
+    (order.customerName || '').toLowerCase().includes(lowerQuery) ||
+    (order.pickupOTP || '').includes(cleanQuery) ||
+    (order.tokenNumber || '').includes(cleanQuery)
+  );
+};
+
+/**
  * Subscribe to all orders from all users in real-time (for admin)
  * Includes data enrichment for customer name/phone
  */
 export const subscribeToAllOrdersAdmin = (callback: (orders: any[]) => void) => {
   console.log('[Admin] Subscribing to all orders via collectionGroup...');
   const ordersQuery = query(collectionGroup(db, 'orders'));
-  const userCache: Record<string, any> = {};
 
   return onSnapshot(ordersQuery, async (snapshot) => {
     // Deduplicate docs immediately
@@ -461,6 +1056,11 @@ export const subscribeToAllOrdersAdmin = (callback: (orders: any[]) => void) => 
               userCache[userId] = userData;
               userName = userData.name || userName;
               userPhone = userData.phone || userPhone;
+            } else {
+              // Cache placeholder for deleted/missing user
+              userCache[userId] = { name: 'Deleted User', phone: '' };
+              userName = 'Deleted User';
+              userPhone = '';
             }
           } catch (e) {
             console.warn(`[Admin] Enrichment failed for user ${userId}`);
@@ -530,13 +1130,25 @@ export const getRevenue = async (startDate: Date, endDate: Date): Promise<{
     };
 
     // 1. Calculate Order Revenue (Collection Group)
-    const ordersQuery = query(collectionGroup(db, 'orders'));
-    const ordersSnap = await getDocs(ordersQuery);
+    let ordersSnap;
+    try {
+      const ordersQuery = query(
+        collectionGroup(db, 'orders'),
+        where('createdAt', '>=', start),
+        where('createdAt', '<=', end)
+      );
+      ordersSnap = await getDocs(ordersQuery);
+      console.log(`[Revenue] Range query success. Fetched ${ordersSnap.size} orders within range.`);
+    } catch (e) {
+      console.warn('[Revenue] Missing index for collectionGroup orders date filter. Falling back to full query.', e);
+      const ordersQuery = query(collectionGroup(db, 'orders'));
+      ordersSnap = await getDocs(ordersQuery);
+    }
+
     const seenOrderIds = new Set<string>();
 
     // Mapping for frequency calculation
     const userToOrders: Record<string, any[]> = {};
-    const userProfiles: Record<string, any> = {};
 
     // First pass: Group all orders by user to calculate frequency later
     ordersSnap.docs.forEach((doc) => {
@@ -557,7 +1169,7 @@ export const getRevenue = async (startDate: Date, endDate: Date): Promise<{
       userToOrders[uid].sort((a, b) => a.createdAt - b.createdAt);
     });
 
-    // Second pass: Filter orders in range and enrich
+    // Second pass: Filter orders in range (already filtered if index succeeded, but safe to filter again) and enrich
     for (const orderDoc of ordersSnap.docs) {
       const orderId = orderDoc.id;
       if (seenOrderIds.has(orderId)) continue;
@@ -575,19 +1187,21 @@ export const getRevenue = async (startDate: Date, endDate: Date): Promise<{
         seenOrderIds.add(orderId);
         const userId = order.userId || orderDoc.ref.parent.parent?.id;
 
-        // Fetch user profile if not cached
-        if (userId && !userProfiles[userId]) {
+        // Fetch user profile if not cached (using unified global cache)
+        if (userId && !userCache[userId]) {
           try {
             const userSnap = await getDoc(doc(db, 'users', userId));
             if (userSnap.exists()) {
-              userProfiles[userId] = userSnap.data();
+              userCache[userId] = userSnap.data();
+            } else {
+              userCache[userId] = { name: 'Deleted User', phone: '' };
             }
           } catch (e) {
             console.warn(`[Revenue] Failed to fetch user ${userId}`);
           }
         }
 
-        const user = userProfiles[userId] || {};
+        const user = userCache[userId] || {};
         const amount = order.billDetails?.total || order.totalAmount || order.total || 0;
 
         // Calculate frequency
@@ -627,8 +1241,20 @@ export const getRevenue = async (startDate: Date, endDate: Date): Promise<{
     }
 
     // 2. Calculate Subscription Revenue (Collection Group)
-    const subsQuery = query(collectionGroup(db, 'subscriptions'));
-    const subsSnap = await getDocs(subsQuery);
+    let subsSnap;
+    try {
+      const subsQuery = query(
+        collectionGroup(db, 'subscriptions'),
+        where('purchasedAt', '>=', start),
+        where('purchasedAt', '<=', end)
+      );
+      subsSnap = await getDocs(subsQuery);
+      console.log(`[Revenue] Subscriptions range query success. Fetched ${subsSnap.size} subscriptions.`);
+    } catch (e) {
+      console.warn('[Revenue] Missing index for collectionGroup subscriptions range query. Falling back to full query.', e);
+      const subsQuery = query(collectionGroup(db, 'subscriptions'));
+      subsSnap = await getDocs(subsQuery);
+    }
 
     subsSnap.docs.forEach((subDoc) => {
       const sub = subDoc.data();
@@ -1011,7 +1637,7 @@ export const checkSlotAvailabilityAdmin = async (date: string): Promise<string[]
 };
 
 /**
- * Schedule delivery for an order (Transaction) (Admin)
+ * Schedule delivery for an order (Transaction) (Admin) - Releases old slot if rescheduling
  */
 export const scheduleOrderDeliveryAdmin = async (
   userId: string,
@@ -1021,20 +1647,6 @@ export const scheduleOrderDeliveryAdmin = async (
 ): Promise<boolean> => {
   try {
     await runTransaction(db, async (transaction) => {
-      // 1. Check & Reserve Slot in Global Schedule
-      const scheduleRef = doc(db, 'daily_schedules', deliveryDate);
-      const scheduleSnap = await transaction.get(scheduleRef);
-
-      const slotCounts: Record<string, number> = scheduleSnap.exists()
-        ? (scheduleSnap.data().slot_counts || {})
-        : {};
-      const currentCount = slotCounts[deliveryTime] || 0;
-
-      if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
-        throw new Error(`Slot ${deliveryTime} is no longer available.`);
-      }
-
-      // 2. Update Order
       const userOrderRef = doc(db, 'users', userId, 'orders', orderId);
       const userOrderSnap = await transaction.get(userOrderRef);
 
@@ -1043,9 +1655,68 @@ export const scheduleOrderDeliveryAdmin = async (
       }
 
       const orderData = userOrderSnap.data();
-      const vendorId = orderData.vendorId || 'vendor_1';
-      const timestamp = Timestamp.now();
+      const oldDeliveryDate = orderData.deliveryDate;
+      const oldDeliveryTime = orderData.deliveryTime;
 
+      // If exactly the same slot, no need to do anything
+      if (oldDeliveryDate === deliveryDate && oldDeliveryTime === deliveryTime) {
+        return;
+      }
+
+      // Handle Slot Changes
+      if (oldDeliveryDate === deliveryDate) {
+        // Same Date, Different Slot
+        const scheduleRef = doc(db, 'daily_schedules', deliveryDate);
+        const scheduleSnap = await transaction.get(scheduleRef);
+        const slotCounts = scheduleSnap.exists() ? (scheduleSnap.data().slot_counts || {}) : {};
+
+        // Release old
+        if (oldDeliveryTime) {
+          slotCounts[oldDeliveryTime] = Math.max(0, (slotCounts[oldDeliveryTime] || 0) - 1);
+        }
+
+        // Reserve new
+        const currentCount = slotCounts[deliveryTime] || 0;
+        if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
+          throw new Error(`Slot ${deliveryTime} is no longer available.`);
+        }
+        slotCounts[deliveryTime] = currentCount + 1;
+
+        transaction.set(scheduleRef, { slot_counts: slotCounts }, { merge: true });
+      } else {
+        // Different Dates
+        // 1. Decrement old slot count
+        if (oldDeliveryDate && oldDeliveryTime) {
+          const oldScheduleRef = doc(db, 'daily_schedules', oldDeliveryDate);
+          const oldScheduleSnap = await transaction.get(oldScheduleRef);
+          if (oldScheduleSnap.exists()) {
+            const oldSlotCounts = oldScheduleSnap.data().slot_counts || {};
+            const oldCount = oldSlotCounts[oldDeliveryTime] || 0;
+            transaction.set(oldScheduleRef, {
+              slot_counts: {
+                ...oldSlotCounts,
+                [oldDeliveryTime]: Math.max(0, oldCount - 1)
+              }
+            }, { merge: true });
+          }
+        }
+
+        // 2. Increment new slot count
+        const scheduleRef = doc(db, 'daily_schedules', deliveryDate);
+        const scheduleSnap = await transaction.get(scheduleRef);
+        const slotCounts = scheduleSnap.exists() ? (scheduleSnap.data().slot_counts || {}) : {};
+        const currentCount = slotCounts[deliveryTime] || 0;
+
+        if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
+          throw new Error(`Slot ${deliveryTime} is no longer available.`);
+        }
+
+        transaction.set(scheduleRef, {
+          slot_counts: { ...slotCounts, [deliveryTime]: currentCount + 1 }
+        }, { merge: true });
+      }
+
+      const timestamp = Timestamp.now();
       const updateData = {
         deliveryDate,
         deliveryTime,
@@ -1053,15 +1724,10 @@ export const scheduleOrderDeliveryAdmin = async (
         updatedAt: timestamp,
       };
 
-      // 3. Perform Writes
-      // Reserve Slot (increment count)
-      transaction.set(scheduleRef, {
-        slot_counts: { ...slotCounts, [deliveryTime]: currentCount + 1 }
-      }, { merge: true });
-
-      // Update both user and vendor orders
+      // Perform Writes
       transaction.update(userOrderRef, updateData);
 
+      const vendorId = orderData.vendorId || 'vendor_1';
       const vendorOrderRef = doc(db, 'vendors', vendorId, 'orders', orderId);
       transaction.update(vendorOrderRef, updateData);
     });
@@ -1070,5 +1736,168 @@ export const scheduleOrderDeliveryAdmin = async (
   } catch (error) {
     console.error('Error scheduling delivery (admin):', error);
     throw error;
+  }
+};
+
+/**
+ * Reschedule pickup for an order (Transaction) (Admin) - Releases old slot
+ */
+export const rescheduleOrderPickupAdmin = async (
+  userId: string,
+  orderId: string,
+  pickupDate: string,
+  pickupTime: string
+): Promise<boolean> => {
+  try {
+    await runTransaction(db, async (transaction) => {
+      const userOrderRef = doc(db, 'users', userId, 'orders', orderId);
+      const userOrderSnap = await transaction.get(userOrderRef);
+
+      if (!userOrderSnap.exists()) {
+        throw new Error('Order not found');
+      }
+
+      const orderData = userOrderSnap.data();
+      const oldPickupDate = orderData.pickupDetails?.scheduledDate;
+      const oldPickupTime = orderData.pickupDetails?.scheduledTime;
+
+      // If exactly the same slot, no-op
+      if (oldPickupDate === pickupDate && oldPickupTime === pickupTime) {
+        return;
+      }
+
+      // Handle Slot Changes
+      if (oldPickupDate === pickupDate) {
+        // Same Date, Different Slot
+        const scheduleRef = doc(db, 'daily_schedules', pickupDate);
+        const scheduleSnap = await transaction.get(scheduleRef);
+        const slotCounts = scheduleSnap.exists() ? (scheduleSnap.data().slot_counts || {}) : {};
+
+        // Release old
+        if (oldPickupTime) {
+          slotCounts[oldPickupTime] = Math.max(0, (slotCounts[oldPickupTime] || 0) - 1);
+        }
+
+        // Reserve new
+        const currentCount = slotCounts[pickupTime] || 0;
+        if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
+          throw new Error(`Slot ${pickupTime} is no longer available.`);
+        }
+        slotCounts[pickupTime] = currentCount + 1;
+
+        transaction.set(scheduleRef, { slot_counts: slotCounts }, { merge: true });
+      } else {
+        // Different Dates
+        // 1. Decrement old slot count
+        if (oldPickupDate && oldPickupTime) {
+          const oldScheduleRef = doc(db, 'daily_schedules', oldPickupDate);
+          const oldScheduleSnap = await transaction.get(oldScheduleRef);
+          if (oldScheduleSnap.exists()) {
+            const oldSlotCounts = oldScheduleSnap.data().slot_counts || {};
+            const oldCount = oldSlotCounts[oldPickupTime] || 0;
+            transaction.set(oldScheduleRef, {
+              slot_counts: {
+                ...oldSlotCounts,
+                [oldPickupTime]: Math.max(0, oldCount - 1)
+              }
+            }, { merge: true });
+          }
+        }
+
+        // 2. Increment new slot count
+        const scheduleRef = doc(db, 'daily_schedules', pickupDate);
+        const scheduleSnap = await transaction.get(scheduleRef);
+        const slotCounts = scheduleSnap.exists() ? (scheduleSnap.data().slot_counts || {}) : {};
+        const currentCount = slotCounts[pickupTime] || 0;
+
+        if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
+          throw new Error(`Slot ${pickupTime} is no longer available.`);
+        }
+
+        transaction.set(scheduleRef, {
+          slot_counts: { ...slotCounts, [pickupTime]: currentCount + 1 }
+        }, { merge: true });
+      }
+
+      const timestamp = Timestamp.now();
+      const newPickupDetails = {
+        ...(orderData.pickupDetails || {}),
+        type: 'scheduled',
+        scheduledDate: pickupDate,
+        scheduledTime: pickupTime,
+      };
+
+      const updateData = {
+        pickupDetails: newPickupDetails,
+        updatedAt: timestamp,
+      };
+
+      // Perform Writes
+      transaction.update(userOrderRef, updateData);
+
+      const vendorId = orderData.vendorId || 'vendor_1';
+      const vendorOrderRef = doc(db, 'vendors', vendorId, 'orders', orderId);
+      transaction.update(vendorOrderRef, updateData);
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error rescheduling pickup (admin):', error);
+    throw error;
+  }
+};
+
+/**
+ * Update the inner processing step of an order (Admin)
+ */
+export const updateOrderProcessingStepAdmin = async (
+  userId: string,
+  orderId: string,
+  nextStep: string
+): Promise<boolean> => {
+  try {
+    const timestamp = Timestamp.now();
+    const updateData = {
+      processingStep: nextStep,
+      updatedAt: timestamp
+    };
+
+    const userOrderRef = doc(db, 'users', userId, 'orders', orderId);
+    await updateDoc(userOrderRef, updateData);
+
+    const orderSnap = await getDoc(userOrderRef);
+    if (orderSnap.exists()) {
+      const orderData = orderSnap.data();
+      const vendorId = orderData.vendorId || 'vendor_1';
+      const vendorOrderRef = doc(db, 'vendors', vendorId, 'orders', orderId);
+      await updateDoc(vendorOrderRef, updateData);
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error updating order processing step:', error);
+    throw error;
+  }
+};
+
+/**
+ * Upload order ready proof (photo or video) to Storage (Admin)
+ */
+export const uploadOrderReadyProofAdmin = async (
+  uri: string,
+  orderId: string,
+  isVideo: boolean = false
+): Promise<string> => {
+  try {
+    const storage = getStorage();
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    const extension = isVideo ? 'mp4' : 'jpg';
+    const storageRef = ref(storage, `ready_proofs/${orderId}/proof_${Date.now()}.${extension}`);
+    await uploadBytes(storageRef, blob);
+    return await getDownloadURL(storageRef);
+  } catch (error) {
+    console.error('Error uploading ready proof:', error);
+    throw new Error('Failed to upload proof to storage');
   }
 };

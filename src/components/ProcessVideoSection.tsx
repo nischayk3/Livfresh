@@ -5,10 +5,11 @@ import { useEvent } from 'expo';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../utils/constants';
+import { ASSET_URLS } from '../utils/assetUrls';
 
 const { width } = Dimensions.get('window');
 
-const videoSource = require('../../assets/process_video.mp4');
+const videoSource = ASSET_URLS.process_video;
 
 export const ProcessVideoSection: React.FC = () => {
     const player = useVideoPlayer(videoSource, player => {

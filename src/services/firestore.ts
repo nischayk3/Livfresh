@@ -280,6 +280,25 @@ export const updateUserAddress = async (userId: string, updatedAddress: any) => 
   }
 };
 
+// Delete address
+export const deleteAddress = async (userId: string, addressId: string) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+      const addresses = userSnap.data().savedAddresses || [];
+      const filtered = addresses.filter((addr: any) => addr.id !== addressId);
+      await updateDoc(userRef, {
+        savedAddresses: filtered,
+        updatedAt: Timestamp.now(),
+      });
+    }
+  } catch (error: any) {
+    console.error('Error deleting address:', error);
+    throw error;
+  }
+};
+
 // Check slot availability — returns only FULLY-OCCUPIED slots (count >= MAX_ORDERS_PER_SLOT)
 export const checkSlotAvailability = async (date: string): Promise<string[]> => {
   try {
@@ -306,7 +325,7 @@ export const checkSlotAvailability = async (date: string): Promise<string[]> => 
 // Create order with slot reservation (Transaction)
 export const createOrder = async (userId: string, orderData: any) => {
   try {
-    const { pickupDetails } = orderData;
+    const { pickupDetails, items } = orderData;
     const isScheduled = pickupDetails?.type === 'scheduled';
     const scheduleDate = pickupDetails?.scheduledDate; // YYYY-MM-DD
     const scheduleTime = pickupDetails?.scheduledTime; // "10:00 - 10:30"
@@ -314,11 +333,31 @@ export const createOrder = async (userId: string, orderData: any) => {
     const ordersRef = collection(db, 'users', userId, 'orders');
     const orderId = doc(ordersRef).id; // Generate ID offline
 
+    // Upload local photos if any exist in the items
+    const updatedItems = [];
+    if (items && items.length > 0) {
+      for (const item of items) {
+        if (item.photoUrls && item.photoUrls.length > 0) {
+          const localUris = item.photoUrls.filter((uri: string) => uri && !uri.startsWith('http://') && !uri.startsWith('https://'));
+          const remoteUrls = item.photoUrls.filter((uri: string) => uri && (uri.startsWith('http://') || uri.startsWith('https://')));
+          
+          if (localUris.length > 0) {
+            console.log(`[Upload] Uploading ${localUris.length} local photos for item: ${item.serviceName}`);
+            const uploadedUrls = await uploadServicePhotos(localUris, orderId);
+            item.photoUrls = [...remoteUrls, ...uploadedUrls];
+          }
+        }
+        updatedItems.push(item);
+      }
+    }
+
     // Generate pickup OTP (4-digit)
     const pickupOTP = generateOTP();
 
     const orderWithTimestamp = {
+      id: orderId, // Write ID as a field inside the document
       ...orderData,
+      items: updatedItems,
       pickupOTP,
       status: orderData.status || 'confirmed',
       pickupVerified: false,

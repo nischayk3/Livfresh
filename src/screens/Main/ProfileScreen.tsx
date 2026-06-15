@@ -1,481 +1,627 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, Modal, TouchableWithoutFeedback } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  Linking,
+  Platform,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../../utils/constants';
+import {
+  ArrowLeft,
+  User,
+  MapPin,
+  ShoppingBag,
+  Wallet,
+  HelpCircle,
+  MessageCircle,
+  Star,
+  Shield,
+  LogOut,
+  ChevronRight,
+  Pencil,
+  Globe,
+  Trash2,
+} from 'lucide-react-native';
+import { MotiView } from 'moti';
 import { useAuthStore, useUIStore } from '../../store';
-import { BrandHeader } from '../../components/BrandHeader';
+
+interface MenuRowProps {
+  icon: React.ComponentType<any>;
+  label: string;
+  onPress?: () => void;
+  rightElement?: React.ReactNode;
+  iconBg?: string;
+  iconColor?: string;
+}
+
+const MenuRow: React.FC<MenuRowProps> = ({ icon: Icon, label, onPress, rightElement, iconBg = 'rgba(124,58,237,0.06)', iconColor = '#7C3AED' }) => (
+  <TouchableOpacity style={styles.menuRow} onPress={onPress} activeOpacity={0.6}>
+    <View style={[styles.menuIconCircle, { backgroundColor: iconBg }]}>
+      <Icon size={20} color={iconColor} strokeWidth={1.8} />
+    </View>
+    <Text style={styles.menuRowLabel}>{label}</Text>
+    {rightElement || <ChevronRight size={18} color="#D4D4D8" strokeWidth={2} />}
+  </TouchableOpacity>
+);
+
+const SECTION_HEADER: React.FC<{ label: string }> = ({ label }) => (
+  <Text style={styles.sectionHeader}>{label}</Text>
+);
 
 export const ProfileScreen: React.FC = () => {
-    const navigation = useNavigation();
-    const { user, logout, deleteAccount } = useAuthStore();
-    const { showAlert } = useUIStore();
-    const insets = useSafeAreaInsets();
-    const [isLoggingOut, setIsLoggingOut] = useState(false);
-    const [isDeleting, setIsDeleting] = useState(false);
+  const navigation = useNavigation();
+  const { user, logout, deleteAccount } = useAuthStore();
+  const { showAlert } = useUIStore();
+  const insets = useSafeAreaInsets();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-    const handleLogout = () => {
-        showAlert({
-            title: 'Logout',
-            message: 'Are you sure you want to logout?',
-            type: 'warning',
-            buttons: [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Logout',
-                    style: 'destructive',
-                    onPress: executeLogout
-                }
-            ]
-        });
-    };
+  const getInitials = (name: string) => {
+    return name ? name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() : 'U';
+  };
 
-    const executeLogout = async () => {
-        setIsLoggingOut(true);
-        try {
-            await logout();
-            console.log('✅ User logged out successfully');
-            // Navigate to home after logout 
-            (navigation as any).reset({
-                index: 0,
-                routes: [{ name: 'Home' }],
-            });
-        } catch (error) {
-            console.error('Logout error:', error);
-        } finally {
-            setIsLoggingOut(false);
-        }
-    };
+  const handleLogout = () => {
+    showAlert({
+      title: 'Logout',
+      message: 'Are you sure you want to logout?',
+      type: 'warning',
+      buttons: [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Logout', style: 'destructive', onPress: executeLogout },
+      ],
+    });
+  };
 
-    const handleDeleteAccount = () => {
-        showAlert({
-            title: 'Delete Account',
-            message: 'Are you sure you want to delete your account? This action is permanent and cannot be undone.',
-            type: 'error',
-            buttons: [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: executeDeleteAccount
-                }
-            ]
-        });
-    };
-
-    const executeDeleteAccount = async () => {
-        setIsDeleting(true);
-        try {
-            await deleteAccount();
-            // Store handles navigation/state clearing
-        } catch (error: any) {
-            console.error('Delete account error:', error);
-            if (error.code === 'auth/requires-recent-login') {
-                showAlert({
-                    title: 'Authentication Required',
-                    message: 'For security, please logout and login again before deleting your account.',
-                    type: 'info',
-                    buttons: [{ text: 'OK', onPress: executeLogout }]
-                });
-            } else {
-                showAlert({
-                    title: 'Error',
-                    message: 'Failed to delete account. Please contact support.',
-                    type: 'error'
-                });
-            }
-        } finally {
-            setIsDeleting(false);
-        }
-    };
-
-    const getInitials = (name: string) => {
-        return name ? name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() : 'U';
-    };
-
-    if (!user) {
-        return (
-            <View style={styles.container}>
-                <LinearGradient
-                    colors={[COLORS.pageBg, '#FFFFFF']}
-                    style={StyleSheet.absoluteFill}
-                />
-                <BrandHeader title="Profile" />
-                <View style={[styles.emptyContainer, { flex: 1 }]}>
-                    <View style={styles.emptyIconContainer}>
-                        <Ionicons name="person-outline" size={64} color={COLORS.primaryLight} />
-                    </View>
-                    <Text style={[styles.emptyText, { textAlign: 'center' }]}>Create an Account</Text>
-                    <Text style={[styles.emptySubtext, { textAlign: 'center' }]}>Save addresses and access your order history</Text>
-                    <TouchableOpacity
-                        style={styles.browseButton}
-                        onPress={() => (navigation as any).navigate('PhoneLogin', { returnTo: 'Profile' })}
-                    >
-                        <Text style={styles.browseButtonText}>Sign In</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-        );
+  const executeLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      (navigation as any).reset({ index: 0, routes: [{ name: 'Home' }] });
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setIsLoggingOut(false);
     }
+  };
 
+  const handleDeleteAccount = () => {
+    showAlert({
+      title: 'Delete Account',
+      message: 'This action is permanent and cannot be undone.',
+      type: 'error',
+      buttons: [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: executeDeleteAccount },
+      ],
+    });
+  };
+
+  const executeDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteAccount();
+    } catch (error: any) {
+      if (error.code === 'auth/requires-recent-login') {
+        showAlert({
+          title: 'Authentication Required',
+          message: 'Please logout and login again before deleting your account.',
+          type: 'info',
+          buttons: [{ text: 'OK', onPress: executeLogout }],
+        });
+      } else {
+        showAlert({ title: 'Error', message: 'Failed to delete account.', type: 'error' });
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  if (!user) {
     return (
-        <View style={styles.container}>
-            <LinearGradient
-                colors={[COLORS.pageBg, '#FFFFFF']}
-                style={StyleSheet.absoluteFill}
-            />
-            <BrandHeader title="Profile" />
-
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
-                {/* Profile Header Card */}
-                <View style={styles.profileCard}>
-                    <LinearGradient
-                        colors={[COLORS.primary, COLORS.primaryDark]}
-                        style={styles.avatarContainer}
-                    >
-                        <Text style={styles.avatarText}>{getInitials(user?.name || '')}</Text>
-                    </LinearGradient>
-                    <View style={styles.userInfo}>
-                        <Text style={styles.userName}>{user?.name || 'User'}</Text>
-                        <Text style={styles.userPhone}>{user?.phone || ''}</Text>
-                    </View>
-                    <TouchableOpacity
-                        style={styles.editButtonBg}
-                        onPress={() => (navigation as any).navigate('Main', { screen: 'EditProfile' })}
-                    >
-                        <View style={styles.editButtonBg}>
-                            <Ionicons name="pencil" size={18} color={COLORS.primary} />
-                        </View>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Sections Header */}
-                <Text style={styles.sectionTitle}>Account Settings</Text>
-
-                {/* Menu Options */}
-                <View style={styles.menuContainer}>
-                    <TouchableOpacity
-                        style={styles.menuItem}
-                        onPress={() => (navigation as any).navigate('Main', { screen: 'AddressList' })}
-                    >
-                        <View style={[styles.menuIcon, { backgroundColor: '#F0E7FF' }]}>
-                            <Ionicons name="location-sharp" size={20} color={COLORS.primary} />
-                        </View>
-                        <Text style={styles.menuText}>Your Addresses</Text>
-                        <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.menuItem}
-                        onPress={() => (navigation as any).navigate('MyOrders')}
-                    >
-                        <View style={[styles.menuIcon, { backgroundColor: '#E0F2FE' }]}>
-                            <Ionicons name="receipt-sharp" size={20} color="#0EA5E9" />
-                        </View>
-                        <Text style={styles.menuText}>My Orders</Text>
-                        <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.menuItem}
-                        onPress={() => (navigation as any).navigate('Main', { screen: 'HelpSupport' })}
-                    >
-                        <View style={[styles.menuIcon, { backgroundColor: '#FEF3C7' }]}>
-                            <Ionicons name="headset-sharp" size={20} color="#F59E0B" />
-                        </View>
-                        <Text style={styles.menuText}>Help & Support</Text>
-                        <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
-                    </TouchableOpacity>
-
-                    {/* Admin Dashboard - Seamless entry for authorized numbers only */}
-                    {['9661802634', '9852030638', '9108558715'].some(p => user?.phone && user.phone.indexOf(p) !== -1) && (
-                        <TouchableOpacity
-                            style={styles.menuItem}
-                            onPress={() => (navigation as any).navigate('AdminLogin')}
-                        >
-                            <View style={[styles.menuIcon, { backgroundColor: '#F5F3FF' }]}>
-                                <Ionicons name="shield-checkmark-sharp" size={20} color={COLORS.primary} />
-                            </View>
-                            <Text style={styles.menuText}>Admin Dashboard</Text>
-                            <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
-                        </TouchableOpacity>
-                    )}
-                </View >
-
-                {/* Logout Button */}
-                <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-                    <View style={styles.logoutIconBg}>
-                        <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-                    </View>
-                    <Text style={styles.logoutText}>Logout from SpinZo</Text>
-                </TouchableOpacity>
-
-                {/* Delete Account Button */}
-                <TouchableOpacity
-                    style={[styles.logoutButton, { marginTop: SPACING.sm, opacity: isDeleting ? 0.7 : 1 }]}
-                    onPress={handleDeleteAccount}
-                    disabled={isDeleting}
-                >
-                    <View style={[styles.logoutIconBg, { backgroundColor: '#FEF2F2' }]}>
-                        <Ionicons name="trash-outline" size={20} color={COLORS.error} />
-                    </View>
-                    <Text style={[styles.logoutText, { color: COLORS.error }]}>
-                        {isDeleting ? 'Deleting Account...' : 'Delete Account'}
-                    </Text>
-                </TouchableOpacity>
-
-                <View style={{ height: 40 }} />
-
-            </ScrollView>
+      <View style={styles.container}>
+        <LinearGradient colors={['#F5F3FF', '#FFFFFF']} style={StyleSheet.absoluteFill} />
+        <View style={[styles.centered, { paddingTop: insets.top + 80 }]}>
+          <MapPin size={64} color="#D8B4FE" strokeWidth={1} />
+          <Text style={styles.emptyTitle}>Create an Account</Text>
+          <Text style={styles.emptySubtext}>Save addresses and access your order history</Text>
+          <TouchableOpacity
+            style={styles.signInBtn}
+            onPress={() => (navigation as any).navigate('PhoneLogin', { returnTo: 'Profile' })}
+          >
+            <Text style={styles.signInBtnText}>Sign In</Text>
+          </TouchableOpacity>
         </View>
+      </View>
     );
+  }
+
+  const creditsCount = user.credits || 0;
+
+  return (
+    <View style={styles.container}>
+      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} bounces={false}>
+        {/* ─── Hero Banner ─── */}
+        <View style={[styles.hero, { paddingTop: insets.top + 20 }]}>
+          {/* Ambient orbs */}
+          <View style={[styles.orb, styles.orb1]} />
+          <View style={[styles.orb, styles.orb2]} />
+          <View style={[styles.orb, styles.orb3]} />
+
+          {/* Avatar */}
+          <MotiView
+            from={{ opacity: 0, scale: 0.6 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'spring', damping: 16 }}
+            style={styles.avatarOuter}
+          >
+            <View style={styles.avatarInner}>
+              <Text style={styles.avatarText}>{getInitials(user.name)}</Text>
+            </View>
+          </MotiView>
+
+          {/* Name + Email */}
+          <MotiView
+            from={{ opacity: 0, translateY: 10 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ delay: 100, type: 'timing', duration: 300 }}
+          >
+            <Text style={styles.heroName}>{user.name || 'User'}</Text>
+            {user.email ? (
+              <Text style={styles.heroEmail}>{user.email}</Text>
+            ) : null}
+          </MotiView>
+
+          {/* Edit Profile pill */}
+          <TouchableOpacity
+            style={styles.editPill}
+            onPress={() => (navigation as any).navigate('EditProfile')}
+            activeOpacity={0.7}
+          >
+            <Pencil size={14} color="#FFFFFF" strokeWidth={2} />
+            <Text style={styles.editPillText}>Edit Profile</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ─── White Sheet Overlay ─── */}
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 40) + 80 }]}>
+          {/* Account */}
+          <MotiView
+            from={{ opacity: 0, translateY: 16 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ delay: 150, type: 'timing', duration: 300 }}
+          >
+            <SECTION_HEADER label="Account" />
+            <View style={styles.menuCard}>
+              <MenuRow icon={User} label="Personal Info" onPress={() => (navigation as any).navigate('EditProfile')} />
+              <View style={styles.menuDivider} />
+              <MenuRow icon={MapPin} label="My Addresses" onPress={() => (navigation as any).navigate('AddressList')} />
+            </View>
+          </MotiView>
+
+          {/* Orders & Credits */}
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ delay: 200, type: 'timing', duration: 300 }}
+          >
+            <SECTION_HEADER label="Orders & Credits" />
+            <View style={styles.menuCard}>
+              <MenuRow
+                icon={ShoppingBag}
+                label="My Orders"
+                onPress={() => (navigation as any).navigate('MyOrders')}
+              />
+              <View style={styles.menuDivider} />
+              <MenuRow
+                icon={Wallet}
+                label="SpinZo Credits"
+                iconBg="rgba(16,185,129,0.08)"
+                iconColor="#059669"
+                rightElement={
+                  <View style={styles.creditPill}>
+                    <Text style={styles.creditPillText}>{creditsCount} pts</Text>
+                  </View>
+                }
+              />
+            </View>
+          </MotiView>
+
+          {/* Preferences */}
+          <MotiView
+            from={{ opacity: 0, translateY: 24 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ delay: 250, type: 'timing', duration: 300 }}
+          >
+            <SECTION_HEADER label="Preferences" />
+            <View style={styles.menuCard}>
+              <MenuRow
+                icon={Globe}
+                label="Language"
+                iconBg="rgba(59,130,246,0.08)"
+                iconColor="#3B82F6"
+                rightElement={<Text style={styles.menuHint}>English</Text>}
+              />
+            </View>
+          </MotiView>
+
+          {/* Support */}
+          <MotiView
+            from={{ opacity: 0, translateY: 28 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ delay: 300, type: 'timing', duration: 300 }}
+          >
+            <SECTION_HEADER label="Support" />
+            <View style={styles.menuCard}>
+              <MenuRow icon={HelpCircle} label="Help & FAQ" onPress={() => (navigation as any).navigate('HelpSupport')} />
+              <View style={styles.menuDivider} />
+              <MenuRow icon={MessageCircle} label="Contact Us" onPress={() => (navigation as any).navigate('HelpSupport')} />
+              <View style={styles.menuDivider} />
+              <MenuRow
+                icon={Star}
+                label="Rate the App"
+                iconBg="rgba(250,204,21,0.08)"
+                iconColor="#EAB308"
+                rightElement={renderStars()}
+                onPress={() => {
+                  const url = Platform.OS === 'ios'
+                    ? 'https://apps.apple.com/in/app/spinzo-get-laundry-in-hours/id6758751814'
+                    : 'https://play.google.com/store/apps/details?id=com.nischayk3.Spinit&pcampaignid=web_share';
+                  Linking.openURL(url).catch(() => {});
+                }}
+              />
+            </View>
+          </MotiView>
+
+          {/* Legal */}
+          <MotiView
+            from={{ opacity: 0, translateY: 32 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ delay: 350, type: 'timing', duration: 300 }}
+          >
+            <SECTION_HEADER label="Legal" />
+            <View style={styles.menuCard}>
+              <MenuRow
+                icon={Shield}
+                label="Privacy Policy"
+                iconBg="rgba(139,92,246,0.08)"
+                iconColor="#8B5CF6"
+                onPress={() => Linking.openURL('https://spinzo.in/privacy').catch(() => {})}
+              />
+            </View>
+          </MotiView>
+
+          {/* Admin Dashboard */}
+          {['9661802634', '9852030638', '9108558715'].some(p =>
+            user.phone && user.phone.indexOf(p) !== -1
+          ) && (
+            <MotiView
+              from={{ opacity: 0, translateY: 36 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ delay: 380, type: 'timing', duration: 300 }}
+            >
+              <SECTION_HEADER label="Admin" />
+              <View style={styles.menuCard}>
+                <MenuRow
+                  icon={Shield}
+                  label="Admin Dashboard"
+                  iconColor="#7C3AED"
+                  onPress={() => (navigation as any).navigate('AdminLogin')}
+                />
+              </View>
+            </MotiView>
+          )}
+
+          {/* Logout */}
+          <MotiView
+            from={{ opacity: 0, translateY: 40 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ delay: 400, type: 'timing', duration: 300 }}
+          >
+            <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} disabled={isLoggingOut}>
+              {isLoggingOut ? (
+                <ActivityIndicator size="small" color="#EF4444" />
+              ) : (
+                <>
+                  <LogOut size={18} color="#EF4444" strokeWidth={2} />
+                  <Text style={styles.logoutBtnText}>Log Out</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </MotiView>
+
+          {/* Delete Account */}
+          <MotiView
+            from={{ opacity: 0, translateY: 44 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ delay: 420, type: 'timing', duration: 300 }}
+          >
+            <TouchableOpacity
+              style={styles.deleteBtn}
+              onPress={handleDeleteAccount}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <ActivityIndicator size="small" color="#EF4444" />
+              ) : (
+                <>
+                  <Trash2 size={18} color="#EF4444" strokeWidth={2} />
+                  <Text style={styles.logoutBtnText}>Delete Account</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </MotiView>
+
+          {/* Version */}
+          <Text style={styles.versionLabel}>SpinZo v1.0.0</Text>
+        </View>
+      </ScrollView>
+    </View>
+  );
 };
 
+function renderStars() {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Star key={i} size={12} color="#EAB308" fill="#EAB308" strokeWidth={1.5} />
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#F8F7FF',
-    },
-    header: {
-        marginBottom: SPACING.md,
-    },
-    backButton: {
-        padding: SPACING.xs,
-    },
-    backButtonBg: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#FFFFFF',
-        alignItems: 'center',
-        justifyContent: 'center',
-        ...SHADOWS.sm,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        fontFamily: 'Outfit_700Bold',
-        color: '#1A1A1A',
-    },
-    scrollContent: {
-        padding: SPACING.lg,
-    },
-    profileCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: SPACING.lg,
-        backgroundColor: '#FFFFFF',
-        borderRadius: RADIUS.xl,
-        ...SHADOWS.lg,
-        marginBottom: SPACING.xl,
-        borderWidth: 1,
-        borderColor: '#F1F5F9',
-    },
-    avatarContainer: {
-        width: 70,
-        height: 70,
-        borderRadius: 35,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: SPACING.md,
-        ...SHADOWS.md,
-    },
-    avatarText: {
-        fontSize: 28,
-        fontWeight: '800',
-        color: '#FFFFFF',
-        fontFamily: 'Outfit_800ExtraBold',
-    },
-    userInfo: {
-        flex: 1,
-    },
-    userName: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#1A1A1A',
-        fontFamily: 'Outfit_700Bold',
-        marginBottom: 2,
-    },
-    userPhone: {
-        fontSize: 14,
-        color: '#64748B',
-        fontWeight: '500',
-        fontFamily: 'Outfit_500Medium',
-    },
-    editButtonBg: {
-        padding: 8,
-        backgroundColor: '#F5F3FF',
-        borderRadius: 10,
-    },
-    sectionTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#64748B',
-        fontFamily: 'Outfit_700Bold',
-        textTransform: 'uppercase',
-        letterSpacing: 1,
-        marginBottom: SPACING.md,
-        marginTop: SPACING.sm,
-    },
-    menuContainer: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: RADIUS.xl,
-        paddingVertical: SPACING.xs,
-        borderWidth: 1,
-        borderColor: '#F1F5F9',
-        ...SHADOWS.md,
-        marginBottom: SPACING.xl,
-        overflow: 'hidden',
-    },
-    menuItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: SPACING.md + 2,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F8FAFC',
-    },
-    menuIcon: {
-        width: 42,
-        height: 42,
-        borderRadius: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: SPACING.md,
-    },
-    menuText: {
-        flex: 1,
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#1E293B',
-        fontFamily: 'Outfit_600SemiBold',
-    },
-    logoutButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: SPACING.md + 4,
-        backgroundColor: '#FFF1F2',
-        borderRadius: RADIUS.xl,
-        borderWidth: 1,
-        borderColor: '#FFE4E6',
-        gap: 12,
-        ...SHADOWS.sm,
-    },
-    logoutIconBg: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: '#FFFFFF',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    logoutText: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#E11D48',
-        fontFamily: 'Outfit_700Bold',
-    },
-    // Modal styles
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalContent: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: RADIUS.xl,
-        padding: SPACING.xl,
-        width: '85%',
-        maxWidth: 340,
-        alignItems: 'center',
-        ...SHADOWS.lg,
-    },
-    modalHeader: {
-        marginBottom: SPACING.md,
-    },
-    modalTitle: {
-        ...TYPOGRAPHY.heading,
-        fontSize: 22,
-        marginBottom: SPACING.sm,
-    },
-    modalMessage: {
-        ...TYPOGRAPHY.body,
-        color: COLORS.textSecondary,
-        textAlign: 'center',
-        marginBottom: SPACING.xl,
-    },
-    modalButtons: {
-        flexDirection: 'row',
-        gap: SPACING.md,
-        width: '100%',
-    },
-    modalButton: {
-        flex: 1,
-        paddingVertical: SPACING.md,
-        borderRadius: RADIUS.md,
-        alignItems: 'center',
-    },
-    cancelButton: {
-        backgroundColor: '#F1F5F9',
-        borderWidth: 1,
-        borderColor: COLORS.border,
-    },
-    cancelButtonText: {
-        ...TYPOGRAPHY.bodyBold,
-        color: COLORS.text,
-    },
-    confirmButton: {
-        backgroundColor: COLORS.error,
-    },
-    confirmButtonText: {
-        ...TYPOGRAPHY.bodyBold,
-        color: '#FFFFFF',
-    },
-    emptyContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 60,
-    },
-    emptyIconContainer: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        backgroundColor: '#FFFFFF',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 20,
-        ...SHADOWS.md,
-    },
-    emptyText: {
-        fontSize: 18,
-        fontWeight: '800',
-        color: '#1A1A1A',
-        fontFamily: 'Outfit_800ExtraBold',
-        marginBottom: 8,
-    },
-    emptySubtext: {
-        fontSize: 14,
-        color: '#64748B',
-        textAlign: 'center',
-        fontFamily: 'Outfit_400Regular',
-        marginBottom: 24,
-        paddingHorizontal: 40,
-    },
-    browseButton: {
-        paddingVertical: 14,
-        paddingHorizontal: 32,
-        backgroundColor: COLORS.primary,
-        borderRadius: 20,
-        ...SHADOWS.primary,
-    },
-    browseButtonText: {
-        fontSize: 15,
-        fontWeight: '800',
-        color: '#FFFFFF',
-        fontFamily: 'Outfit_800ExtraBold',
-    },
+  container: {
+    flex: 1,
+    backgroundColor: '#F5F3FF',
+  },
+  scroll: {
+    flex: 1,
+  },
+  centered: {
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  // ─── Hero ───
+  hero: {
+    backgroundColor: '#7C3AED',
+    paddingBottom: 48,
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    overflow: 'hidden',
+  },
+  orb: {
+    position: 'absolute',
+    borderRadius: 9999,
+  },
+  orb1: {
+    top: -40,
+    left: -20,
+    width: 140,
+    height: 140,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+  },
+  orb2: {
+    top: 30,
+    right: -30,
+    width: 100,
+    height: 100,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  orb3: {
+    bottom: -20,
+    left: 60,
+    width: 120,
+    height: 120,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  avatarOuter: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 4,
+    borderColor: 'rgba(255,255,255,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 30,
+    elevation: 8,
+    marginBottom: 12,
+  },
+  avatarInner: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  avatarText: {
+    fontSize: 26,
+    fontFamily: 'Outfit_800ExtraBold',
+    color: '#7C3AED',
+  },
+  heroName: {
+    fontSize: 20,
+    fontFamily: 'Outfit_700Bold',
+    color: '#FFFFFF',
+    letterSpacing: -0.4,
+    textAlign: 'center',
+  },
+  heroEmail: {
+    fontSize: 13,
+    fontFamily: 'Outfit_400Regular',
+    color: 'rgba(255,255,255,0.75)',
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  editPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.20)',
+    backgroundColor: 'rgba(255,255,255,0.10)',
+  },
+  editPillText: {
+    fontSize: 14,
+    fontFamily: 'Outfit_500Medium',
+    color: '#FFFFFF',
+  },
+  // ─── Sheet ───
+  sheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    marginTop: -16,
+    paddingHorizontal: 16,
+    paddingTop: 24,
+    shadowColor: '#6D28D9',
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.06,
+    shadowRadius: 30,
+    elevation: 8,
+  },
+  // ─── Section Header ───
+  sectionHeader: {
+    fontSize: 12,
+    fontFamily: 'Outfit_600SemiBold',
+    color: '#7C3AED',
+    letterSpacing: 3.5,
+    textTransform: 'uppercase',
+    marginBottom: 12,
+    marginTop: 20,
+    paddingHorizontal: 4,
+  },
+  // ─── Menu Card ───
+  menuCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#1E1B4B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+    overflow: 'hidden',
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
+  menuIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  menuRowLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: 'Outfit_500Medium',
+    color: '#09090B',
+  },
+  menuHint: {
+    fontSize: 13,
+    fontFamily: 'Outfit_400Regular',
+    color: '#71717A',
+    marginRight: 4,
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#F8FAFC',
+    marginHorizontal: 16,
+  },
+  creditPill: {
+    backgroundColor: 'rgba(124,58,237,0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  creditPillText: {
+    fontSize: 12,
+    fontFamily: 'Outfit_600SemiBold',
+    color: '#7C3AED',
+  },
+  // ─── Logout ───
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.25)',
+    backgroundColor: '#FFFFFF',
+    marginTop: 24,
+  },
+  logoutBtnText: {
+    fontSize: 16,
+    fontFamily: 'Outfit_600SemiBold',
+    color: '#EF4444',
+  },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.15)',
+    backgroundColor: '#FEF2F2',
+    marginTop: 10,
+  },
+  versionLabel: {
+    fontSize: 11,
+    fontFamily: 'Outfit_400Regular',
+    color: '#71717A',
+    textAlign: 'center',
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  // ─── Empty state ───
+  emptyTitle: {
+    fontSize: 18,
+    fontFamily: 'Outfit_700Bold',
+    color: '#09090B',
+    marginTop: 20,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    fontFamily: 'Outfit_400Regular',
+    color: '#71717A',
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 24,
+  },
+  signInBtn: {
+    backgroundColor: '#7C3AED',
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    borderRadius: 999,
+  },
+  signInBtnText: {
+    fontSize: 15,
+    fontFamily: 'Outfit_600SemiBold',
+    color: '#FFFFFF',
+  },
 });

@@ -39,6 +39,7 @@ import { ServiceInfo } from '../../components/ServiceInfo';
 import { GlassCard } from '../../components/GlassCard';
 import { AnimatedButton } from '../../components/AnimatedButton';
 import AnalyticsService from '../../services/analytics';
+import { ASSET_URLS } from '../../utils/assetUrls';
 
 // -------------- FAQ DATA --------------
 const WASH_FOLD_FAQS = [
@@ -58,14 +59,15 @@ const WASH_IRON_FAQS = [
 const BLANKET_WASH_FAQS = [
   { question: "How is blanket cleaning done?", answer: "Blankets are washed in specialized heavy-duty machines for deep cleaning." },
   { question: "What types of blankets do you accept?", answer: "We accept single and double blankets of all materials." },
+  { question: "Is there a delivery fee?", answer: "For standalone Blanket Wash orders, a ₹50 pickup and delivery fee is charged. This is waived if combined with other wash services." },
   { question: "How long does Blanket Wash take?", answer: "Most blanket wash orders are delivered within 6-12 hours." },
   { question: "Do you clean heavy duvets / quilts?", answer: "Yes, but pricing may vary depending on thickness." },
 ];
 
 const IRONING_FAQS = [
-  { question: "What is the minimum order for Ironing?", answer: "We require a minimum of 20 pieces for a standalone Steam Ironing service." },
-  { question: "What is the price per cloth?", answer: "Steam Ironing is priced at ₹15 per piece." },
-  { question: "Is there a delivery fee?", answer: "For standalone Ironing orders, a ₹50 pickup and delivery fee is charged. This is waived if combined with other services." },
+  { question: "What is the minimum order for Ironing?", answer: "We require a minimum of 5 pieces for a standalone Steam Ironing service." },
+  { question: "What is the price per cloth?", answer: "Steam Ironing is priced at ₹18 per piece." },
+  { question: "Is there a delivery fee?", answer: "For standalone Ironing orders, delivery fee is ₹80 for 5-19 pieces, and ₹50 for 20+ pieces. This is waived if combined with other services." },
   { question: "How long does it take?", answer: "Ironing orders are usually delivered within 24-48 hours." },
 ];
 
@@ -156,7 +158,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   const [doubleBlanketCount, setDoubleBlanketCount] = useState(0);
 
   // Ironing state
-  const [ironingCount, setIroningCount] = useState(20); // Min 20 as requested
+  const [ironingCount, setIroningCount] = useState(5); // Min 5 as requested
 
   // Shoe Cleaning state
   const [shoeSelections, setShoeSelections] = useState<Record<string, number>>({
@@ -221,10 +223,10 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
   // Service Illustrations Mapping
   const SERVICE_IMAGES: Record<string, any> = {
-    'wash_fold': require('../../../assets/services/wash_fold.png'),
-    'wash_iron': require('../../../assets/services/wash_iron.png'),
-    'ironing': require('../../../assets/services/ironing.png'),
-    'blanket_wash': require('../../../assets/services/blanket_wash.png'),
+    'wash_fold': { uri: ASSET_URLS.services_wash_fold },
+    'wash_iron': { uri: ASSET_URLS.services_wash_iron },
+    'ironing': { uri: ASSET_URLS.services_ironing },
+    'blanket_wash': { uri: ASSET_URLS.services_blanket_wash },
     // Fallbacks or future services can use existing assets or default
     'default': require('../../../assets/laundry_illustration.png'),
   };
@@ -481,7 +483,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
     if (serviceId === 'wash_fold') {
       const basePrice = washFoldKg * 85;
-      const ironingPrice = washFoldIroningEnabled ? washFoldIroningCount * 15 : 0;
+      const ironingPrice = washFoldIroningEnabled ? washFoldIroningCount * 18 : 0;
       return basePrice + ironingPrice;
     }
 
@@ -496,7 +498,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     }
 
     if (serviceId === 'ironing') {
-      return ironingCount * 15;
+      return ironingCount * 18;
     }
 
     // ... (Shoe/Dry Clean Logic remains same)
@@ -577,10 +579,10 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     }
 
     if (serviceId === 'ironing') {
-      if (ironingCount < 20) {
+      if (ironingCount < 5) {
         showAlert({
           title: 'Minimum Required',
-          message: 'Minimum 20 pieces required for Steam Ironing',
+          message: 'Minimum 5 pieces required for Steam Ironing',
           type: 'warning'
         });
         return;
@@ -605,7 +607,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       cartItem.clothesCount = 0;
       cartItem.ironingEnabled = washFoldIroningEnabled;
       cartItem.ironingCount = washFoldIroningEnabled ? washFoldIroningCount : 0;
-      cartItem.ironingPrice = washFoldIroningEnabled ? washFoldIroningCount * 15 : 0;
+      cartItem.ironingPrice = washFoldIroningEnabled ? washFoldIroningCount * 18 : 0;
     }
 
     if (serviceId === 'wash_iron') {
@@ -628,7 +630,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     if (serviceId === 'ironing') {
       cartItem.ironingEnabled = true;
       cartItem.ironingCount = ironingCount;
-      cartItem.ironingPrice = ironingCount * 15;
+      cartItem.ironingPrice = ironingCount * 18;
       cartItem.clothesCount = ironingCount;
     }
 
@@ -732,7 +734,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
         <View style={styles.section}>
           <View style={styles.addonHeader}>
             <Text style={styles.sectionTitle}>Need Ironing?</Text>
-            <Text style={styles.addonPrice}>₹15 per piece</Text>
+            <Text style={styles.addonPrice}>₹18 per piece</Text>
           </View>
           <View style={styles.toggleContainer}>
             <Text style={styles.toggleLabel}>Ironing</Text>
@@ -885,16 +887,16 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
         <View style={styles.premiumSelectorContainer}>
           <Text style={styles.premiumSelectorTitle}>Select Quantity</Text>
-          <Text style={styles.premiumSelectorSubtitle}>Min 20 - Max 50 pieces</Text>
+          <Text style={styles.premiumSelectorSubtitle}>Min 5 - Max 50 pieces</Text>
 
           <View style={styles.counterWrapper}>
             <TouchableOpacity
-              style={[styles.countBtn, ironingCount <= 20 && styles.countBtnDisabled]}
-              onPress={() => setIroningCount(Math.max(20, ironingCount - 1))}
-              disabled={ironingCount <= 20}
+              style={[styles.countBtn, ironingCount <= 5 && styles.countBtnDisabled]}
+              onPress={() => setIroningCount(Math.max(5, ironingCount - 1))}
+              disabled={ironingCount <= 5}
               activeOpacity={0.6}
             >
-              <MaterialCommunityIcons name="minus" size={24} color={ironingCount <= 20 ? '#CBD5E1' : '#7C3AED'} />
+              <MaterialCommunityIcons name="minus" size={24} color={ironingCount <= 5 ? '#CBD5E1' : '#7C3AED'} />
             </TouchableOpacity>
 
             <View style={styles.countDisplay}>
@@ -913,14 +915,14 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
           </View>
 
           <View style={styles.priceTag}>
-            <Text style={styles.priceTagText}>₹15 per piece</Text>
+            <Text style={styles.priceTagText}>₹18 per piece</Text>
           </View>
         </View>
 
         <View style={[styles.infoBox, { marginTop: SPACING.lg, backgroundColor: 'rgba(124, 58, 237, 0.1)', borderColor: 'rgba(124, 58, 237, 0.2)' }]}>
           <MaterialCommunityIcons name="information" size={20} color="#7C3AED" style={{ marginRight: 8 }} />
           <Text style={[styles.infoBoxText, { color: '#6D28D9' }]}>
-            Standalone ironing orders have a ₹50 pickup & delivery fee. Waived if combined with other services!
+            Standalone ironing orders have a ₹80 delivery fee (5-19 pieces) or ₹50 (20+ pieces). Waived if combined with other services!
           </Text>
         </View>
       </View>
@@ -1006,6 +1008,13 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
               <Text style={[styles.quantityButtonText, doubleBlanketCount >= 5 && styles.quantityButtonTextDisabled]}>+</Text>
             </TouchableOpacity>
           </View>
+        </View>
+
+        <View style={[styles.infoBox, { marginTop: SPACING.lg, backgroundColor: 'rgba(124, 58, 237, 0.1)', borderColor: 'rgba(124, 58, 237, 0.2)' }]}>
+          <MaterialCommunityIcons name="information" size={20} color="#7C3AED" style={{ marginRight: 8 }} />
+          <Text style={[styles.infoBoxText, { color: '#6D28D9' }]}>
+            Standalone blanket wash orders have a ₹50 pickup & delivery fee. Waived if combined with wash services!
+          </Text>
         </View>
       </View>
 

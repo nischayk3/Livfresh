@@ -31,7 +31,8 @@ import {
   startAfter,
   writeBatch,
   runTransaction,
-  collectionGroup
+  collectionGroup,
+  getCountFromServer
 } from 'firebase/firestore';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
@@ -84,7 +85,8 @@ export {
   startAfter,
   writeBatch,
   runTransaction,
-  collectionGroup
+  collectionGroup,
+  getCountFromServer
 };
 
 export default app;

@@ -61,6 +61,10 @@ const AddressListScreen = Platform.OS === 'web'
   ? lazy(() => import('../screens/Main/AddressListScreen').then(m => ({ default: m.AddressListScreen })))
   : require('../screens/Main/AddressListScreen').AddressListScreen;
 
+const AddressFormScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Main/AddressFormScreen').then(m => ({ default: m.AddressFormScreen })))
+  : require('../screens/Main/AddressFormScreen').AddressFormScreen;
+
 const NotFoundScreen = Platform.OS === 'web'
   ? lazy(() => import('../screens/Main/NotFoundScreen').then(m => ({ default: m.NotFoundScreen })))
   : require('../screens/Main/NotFoundScreen').NotFoundScreen;
@@ -203,6 +207,7 @@ const MainStack = () => (
     <Stack.Screen name="Cart" component={CartScreen} />
     <Stack.Screen name="LocationPermission" component={LocationPermissionScreen} />
     <Stack.Screen name="AddressMap" component={AddressMapScreen} />
+    <Stack.Screen name="AddressForm" component={AddressFormScreen} />
     <Stack.Screen name="OrderSuccess" component={OrderSuccessScreen} />
     <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
     <Stack.Screen name="EditProfile" component={EditProfileScreen} />
@@ -487,6 +492,7 @@ export const RootNavigator: React.FC = () => {
                 Cart: 'cart',
                 AddressList: 'addresses',
                 AddressMap: 'map',
+                AddressForm: 'address-form',
                 OrderSuccess: 'order-success',
                 OrderDetail: 'order/:orderId',
                 EditProfile: 'edit-profile',
@@ -550,6 +556,7 @@ export const RootNavigator: React.FC = () => {
           {/* Fallback Auth Screens directly accessible from anywhere (e.g. from MainStack) */}
           <Stack.Screen name="LocationPermission" component={LocationPermissionScreen} />
           <Stack.Screen name="AddressMap" component={AddressMapScreen} />
+          <Stack.Screen name="AddressForm" component={AddressFormScreen} />
 
           {/* Admin routes - always defined but protected by guards inside components */}
           <Stack.Screen name="AdminLogin" component={AdminLoginScreen} />

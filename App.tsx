@@ -13,6 +13,7 @@ import {
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { BrandAlert } from './src/components/BrandAlert';
 import { initAds } from './src/utils/ads_init';
+import { prefetchCriticalAssets } from './src/utils/assetPrefetch';
 import { View, Platform } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 
@@ -35,6 +36,7 @@ export default Sentry.wrap(function App() {
 
   useEffect(() => {
     initAds();
+    prefetchCriticalAssets();
   }, []);
 
   const onLayoutRootView = useCallback(async () => {

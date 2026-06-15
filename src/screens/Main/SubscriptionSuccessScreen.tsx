@@ -4,8 +4,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
+import { ASSET_URLS } from '../../utils/assetUrls';
 
-const successIllustration = require('../../../assets/subscription_illustration.png');
+const successIllustration = { uri: ASSET_URLS.subscription_illustration };
 
 export const SubscriptionSuccessScreen: React.FC = () => {
     const navigation = useNavigation();

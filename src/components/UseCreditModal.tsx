@@ -25,6 +25,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as Speech from 'expo-speech';
 import { useNavigation, CommonActions } from '@react-navigation/native';
 import { FaqAccordion } from './FaqAccordion';
+import { ASSET_URLS } from '../utils/assetUrls';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const MIN_IRONING_COUNT = 4;
@@ -300,7 +301,7 @@ export const UseCreditModal: React.FC<UseCreditModalProps> = ({ visible, onClose
                             {/* Service Image */}
                             <View style={styles.serviceImageContainer}>
                                 <Image
-                                    source={require('../../assets/services/wash_fold.png')}
+                                    source={{ uri: ASSET_URLS.services_wash_fold }}
                                     style={styles.serviceImage}
                                     contentFit="cover"
                                     transition={500}

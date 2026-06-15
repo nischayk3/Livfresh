@@ -1,0 +1,13 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Static app assets - public read, temporary write for upload
+    match /app_assets/{allPaths=**} {
+      allow read: if true;
+      allow write: if true;
+    }
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

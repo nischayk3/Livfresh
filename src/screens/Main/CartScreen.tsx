@@ -103,7 +103,42 @@ export const CartScreen: React.FC = () => {
     const subtotal = getTotalAmount();
     const onlyIroningInCart =
         items.length > 0 && items.every((item) => item.serviceType === "ironing");
-    const DELIVERY_FEE = onlyIroningInCart ? 50 : 0;
+    const getDeliveryFee = () => {
+        if (items.length === 0) return 0;
+
+        const hasWashFoldOrWashIron = items.some(
+            (item) =>
+                item.serviceType === "wash_fold" ||
+                item.serviceType === "wash_iron" ||
+                item.serviceType === "premium_laundry"
+        );
+        const hasIroning = items.some((item) => item.serviceType === "ironing");
+        const hasBlanketWash = items.some((item) => item.serviceType === "blanket_wash");
+
+        // Wash services take precedence -> free delivery
+        if (hasWashFoldOrWashIron) {
+            return 0;
+        }
+
+        // Steam Ironing rules apply next
+        if (hasIroning) {
+            const totalIroningPieces = items.reduce((sum, item) => {
+                if (item.serviceType === "ironing") {
+                    return sum + (item.ironingCount || item.clothesCount || 0);
+                }
+                return sum;
+            }, 0);
+            return totalIroningPieces >= 20 ? 50 : 80;
+        }
+
+        // Standalone Blanket Wash
+        if (hasBlanketWash) {
+            return 50;
+        }
+
+        return 0;
+    };
+    const DELIVERY_FEE = getDeliveryFee();
     const gstAmount = Math.round(subtotal * GST_PERCENTAGE);
 
     // Calculate potential discount based on rules

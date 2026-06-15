@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,17 +11,18 @@ import {
   Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import { COLORS, SPACING, TYPOGRAPHY, SHADOWS } from '../../utils/constants';
+import { MotiView } from 'moti';
+import { COLORS } from '../../utils/constants';
 import { PWAInstallBanner } from '../../components/PWAInstallBanner';
 import { useUIStore } from '../../store';
+import { ASSET_URLS } from '../../utils/assetUrls';
 
-// Import images directly or use require
 const IMAGES = {
-  slide1: require('../../../assets/onboarding_screen_1.png'),
-  slide2: require('../../../assets/onboarding_screen_2.png'),
-  slide3: require('../../../assets/onboarding_pickup_v2.png'),
+  slide1: { uri: ASSET_URLS.onboarding_screen_1 },
+  slide2: { uri: ASSET_URLS.onboarding_screen_2 },
+  slide3: { uri: ASSET_URLS.onboarding_pickup_v2 },
 };
 
 interface OnboardingSlide {
@@ -41,7 +42,7 @@ const slides: OnboardingSlide[] = [
   {
     id: '2',
     title: 'Fast, Affordable, Hygienic',
-    subtitle: 'Quick service at your doorstep with premium quality',
+    subtitle: 'Quick doorstep service with premium quality care',
     image: IMAGES.slide2,
   },
   {
@@ -52,34 +53,28 @@ const slides: OnboardingSlide[] = [
   },
 ];
 
+const CARD_ORBS = [
+  { top: 8, left: 6, size: 20, color: '#FFFFFF', opacity: 0.8, shadow: 'rgba(255,255,255,0.9)' },
+  { top: 16, right: 8, size: 16, color: '#8E51FF', opacity: 0.7, shadow: 'rgba(168,85,247,0.55)' },
+  { bottom: 14, left: 10, size: 24, color: '#8E51FF', opacity: 0.35, shadow: 'rgba(168,85,247,0.45)' },
+  { bottom: 20, right: 12, size: 12, color: '#FFFFFF', opacity: 0.7, shadow: 'transparent' },
+];
+
 export const OnboardingCarousel: React.FC = () => {
-  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  // Constrain width on web/tablets for consistent UI
   const slideWidth = Math.min(width, 500);
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
 
-  // Auto-scroll effect
   useEffect(() => {
     const interval = setInterval(() => {
       if (currentIndex < slides.length - 1) {
         const nextIndex = currentIndex + 1;
         flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
         setCurrentIndex(nextIndex);
-      } else {
-        // Stop auto-scroll at the end or loop? User said "auto shift... currently user have click next next"
-        // Let's loop back to start for continuous engagement or stop?
-        // Usually onboarding stops or loops. Let's Loop for now as it's a "carousel".
-        // Actually, typical onboarding flows stop at the "Get Started" button.
-        // But "Carousel" implies looping. Let's make it go to 0 if at end,
-        // BUT the last slide has "Get Started", so auto-moving away from it might be annoying.
-        // Let's stop at the end.
-        clearInterval(interval);
       }
-    }, 3000);
-
+    }, 4000);
     return () => clearInterval(interval);
   }, [currentIndex]);
 
@@ -97,61 +92,128 @@ export const OnboardingCarousel: React.FC = () => {
       flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
       setCurrentIndex(nextIndex);
     } else {
-      // Last slide: complete onboarding and go to main app
       setHasCompletedOnboarding(true);
     }
   };
 
   const handleSkip = () => {
-    console.log('⏭️ Skipping onboarding');
     setHasCompletedOnboarding(true);
   };
 
-  const renderSlide = ({ item }: { item: OnboardingSlide }) => (
-    <View style={[styles.slide, { width: slideWidth }]}>
-      <View style={styles.imageContainer}>
-        <Image
-          source={item.image}
-          style={styles.image}
-          contentFit="contain"
-          transition={500}
-        />
-      </View>
-      <View style={styles.contentContainer}>
-        <Text style={styles.title}>{item.title}</Text>
-        <Text style={styles.subtitle}>{item.subtitle}</Text>
-      </View>
-    </View>
-  );
+  const renderSlide = useCallback(
+    ({ item, index }: { item: OnboardingSlide; index: number }) => (
+      <View style={[styles.slide, { width: slideWidth }]}>
+        {/* Ambient Violet Glow */}
+        {currentIndex === index && (
+          <View style={styles.ambientGlow} />
+        )}
 
-  const renderPaginationDots = () => (
-    <View style={styles.paginationContainer}>
-      {slides.map((_, index) => (
-        <View
-          key={index}
-          style={[
-            styles.dot,
-            index === currentIndex ? styles.dotActive : styles.dotInactive,
-          ]}
-        />
-      ))}
-    </View>
+        {/* Hero Visual Card with Orbs */}
+        <MotiView
+          from={{ opacity: 0, translateY: 20, scale: 0.95 }}
+          animate={{ opacity: 1, translateY: 0, scale: 1 }}
+          transition={{ type: 'spring', damping: 18, stiffness: 120 }}
+          style={styles.heroCard}
+        >
+          <LinearGradient
+            colors={['rgba(168, 85, 247, 0.18)', 'rgba(255, 255, 255, 0.5)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          {/* Floating ambient orbs */}
+          {CARD_ORBS.map((orb, i) => (
+            <View
+              key={i}
+              style={[
+                styles.orb,
+                {
+                  width: orb.size,
+                  height: orb.size,
+                  borderRadius: orb.size / 2,
+                  backgroundColor: orb.color,
+                  opacity: orb.opacity,
+                  top: orb.top as any,
+                  left: orb.left as any,
+                  right: orb.right as any,
+                  bottom: orb.bottom as any,
+                },
+                orb.shadow !== 'transparent' && {
+                  shadowColor: orb.shadow,
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: 1,
+                  shadowRadius: 12,
+                  elevation: 6,
+                },
+              ]}
+            />
+          ))}
+          {/* Lavender Glow Blob */}
+          <View style={styles.glowBlob} />
+          {/* Image */}
+          <View style={styles.imageFrame}>
+            <Image
+              source={item.image}
+              style={styles.image}
+              contentFit="contain"
+              transition={600}
+            />
+          </View>
+        </MotiView>
+
+        {/* Text Content */}
+        <MotiView
+          from={{ opacity: 0, translateY: 12 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ delay: 200, type: 'spring', damping: 20 }}
+          style={styles.contentContainer}
+        >
+          <Text style={styles.title}>{item.title}</Text>
+          <Text style={[styles.subtitle, index === 2 && styles.subtitleViolet]}>
+            {item.subtitle}
+          </Text>
+        </MotiView>
+      </View>
+    ),
+    [slideWidth, currentIndex]
   );
 
   return (
     <View style={styles.container}>
-      {/* Centered Wrapper for Web */}
       <View style={[styles.contentWrapper, { width: slideWidth }]}>
 
-        {/* Background decoration */}
-        <View style={styles.circleDecoration} />
+        {/* SpinZo Pill Badge + Skip — only on slides 1 & 2, last slide has same layout */}
+        {currentIndex < 2 ? (
+          <View style={[styles.headerBar, { paddingTop: insets.top + 10 }]}>
+            <View style={{ width: 60 }} />
+            <View style={styles.logoPill}>
+              <Text style={styles.logoText}>SpinZo</Text>
+            </View>
+            <TouchableOpacity onPress={handleSkip} style={styles.skipBtn}>
+              <Text style={styles.skipText}>Skip</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={[styles.headerBarLast, { paddingTop: insets.top + 10 }]}>
+            <View style={{ flex: 1, alignItems: 'flex-end' }}>
+              <TouchableOpacity onPress={handleSkip} style={styles.skipBtn}>
+                <Text style={styles.skipText}>Skip</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
-        {/* PWA Install Banner (Android Web only) */}
-        <PWAInstallBanner />
-
-        <TouchableOpacity onPress={handleSkip} style={[styles.skipButton, { top: insets.top + 16 }]}>
-          <Text style={styles.skipText}>Skip</Text>
-        </TouchableOpacity>
+        {/* SpinZo Brand Pill (on last slide, bigger) */}
+        {currentIndex === 2 && (
+          <MotiView
+            from={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'spring', damping: 14 }}
+            style={styles.logoPillLarge}
+          >
+            <Text style={styles.logoTextLarge}>SpinZo</Text>
+          </MotiView>
+        )}
 
         <FlatList
           ref={flatListRef}
@@ -166,25 +228,70 @@ export const OnboardingCarousel: React.FC = () => {
           bounces={false}
           snapToInterval={slideWidth}
           decelerationRate="fast"
-          getItemLayout={(data, index) => (
-            { length: slideWidth, offset: slideWidth * index, index }
-          )}
+          getItemLayout={(_, index) => ({
+            length: slideWidth,
+            offset: slideWidth * index,
+            index,
+          })}
         />
 
-        <View style={[styles.bottomContainer, { bottom: insets.bottom + SPACING.xl }]}>
-          {renderPaginationDots()}
+        {/* Bottom Section */}
+        <View style={[styles.bottomContainer, { bottom: insets.bottom + 24 }]}>
+          {/* Animated Pagination */}
+          <View style={styles.paginationRow}>
+            {slides.map((_, index) => (
+              <MotiView
+                key={index}
+                style={styles.dot}
+                animate={{
+                  width: index === currentIndex ? 36 : 8,
+                  backgroundColor:
+                    index === currentIndex ? COLORS.primary : '#E2E8F0',
+                }}
+                transition={{ type: 'timing', duration: 250 }}
+              />
+            ))}
+          </View>
 
-          <TouchableOpacity onPress={handleNext} style={styles.nextButton} activeOpacity={0.8}>
-            <Text style={styles.nextButtonText}>
-              {currentIndex === slides.length - 1 ? 'Get Started' : 'Next'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Guest Access CTA — shown only on the last slide */}
-          {currentIndex === slides.length - 1 && (
-            <TouchableOpacity onPress={handleSkip} style={styles.guestButton} activeOpacity={0.7}>
-              <Text style={styles.guestButtonText}>Browse as Guest</Text>
+          {/* CTA Button */}
+          <MotiView
+            key={`cta-${currentIndex}`}
+            from={{ opacity: 0, scale: 0.95, translateY: 8 }}
+            animate={{ opacity: 1, scale: 1, translateY: 0 }}
+            transition={{ type: 'spring', damping: 16 }}
+          >
+            <TouchableOpacity
+              onPress={handleNext}
+              style={styles.nextButton}
+              activeOpacity={0.85}
+            >
+              <LinearGradient
+                colors={['#7C3AED', '#6D28D9']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <Text style={styles.nextButtonText}>
+                {currentIndex === slides.length - 1 ? 'Get Started' : 'Next'}
+              </Text>
             </TouchableOpacity>
+          </MotiView>
+
+          {/* Browse as Guest — last slide only */}
+          {currentIndex === slides.length - 1 && (
+            <MotiView
+              from={{ opacity: 0, translateY: 8 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ delay: 200, type: 'timing', duration: 300 }}
+            >
+              <TouchableOpacity
+                onPress={handleSkip}
+                style={styles.guestButton}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.guestButtonText}>Browse as Guest</Text>
+              </TouchableOpacity>
+            </MotiView>
           )}
         </View>
       </View>
@@ -195,124 +302,216 @@ export const OnboardingCarousel: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
-    overflow: 'hidden',
-    alignItems: 'center', // Center content on web
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
   },
   contentWrapper: {
     flex: 1,
-    maxWidth: 500, // Constrain width on wide screens
+    maxWidth: 500,
     width: '100%',
     position: 'relative',
-    overflow: 'hidden', // Contain absolute positioned elements?
   },
-  circleDecoration: {
+  ambientGlow: {
     position: 'absolute',
-    top: -150,
-    right: -100,
-    width: 400,
-    height: 400,
-    borderRadius: 200,
-    backgroundColor: '#994BFF' + '33', // Hex opacity
-    zIndex: -1,
+    top: 80,
+    left: '10%',
+    width: '80%',
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(168, 85, 247, 0.06)',
+  },
+  headerBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    zIndex: 20,
+  },
+  headerBarLast: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    zIndex: 20,
+  },
+  logoPill: {
+    backgroundColor: '#7C3AED',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 999,
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  logoText: {
+    fontSize: 18,
+    fontFamily: 'Outfit_800ExtraBold',
+    color: '#F5F3FF',
+    letterSpacing: -0.4,
+  },
+  logoPillLarge: {
+    position: 'absolute',
+    top: undefined,
+    alignSelf: 'center',
+    backgroundColor: '#7C3AED',
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderRadius: 999,
+    marginTop: 100,
+    zIndex: 20,
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 24,
+    elevation: 10,
+  },
+  logoTextLarge: {
+    fontSize: 26,
+    fontFamily: 'Outfit_800ExtraBold',
+    color: '#F5F3FF',
+    letterSpacing: -0.5,
+  },
+  skipBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  skipText: {
+    fontSize: 15,
+    fontFamily: 'Outfit_600SemiBold',
+    color: '#7C3AED',
   },
   slide: {
-    height: '100%',
+    flex: 1,
     alignItems: 'center',
-    paddingTop: 60,
+    paddingTop: 140,
   },
-  imageContainer: {
-    width: '100%',
-    height: 350, // Fixed height for consistency
-    justifyContent: 'center',
+  heroCard: {
+    width: '85%',
+    aspectRatio: 0.78,
+    borderRadius: 36,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(168, 85, 247, 0.1)',
+    marginBottom: 24,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 24px 70px rgba(168, 85, 247, 0.16), 0 8px 20px rgba(0, 0, 0, 0.04)',
+      },
+      default: {
+        shadowColor: '#7C3AED',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.15,
+        shadowRadius: 35,
+        elevation: 10,
+      },
+    }),
+  },
+  glowBlob: {
+    position: 'absolute',
+    top: '30%',
+    left: '50%',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(168, 85, 247, 0.10)',
+    transform: [{ translateX: -90 }, { translateY: -90 }],
+  },
+  orb: {
+    position: 'absolute',
+  },
+  imageFrame: {
+    flex: 1,
     alignItems: 'center',
-    marginBottom: SPACING.xl,
-    padding: SPACING.lg,
+    justifyContent: 'center',
+    padding: 16,
   },
   image: {
-    width: '80%',
-    height: '100%',
+    width: '90%',
+    height: '90%',
   },
   contentContainer: {
-    paddingHorizontal: SPACING.xl,
+    paddingHorizontal: 28,
     alignItems: 'center',
-    width: '100%',
   },
   title: {
-    ...TYPOGRAPHY.heading,
-    textAlign: 'center',
-    marginBottom: SPACING.md,
-    color: COLORS.text,
     fontSize: 28,
+    fontFamily: 'Outfit_800ExtraBold',
+    color: '#020617',
+    textAlign: 'center',
+    lineHeight: 34,
+    letterSpacing: -0.6,
+    marginBottom: 10,
   },
   subtitle: {
-    ...TYPOGRAPHY.body,
+    fontSize: 15,
+    fontFamily: 'Outfit_400Regular',
+    color: '#71717A',
     textAlign: 'center',
-    color: COLORS.textSecondary,
-    lineHeight: 24,
-    maxWidth: '90%',
+    lineHeight: 22,
+    maxWidth: '85%',
+  },
+  subtitleViolet: {
+    color: '#7C3AED',
+    fontFamily: 'Outfit_500Medium',
   },
   bottomContainer: {
     position: 'absolute',
     left: 0,
     right: 0,
-    paddingHorizontal: SPACING.xl,
+    paddingHorizontal: 24,
   },
-  paginationContainer: {
+  paginationRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: SPACING.xl,
+    marginBottom: 20,
   },
   dot: {
     height: 8,
     borderRadius: 4,
-    marginHorizontal: 4,
-  },
-  dotActive: {
-    width: 24,
-    backgroundColor: COLORS.primary,
-  },
-  dotInactive: {
-    width: 8,
-    backgroundColor: COLORS.border,
-  },
-  skipButton: {
-    position: 'absolute',
-    right: SPACING.lg,
-    zIndex: 10,
-    padding: SPACING.xs,
-  },
-  skipText: {
-    ...TYPOGRAPHY.body,
-    fontWeight: '600',
-    color: COLORS.primary,
   },
   nextButton: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: SPACING.md + 4,
+    height: 56,
     borderRadius: 16,
     alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
     ...Platform.select({
-      web: { boxShadow: '0px 4px 10px rgba(153, 75, 255, 0.3)' }, // Manual shadow
-      default: SHADOWS.primary,
+      web: {
+        boxShadow: '0 18px 40px rgba(124, 58, 237, 0.28)',
+      },
+      default: {
+        shadowColor: '#7C3AED',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.3,
+        shadowRadius: 24,
+        elevation: 8,
+      },
     }),
   },
   nextButtonText: {
-    ...TYPOGRAPHY.button,
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 17,
+    fontFamily: 'Outfit_700Bold',
   },
   guestButton: {
-    marginTop: SPACING.md,
-    paddingVertical: SPACING.sm,
+    marginTop: 14,
+    paddingVertical: 8,
     alignItems: 'center',
   },
   guestButtonText: {
-    ...TYPOGRAPHY.body,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
     fontSize: 14,
+    fontFamily: 'Outfit_600SemiBold',
+    color: '#7C3AED',
     textDecorationLine: 'underline',
+    textDecorationColor: '#7C3AED',
   },
 });

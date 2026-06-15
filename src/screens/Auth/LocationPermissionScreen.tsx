@@ -12,12 +12,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
+import { Navigation2, ShieldCheck, ArrowRight } from 'lucide-react-native';
 import * as Location from 'expo-location';
 import { useAddressStore, useAuthStore, useUIStore } from '../../store';
 import { addAddress } from '../../services/firestore';
-import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandLoader } from '../../components/BrandLoader';
-import { AnimatedButton } from '../../components/AnimatedButton';
+import { ASSET_URLS } from '../../utils/assetUrls';
 
 const { width } = Dimensions.get('window');
 
@@ -36,42 +36,23 @@ export const LocationPermissionScreen: React.FC = () => {
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
-        {
-          headers: {
-            'User-Agent': 'SpinZoApp/1.0',
-          },
-        }
+        { headers: { 'User-Agent': 'SpinZoApp/1.0' } }
       );
-
       const data = await response.json();
-
-      if (data && data.display_name) {
-        return data.display_name;
-      } else {
-        const geocode = await Location.reverseGeocodeAsync({ latitude, longitude });
-        if (geocode.length > 0) {
-          const address = geocode[0];
-          return [
-            address.name,
-            address.street,
-            address.district,
-            address.city,
-            address.region,
-            address.postalCode
-          ].filter(Boolean).join(', ');
-        }
-      }
-    } catch (error) {
-      console.error("Geocoding error", error);
+      if (data?.display_name) return data.display_name;
       const geocode = await Location.reverseGeocodeAsync({ latitude, longitude });
       if (geocode.length > 0) {
-        const address = geocode[0];
-        return [
-          address.street,
-          address.city,
-          address.region
-        ].filter(Boolean).join(', ');
+        const a = geocode[0];
+        return [a.name, a.street, a.district, a.city, a.region, a.postalCode].filter(Boolean).join(', ');
       }
+    } catch {
+      try {
+        const geocode = await Location.reverseGeocodeAsync({ latitude, longitude });
+        if (geocode.length > 0) {
+          const a = geocode[0];
+          return [a.street, a.city, a.region].filter(Boolean).join(', ');
+        }
+      } catch { /* silent */ }
     }
     return null;
   };
@@ -79,109 +60,61 @@ export const LocationPermissionScreen: React.FC = () => {
   const handleUseCurrentLocation = async () => {
     setLoading(true);
     setStatusText('Requesting Permission...');
-
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-
       if (status !== 'granted') {
         showAlert({
           title: 'Permission Denied',
           message: 'Location permission is required to find services near you. You can skip for now and set it later.',
-          type: 'warning'
+          type: 'warning',
         });
         setLoading(false);
         return;
       }
 
-      setStatusText('Fetching Location...');
-
+      setStatusText('Finding your location...');
       const locationPromise = Location.getCurrentPositionAsync({
         accuracy: Platform.OS === 'web' ? Location.Accuracy.Balanced : Location.Accuracy.High,
-      }).catch((err) => {
-        // Swallow errors if this promise loses the race (timeout)
-        // If it wins, the error will be caught by the main try/catch block via Promise.race re-throwing
-        if (loading) throw err; // propagate if we are still loading (race hasn't finished/timeout hasn't fired logic yet?) 
-        // Actually simplest is just to return null and let validation handle it, or stick to standard race pattern.
-        // Better: just silence it. The await Promise.race will assume rejection if it wins.
-        throw err;
       });
-
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('TIMEOUT')), 10000)
-      );
-
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 10000));
       const location = await Promise.race([locationPromise, timeoutPromise]) as Location.LocationObject;
 
-      setStatusText('Finding Address...');
+      setStatusText('Pinpointing address...');
       const formattedAddress = await getAddressFromCoordinates(
         location.coords.latitude,
         location.coords.longitude
       );
 
-      if (formattedAddress) {
-        if (user) {
-          await addAddress(
-            user.uid,
-            'Current Location',
-            formattedAddress,
-            location.coords.latitude,
-            location.coords.longitude,
-            true
-          );
-        }
-
-        setCurrentAddress(
-          formattedAddress,
-          location.coords.latitude,
-          location.coords.longitude
-        );
-
-        (navigation as any).navigate('AddressMap', {
-          initialLat: location.coords.latitude,
-          initialLng: location.coords.longitude,
-          returnTo: params?.returnTo
-        });
-      } else {
-        showAlert({
-          title: 'Location Found',
-          message: 'We found your location but couldn\'t resolve the address. Please use the map to refine it.',
-          type: 'info'
-        });
-        (navigation as any).navigate('AddressMap', {
-          initialLat: location.coords.latitude,
-          initialLng: location.coords.longitude,
-          returnTo: params?.returnTo
-        });
+      if (user) {
+        await addAddress(user.uid, 'Home', formattedAddress || 'My Location', location.coords.latitude, location.coords.longitude, true).catch(() => {});
       }
+      setCurrentAddress(formattedAddress || 'My Location', location.coords.latitude, location.coords.longitude);
+      setLoading(false);
+
+      (navigation as any).navigate('AddressMap', {
+        initialLat: location.coords.latitude,
+        initialLng: location.coords.longitude,
+        returnTo: params?.returnTo,
+      });
     } catch (error: any) {
-      console.error('Location error:', error);
-      const isTimeout = error.message === 'TIMEOUT';
+      setLoading(false);
+      const isTimeout = error?.message === 'TIMEOUT';
       showAlert({
         title: isTimeout ? 'Request Timed Out' : 'Location Error',
         message: isTimeout
-          ? 'It\'s taking longer than expected. Please try again or Skip for now.'
-          : 'Failed to get location. Please check your GPS/Internet settings or Skip for now.',
-        type: 'error'
+          ? 'Taking longer than expected. Try again or Skip for now.'
+          : 'Could not get your location. Check GPS/Internet or Skip for now.',
+        type: 'error',
       });
-    } finally {
-      setLoading(false);
-      setStatusText('');
     }
   };
 
   const handleSkip = () => {
     const { setHasSkippedLocation } = useAddressStore.getState();
     setHasSkippedLocation(true);
-
     const returnTo = params?.returnTo;
-
-    // If we have a returnTo, we navigate to it. 
-    // Otherwise setting hasSkippedLocation(true) will make HomeScreen show up.
     if (returnTo) {
-      (navigation as any).navigate('Main', {
-        screen: 'MainTabs',
-        params: { screen: returnTo }
-      });
+      (navigation as any).navigate('Main', { screen: 'MainTabs', params: { screen: returnTo } });
     } else {
       (navigation as any).navigate('Main', { screen: 'MainTabs' });
     }
@@ -193,79 +126,81 @@ export const LocationPermissionScreen: React.FC = () => {
         colors={['#F5F3FF', '#FFFFFF', '#EEF2FF']}
         style={StyleSheet.absoluteFill}
       />
+      <View style={[styles.bgOrb1]} />
+      <View style={[styles.bgOrb2]} />
 
-      {/* Decorative blur circles */}
-      <View style={styles.decorativeCircle1} />
-      <View style={styles.decorativeCircle2} />
-
-      <View style={[styles.content, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + SPACING.lg }]}>
-        {/* Premium 3D Illustration */}
+      <View style={[styles.content, { paddingTop: insets.top + 60, paddingBottom: insets.bottom + 32 }]}>
+        {/* Premium Illustration */}
         <MotiView
-          from={{ opacity: 0, scale: 0.8 }}
+          from={{ opacity: 0, scale: 0.85 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ type: 'spring', delay: 200 }}
-          style={styles.illustrationContainer}
+          transition={{ type: 'spring', damping: 16 }}
+          style={styles.illustrationWrap}
         >
+          <View style={styles.illustrationGlow} />
           <Image
-            source={require('../../../assets/location_illustration.png')}
+            source={{ uri: ASSET_URLS.location_illustration }}
             style={styles.illustration}
             contentFit="contain"
             transition={500}
           />
         </MotiView>
 
+        {/* Text Content */}
         <MotiView
           from={{ opacity: 0, translateY: 20 }}
           animate={{ opacity: 1, translateY: 0 }}
-          transition={{ delay: 400 }}
+          transition={{ delay: 200, type: 'spring', damping: 18 }}
+          style={styles.textSection}
         >
-          <Text style={styles.heading}>Enable Location</Text>
+          <Text style={styles.title}>Find Services Near You</Text>
           <Text style={styles.subtitle}>
-            We need your location to provide{'\n'}doorstep laundry service
+            We need your location to show available{'\n'}laundry services in your area
           </Text>
         </MotiView>
 
+        {/* Buttons */}
         <MotiView
           from={{ opacity: 0, translateY: 20 }}
           animate={{ opacity: 1, translateY: 0 }}
-          transition={{ delay: 600 }}
-          style={styles.buttonsContainer}
+          transition={{ delay: 350, type: 'spring', damping: 18 }}
+          style={styles.btnSection}
         >
-          <AnimatedButton
+          <TouchableOpacity
             onPress={handleUseCurrentLocation}
             disabled={loading}
-            style={styles.primaryButton}
+            style={styles.primaryBtn}
+            activeOpacity={0.85}
           >
             <LinearGradient
-              colors={[COLORS.primary, COLORS.primaryDark]}
+              colors={['#7C3AED', '#6D28D9']}
               start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
+              end={{ x: 1, y: 1 }}
               style={StyleSheet.absoluteFill}
             />
-            <Text style={styles.primaryButtonText}>Use Current Location</Text>
-          </AnimatedButton>
+            <Navigation2 size={20} color="#FFFFFF" strokeWidth={2.5} />
+            <Text style={styles.primaryBtnText}>Use Current Location</Text>
+            <ArrowRight size={18} color="rgba(255,255,255,0.7)" strokeWidth={2.5} />
+          </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={handleSkip}
-            disabled={loading}
-            style={styles.secondaryButton}
-          >
-            <Text style={styles.secondaryButtonText}>Skip for now</Text>
+          <TouchableOpacity onPress={handleSkip} disabled={loading} style={styles.skipBtn}>
+            <Text style={styles.skipBtnText}>Skip for now</Text>
           </TouchableOpacity>
         </MotiView>
 
-        {/* Trust indicator */}
+        {/* Trust Badge */}
         <MotiView
           from={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 800 }}
+          transition={{ delay: 500, type: 'timing', duration: 400 }}
           style={styles.trustBadge}
         >
-          <Text style={styles.trustText}>🔒 Your location data is secure and private</Text>
+          <ShieldCheck size={12} color="#7C3AED" strokeWidth={2.5} />
+          <Text style={styles.trustText}>Your location data is secure and private</Text>
         </MotiView>
       </View>
 
-      {loading && <BrandLoader fullscreen message={statusText || "Getting location..."} />}
+      {loading && <BrandLoader fullscreen message={statusText || 'Getting location...'} />}
     </View>
   );
 };
@@ -275,98 +210,115 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  decorativeCircle1: {
+  bgOrb1: {
     position: 'absolute',
     top: -100,
-    right: -100,
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: 'rgba(124, 58, 237, 0.08)',
+    right: -80,
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: 'rgba(124,58,237,0.06)',
   },
-  decorativeCircle2: {
+  bgOrb2: {
     position: 'absolute',
-    bottom: -50,
+    bottom: -60,
     left: -100,
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    backgroundColor: 'rgba(99, 102, 241, 0.06)',
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: 'rgba(99,102,241,0.05)',
   },
   content: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: SPACING.xl,
+    paddingHorizontal: 28,
   },
-  illustrationContainer: {
-    marginBottom: SPACING.xl,
-    ...SHADOWS.lg,
+  illustrationWrap: {
+    marginBottom: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  illustrationGlow: {
+    position: 'absolute',
+    width: width * 0.5,
+    height: width * 0.5,
+    borderRadius: width * 0.25,
+    backgroundColor: 'rgba(124,58,237,0.08)',
+    top: 10,
   },
   illustration: {
-    width: width * 0.55,
-    height: width * 0.55,
+    width: width * 0.5,
+    height: width * 0.5,
   },
-  heading: {
-    ...TYPOGRAPHY.display,
-    fontSize: 28,
-    marginBottom: SPACING.sm,
+  textSection: {
+    alignItems: 'center',
+    marginBottom: 36,
+  },
+  title: {
+    fontSize: 26,
+    fontFamily: 'Outfit_700Bold',
+    color: '#09090B',
     textAlign: 'center',
-    color: COLORS.text,
+    letterSpacing: -0.5,
+    marginBottom: 10,
   },
   subtitle: {
-    ...TYPOGRAPHY.body,
-    fontSize: 16,
-    marginBottom: SPACING.xl * 2,
+    fontSize: 15,
+    fontFamily: 'Outfit_400Regular',
+    color: '#71717A',
     textAlign: 'center',
-    color: COLORS.textSecondary,
-    lineHeight: 24,
+    lineHeight: 22,
   },
-  buttonsContainer: {
+  btnSection: {
     width: '100%',
-    gap: SPACING.md,
+    gap: 12,
   },
-  primaryButton: {
-    width: '100%',
+  primaryBtn: {
     height: 56,
-    borderRadius: RADIUS.xl,
+    borderRadius: 16,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    ...SHADOWS.primary,
+    gap: 8,
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.28,
+    shadowRadius: 40,
+    elevation: 10,
   },
-  primaryButtonText: {
-    ...TYPOGRAPHY.button,
+  primaryBtnText: {
+    fontSize: 16,
+    fontFamily: 'Outfit_600SemiBold',
     color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '600',
   },
-  secondaryButton: {
-    width: '100%',
-    height: 56,
-    borderRadius: RADIUS.xl,
+  skipBtn: {
+    height: 48,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    backgroundColor: 'rgba(255,255,255,0.8)',
   },
-  secondaryButtonText: {
-    ...TYPOGRAPHY.button,
-    color: COLORS.textSecondary,
-    fontSize: 16,
+  skipBtnText: {
+    fontSize: 15,
+    fontFamily: 'Outfit_500Medium',
+    color: '#71717A',
   },
   trustBadge: {
-    marginTop: SPACING.xl * 1.5,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.full,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 32,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.9)',
-    ...SHADOWS.sm,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    gap: 6,
   },
   trustText: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
     fontSize: 12,
+    fontFamily: 'Outfit_400Regular',
+    color: '#71717A',
   },
 });

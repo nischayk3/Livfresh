@@ -49,6 +49,9 @@ export interface AdminOrder {
     pincode: string;
   };
   items?: any[];
+  pickupDetails?: any;
+  processingStep?: string;
+  deliveryScheduledAt?: Timestamp | Date;
 }
 
 export interface SubscriptionStats {
@@ -224,6 +227,7 @@ export const useAdminStore = create<AdminStoreState>((set, get) => ({
     newStatus: string,
     options?
   ) => {
+    const previousOrders = get().orders;
     try {
       // Optimistic update
       set((state) => ({
@@ -236,17 +240,18 @@ export const useAdminStore = create<AdminStoreState>((set, get) => ({
 
       await updateOrderStatusAdmin(userId, orderId, newStatus, options);
 
-      // Refresh stats and orders
+      // Refresh stats only (no need to fetch all orders again!)
       get().fetchOrderStats(true);
-      get().fetchAllOrders(true);
 
       return true;
     } catch (error: any) {
       console.error('Error updating order status:', error);
-      set({ error: error.message || 'Failed to update order status' });
-
-      // Revert optimistic update
-      get().fetchAllOrders(true);
+      
+      // Revert optimistic update using local state
+      set({ 
+        orders: previousOrders,
+        error: error.message || 'Failed to update order status' 
+      });
 
       return false;
     }

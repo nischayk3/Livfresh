@@ -146,7 +146,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   const [washFoldIroningEnabled, setWashFoldIroningEnabled] = useState(false);
   const [washFoldIroningCount, setWashFoldIroningCount] = useState(4); // Default to 4
 
-  // Wash & Iron — per-kg pricing (₹120/kg, min 5kg, max 15kg)
+  // Wash & Iron — per-kg pricing (₹140/kg, min 5kg, max 15kg)
   const [washIronKg, setWashIronKg] = useState(5);
 
   const [specialInstructions, setSpecialInstructions] = useState('');
@@ -486,7 +486,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     }
 
     if (serviceId === 'wash_iron') {
-      return washIronKg * 120;
+      return washIronKg * 140;
     }
 
     if (serviceId === 'blanket_wash') {
@@ -841,7 +841,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
             <View style={{ alignItems: 'center', marginTop: 12 }}>
               <View style={styles.priceTag}>
-                <Text style={styles.priceTagText}>₹120 per kg</Text>
+                <Text style={styles.priceTagText}>₹140 per kg</Text>
               </View>
               <Text style={{ fontSize: 13, color: COLORS.textSecondary, marginTop: 8, fontWeight: '500' }}>
                 <MaterialCommunityIcons name="tshirt-crew-outline" size={14} color={COLORS.textSecondary} /> ~ {Math.round(washIronKg * 3.5)} clothes

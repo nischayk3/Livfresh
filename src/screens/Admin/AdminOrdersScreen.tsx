@@ -1319,7 +1319,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
       return base + ironing;
     }
     if (item.serviceId === 'wash_iron') {
-      return (item.weight || 5) * 120;
+      return (item.weight || 5) * 140;
     }
     if (item.serviceId === 'ironing_addon' || item.serviceName?.toLowerCase().includes('ironing')) {
       const count = item.clothesCount || item.ironingCount || 0;
@@ -1599,7 +1599,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
               {/* Wash & Iron Editing */}
               {item.serviceId === 'wash_iron' && !item.serviceName?.includes('Ironing Add-on') && (
                 <View style={{ gap: 12 }}>
-                  <Text style={TYPOGRAPHY.caption}>Adjust Weight (₹120/kg)</Text>
+                  <Text style={TYPOGRAPHY.caption}>Adjust Weight (₹140/kg)</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                     <TouchableOpacity
                       style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}

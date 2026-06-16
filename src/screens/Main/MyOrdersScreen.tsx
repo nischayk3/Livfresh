@@ -360,9 +360,10 @@ export const MyOrdersScreen: React.FC = () => {
   // --- Main render ---
 
   // Determine what to show on Active tab: live orders + last 2 past orders
-  const showRecentOnActive = activeTab === 'current' && currentOrders.length > 0 && pastOrders.length > 0;
-  const recentPastOrders = showRecentOnActive ? pastOrders.slice(0, 2) : [];
-  const listData = showRecentOnActive ? recentPastOrders : displayOrders;
+  // The flatlist itself should only show past history orders under the active tab, avoiding duplicates of the highlighted live cards.
+  const listData = activeTab === 'current'
+    ? (currentOrders.length > 0 ? pastOrders.slice(0, 2) : [])
+    : displayOrders;
 
   // ListHeader for Active tab: live order card + Recent Orders heading
   const renderListHeader = () => {

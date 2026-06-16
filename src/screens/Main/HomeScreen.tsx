@@ -23,7 +23,7 @@ import Animated, {
   interpolate,
   Extrapolation,
 } from 'react-native-reanimated';
-import { useAuthStore, useAddressStore } from '../../store';
+import { useAuthStore, useAddressStore, useNotificationStore } from '../../store';
 import { useCartStore } from '../../store';
 import { useSubscriptionStore } from '../../store';
 import AnalyticsService from '../../services/analytics';
@@ -125,6 +125,7 @@ export const HomeScreen: React.FC = () => {
   const { currentAddress } = useAddressStore();
   const { items, getTotalAmount } = useCartStore();
   const { fetchSubscriptions, getTotalCredits } = useSubscriptionStore();
+  const { unreadCount } = useNotificationStore();
   const flatListRef = useRef<FlatList>(null);
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -339,10 +340,14 @@ export const HomeScreen: React.FC = () => {
           <View style={styles.headerRight}>
             <AnimatedButton
               style={styles.notificationBtn}
-              onPress={() => {}}
+              onPress={() => (navigation as any).navigate('Notifications')}
             >
               <Bell size={18} color={COLORS.text} strokeWidth={1.5} />
-              <View style={styles.notificationDot} />
+              {unreadCount > 0 && (
+                <View style={styles.notificationDot}>
+                  <Text style={styles.notificationBadgeText}>{unreadCount}</Text>
+                </View>
+              )}
             </AnimatedButton>
 
             <AnimatedButton
@@ -694,14 +699,25 @@ const styles = StyleSheet.create({
   },
   notificationDot: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: '#EF4444',
-    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+    borderWidth: 1,
     borderColor: '#FFFFFF',
+  },
+  notificationBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+    fontFamily: 'Outfit_800ExtraBold',
+    lineHeight: 12,
+    textAlign: 'center',
   },
   addressPill: {
     flexDirection: 'row',

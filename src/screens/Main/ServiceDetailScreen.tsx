@@ -14,6 +14,7 @@ import {
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Mic, Camera, Image as ImageIcon } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -414,34 +415,38 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   const renderMediaButtons = () => (
     <View style={styles.mediaButtonsContainer}>
       <TouchableOpacity style={styles.mediaButton} onPress={handleCamera}>
-        <View style={[styles.mediaIconCircle, { backgroundColor: '#E0F2FE' }]}>
-          <Ionicons name="camera" size={20} color={COLORS.primary} />
+        <View style={[styles.mediaIconCircle, { backgroundColor: 'rgba(124,58,237,0.08)' }]}>
+          <Camera size={20} color="#7C3AED" strokeWidth={1.8} />
         </View>
         <Text style={styles.mediaButtonText}>Camera</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.mediaButton} onPress={handlePickImage}>
-        <View style={[styles.mediaIconCircle, { backgroundColor: '#F0FDF4' }]}>
-          <Ionicons name="images" size={20} color="#16A34A" />
+        <View style={[styles.mediaIconCircle, { backgroundColor: 'rgba(16,185,129,0.08)' }]}>
+          <ImageIcon size={20} color="#059669" strokeWidth={1.8} />
         </View>
         <Text style={styles.mediaButtonText}>Gallery</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={styles.mediaButton}
+        style={[styles.mediaButton, isListening && styles.mediaButtonListening]}
         onPress={startSpeechToText}
       >
         <View style={[
           styles.mediaIconCircle,
-          { backgroundColor: isListening ? '#FEE2E2' : '#F3F4F6' }
+          { backgroundColor: isListening ? 'rgba(124,58,237,0.15)' : '#F4F4F5' }
         ]}>
-          <Ionicons
-            name={isListening ? "mic" : "mic-outline"}
+          {isListening && <View style={styles.micPulseRing} />}
+          <Mic
             size={20}
-            color={isListening ? "#DC2626" : COLORS.textSecondary}
+            color={isListening ? '#7C3AED' : '#71717A'}
+            strokeWidth={1.8}
           />
         </View>
-        <Text style={styles.mediaButtonText}>
+        <Text style={[
+          styles.mediaButtonText,
+          isListening && { color: '#7C3AED' }
+        ]}>
           {isListening ? 'Listening...' : 'Voice Input'}
         </Text>
       </TouchableOpacity>
@@ -1803,12 +1808,17 @@ const styles = StyleSheet.create({
   },
   mediaButton: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    backgroundColor: '#FFFFFF',
     padding: 10,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: '#F1F5F9',
+    shadowColor: '#1E1B4B',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   mediaIconCircle: {
     width: 40,
@@ -1824,6 +1834,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#64748B',
     fontFamily: 'Outfit_700Bold',
+  },
+  mediaButtonListening: {
+    borderColor: 'rgba(124,58,237,0.3)',
+    backgroundColor: 'rgba(124,58,237,0.04)',
+  },
+  micPulseRing: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#7C3AED',
+    opacity: 0.4,
   },
   photoGalleryContainer: {
     marginTop: SPACING.md,

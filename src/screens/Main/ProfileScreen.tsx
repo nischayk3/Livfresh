@@ -8,7 +8,9 @@ import {
   ActivityIndicator,
   Linking,
   Platform,
+  Switch,
 } from 'react-native';
+import { doc, updateDoc, db } from '../../services/firebase';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -61,6 +63,44 @@ export const ProfileScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Notification states derived from user profile
+  const [orderUpdates, setOrderUpdates] = useState(user?.notificationPreferences?.orderUpdates !== false);
+  const [weeklyReminders, setWeeklyReminders] = useState(user?.notificationPreferences?.weeklyReminders !== false);
+  const [promotions, setPromotions] = useState(user?.notificationPreferences?.promotions !== false);
+
+  // Update preferences state if user object updates
+  React.useEffect(() => {
+    if (user) {
+      setOrderUpdates(user.notificationPreferences?.orderUpdates !== false);
+      setWeeklyReminders(user.notificationPreferences?.weeklyReminders !== false);
+      setPromotions(user.notificationPreferences?.promotions !== false);
+    }
+  }, [user]);
+
+  const handleTogglePreference = async (key: string, value: boolean) => {
+    if (!user?.uid) return;
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        [`notificationPreferences.${key}`]: value
+      });
+      
+      // Update local Zustand auth store user object
+      const authStore = useAuthStore.getState();
+      if (authStore.user) {
+        authStore.setUser({
+          ...authStore.user,
+          notificationPreferences: {
+            ...(authStore.user.notificationPreferences || { orderUpdates: true, weeklyReminders: true, promotions: true }),
+            [key]: value
+          }
+        });
+      }
+    } catch (err) {
+      console.error(`Failed to update notification preference ${key}:`, err);
+    }
+  };
 
   const getInitials = (name: string) => {
     return name ? name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() : 'U';
@@ -240,6 +280,57 @@ export const ProfileScreen: React.FC = () => {
           >
             <SECTION_HEADER label="Preferences" />
             <View style={styles.menuCard}>
+              <View style={styles.preferenceRow}>
+                <View style={styles.prefTextContainer}>
+                  <Text style={styles.prefLabel}>Order Status Updates</Text>
+                  <Text style={styles.prefSubtext}>Alerts when your laundry is picked up, ready, or delivered</Text>
+                </View>
+                <Switch
+                  value={orderUpdates}
+                  onValueChange={(val) => {
+                    setOrderUpdates(val);
+                    handleTogglePreference('orderUpdates', val);
+                  }}
+                  trackColor={{ false: '#E4E4E7', true: '#C084FC' }}
+                  thumbColor={orderUpdates ? '#7C3AED' : '#F4F4F5'}
+                />
+              </View>
+              <View style={styles.menuDivider} />
+              
+              <View style={styles.preferenceRow}>
+                <View style={styles.prefTextContainer}>
+                  <Text style={styles.prefLabel}>Weekly Reminders</Text>
+                  <Text style={styles.prefSubtext}>A friendly nudge on Thursdays to schedule laundry for the weekend</Text>
+                </View>
+                <Switch
+                  value={weeklyReminders}
+                  onValueChange={(val) => {
+                    setWeeklyReminders(val);
+                    handleTogglePreference('weeklyReminders', val);
+                  }}
+                  trackColor={{ false: '#E4E4E7', true: '#C084FC' }}
+                  thumbColor={weeklyReminders ? '#7C3AED' : '#F4F4F5'}
+                />
+              </View>
+              <View style={styles.menuDivider} />
+
+              <View style={styles.preferenceRow}>
+                <View style={styles.prefTextContainer}>
+                  <Text style={styles.prefLabel}>Promotions & Offers</Text>
+                  <Text style={styles.prefSubtext}>Discount notifications, win-back deals, and credit updates</Text>
+                </View>
+                <Switch
+                  value={promotions}
+                  onValueChange={(val) => {
+                    setPromotions(val);
+                    handleTogglePreference('promotions', val);
+                  }}
+                  trackColor={{ false: '#E4E4E7', true: '#C084FC' }}
+                  thumbColor={promotions ? '#7C3AED' : '#F4F4F5'}
+                />
+              </View>
+              <View style={styles.menuDivider} />
+
               <MenuRow
                 icon={Globe}
                 label="Language"
@@ -623,5 +714,28 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: 'Outfit_600SemiBold',
     color: '#FFFFFF',
+  },
+  preferenceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
+  prefTextContainer: {
+    flex: 1,
+    marginRight: 16,
+  },
+  prefLabel: {
+    fontSize: 15,
+    fontFamily: 'Outfit_500Medium',
+    color: '#09090B',
+    marginBottom: 2,
+  },
+  prefSubtext: {
+    fontSize: 12,
+    fontFamily: 'Outfit_400Regular',
+    color: '#71717A',
+    lineHeight: 16,
   },
 });

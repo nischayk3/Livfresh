@@ -16,6 +16,7 @@ import { initAds } from './src/utils/ads_init';
 import { prefetchCriticalAssets } from './src/utils/assetPrefetch';
 import { View, Platform } from 'react-native';
 import * as Sentry from '@sentry/react-native';
+import { setupAndroidChannel, setupNotificationHandlers } from './src/services/notificationService';
 
 Sentry.init({
   dsn: 'https://4823ae2cb52c014cbaa58bda55d5ce78@o4510713966166016.ingest.de.sentry.io/4510714043367504',
@@ -37,6 +38,9 @@ export default Sentry.wrap(function App() {
   useEffect(() => {
     initAds();
     prefetchCriticalAssets();
+    setupAndroidChannel();
+    const unsubscribe = setupNotificationHandlers();
+    return () => unsubscribe();
   }, []);
 
   const onLayoutRootView = useCallback(async () => {

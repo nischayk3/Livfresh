@@ -62,6 +62,12 @@ service cloud.firestore {
           allow delete: if isAdmin();
         }
       }
+
+      match /notifications/{notifId} {
+        allow read: if isAdmin() || isOwner(userId);
+        allow update: if isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+        allow create, delete: if isAdmin();
+      }
     }
     
     match /unserviceable_requests/{requestId} {

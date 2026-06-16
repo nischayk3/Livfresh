@@ -144,6 +144,14 @@ export const OrderDetailScreen: React.FC = () => {
   }, [orderId, user?.uid]);
 
   useEffect(() => {
+    const params = route.params as any;
+    if (params?.autoOpenScheduler && order?.status === 'ready' && !order?.deliveryDate) {
+      setShowScheduler(true);
+      navigation.setParams({ autoOpenScheduler: undefined } as any);
+    }
+  }, [order?.status, order?.deliveryDate, route.params]);
+
+  useEffect(() => {
     if (showScheduler) {
       fetchBusySlots();
     }
@@ -436,6 +444,32 @@ export const OrderDetailScreen: React.FC = () => {
                         <Text style={styles.weightText}>{item.ironingCount} PCS</Text>
                       </View>
                     )}
+                    {item.serviceType === 'blanket_wash' && (
+                      <View style={styles.weightBadge}>
+                        <Text style={styles.weightText}>
+                          {item.singleBlanketCount > 0 || item.doubleBlanketCount > 0
+                            ? [
+                                item.singleBlanketCount > 0 ? `${item.singleBlanketCount} Single` : null,
+                                item.doubleBlanketCount > 0 ? `${item.doubleBlanketCount} Double` : null,
+                              ].filter(Boolean).join(' / ')
+                            : `${item.blanketQuantity || item.quantity || 0} Blankets`}
+                        </Text>
+                      </View>
+                    )}
+                    {item.serviceType === 'shoe_clean' && (
+                      <View style={styles.weightBadge}>
+                        <Text style={styles.weightText}>
+                          {item.shoeQuantity || item.quantity || 0} Pairs
+                        </Text>
+                      </View>
+                    )}
+                    {item.serviceType === 'dry_clean' && (
+                      <View style={styles.weightBadge}>
+                        <Text style={styles.weightText}>
+                          {item.weight ? `${item.weight} KG` : `${item.quantity || 0} Pcs`}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                   <Text style={styles.itemDesc}>
                     {item.serviceType === 'wash_fold'
@@ -444,7 +478,13 @@ export const OrderDetailScreen: React.FC = () => {
                         ? 'Wash followed by professional ironing'
                         : item.serviceType === 'ironing'
                           ? 'Wrinkle-free finishing'
-                          : item.description || 'Service'}
+                          : item.serviceType === 'blanket_wash'
+                            ? (item.description || 'Deep cleaning for blankets')
+                            : item.serviceType === 'shoe_clean'
+                              ? (item.description || 'Professional shoe laundry')
+                              : item.serviceType === 'dry_clean'
+                                ? (item.description || 'Premium chemical dry cleaning')
+                                : item.description || 'Service'}
                   </Text>
                 </View>
                 <Text style={styles.itemPrice}>₹{item.totalPrice}</Text>

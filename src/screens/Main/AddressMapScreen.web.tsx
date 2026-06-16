@@ -244,11 +244,6 @@ export const AddressMapScreen: React.FC = () => {
 
         {/* Center Pin */}
         <View style={styles.pinContainer}>
-          <View style={styles.pinGlow} />
-          <View style={styles.pinRing} />
-          <View style={styles.dragTooltip}>
-            <Text style={styles.dragTooltipText}>Drag to adjust</Text>
-          </View>
           <MapPin size={40} color="#7C3AED" fill="#7C3AED" />
         </View>
 

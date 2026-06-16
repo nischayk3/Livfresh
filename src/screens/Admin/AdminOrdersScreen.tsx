@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -263,6 +263,7 @@ export const AdminOrdersScreen: React.FC = () => {
   const [selectedMedia, setSelectedMedia] = useState<{ uri: string; type: 'photo' | 'video' } | null>(null);
   const [uploadingProof, setUploadingProof] = useState(false);
   const [orderForProof, setOrderForProof] = useState<any>(null);
+  const activeUploadRef = useRef<number | null>(null);
 
   // Fullscreen video playback state
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
@@ -571,13 +572,27 @@ export const AdminOrdersScreen: React.FC = () => {
       return;
     }
 
+    const uploadId = Date.now();
+    activeUploadRef.current = uploadId;
     setUploadingProof(true);
+
     try {
-      const downloadURL = await uploadOrderReadyProofAdmin(
+      const uploadPromise = uploadOrderReadyProofAdmin(
         selectedMedia.uri,
         orderForProof.id,
         selectedMedia.type === 'video'
       );
+
+      const timeoutMs = selectedMedia.type === 'video' ? 60000 : 30000;
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("UPLOAD_TIMEOUT")), timeoutMs)
+      );
+
+      const downloadURL = await Promise.race([uploadPromise, timeoutPromise]);
+
+      if (activeUploadRef.current !== uploadId) {
+        return; // Aborted
+      }
 
       const additionalData = {
         readyProofUrl: downloadURL,
@@ -588,16 +603,52 @@ export const AdminOrdersScreen: React.FC = () => {
         additionalData
       });
 
+      if (activeUploadRef.current !== uploadId) {
+        return; // Aborted
+      }
+
       setProofModalVisible(false);
       setSelectedMedia(null);
       setOrderForProof(null);
       Alert.alert("Success", "Order proof uploaded and order marked ready!");
-    } catch (error) {
+    } catch (error: any) {
+      if (activeUploadRef.current !== uploadId) {
+        return; // Aborted, ignore error/timeouts
+      }
       console.error("Error uploading proof and completing order:", error);
-      Alert.alert("Error", "Failed to upload proof. Please try again.");
+      if (error?.message === "UPLOAD_TIMEOUT") {
+        Alert.alert(
+          "Upload Timed Out",
+          "Uploading the proof took too long. Please verify your internet connection and try again."
+        );
+      } else {
+        Alert.alert("Error", "Failed to upload proof. Please try again.");
+      }
     } finally {
-      setUploadingProof(false);
+      if (activeUploadRef.current === uploadId) {
+        setUploadingProof(false);
+      }
     }
+  };
+
+  const handleCancelUpload = () => {
+    Alert.alert(
+      "Cancel Upload?",
+      "Are you sure you want to cancel the upload?",
+      [
+        { text: "No", style: "cancel" },
+        {
+          text: "Yes, Cancel",
+          style: "destructive",
+          onPress: () => {
+            activeUploadRef.current = null;
+            setUploadingProof(false);
+            setProofModalVisible(false);
+            setSelectedMedia(null);
+          }
+        }
+      ]
+    );
   };
 
   const handleSelectMedia = async (source: 'camera_photo' | 'camera_video' | 'gallery_photo' | 'gallery_video') => {
@@ -973,113 +1024,110 @@ export const AdminOrdersScreen: React.FC = () => {
 
     return (
       <View style={styles.orderCard}>
-        {/* Header with Cancel Option */}
+        {/* Header with Order Info & Status Badge */}
         <View style={styles.cardHeader}>
-          <View>
+          <View style={styles.headerTopRow}>
             <Text style={styles.orderId}>{item.id ? item.id.toUpperCase() : 'NO ID'}</Text>
-            <Text style={[styles.orderDate, item.status === 'cancelled' && { color: COLORS.error }]}>
-              {item.status === 'cancelled' ? `Cancelled: ${cancellationDate || 'N/A'}` : placementDate}
-            </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
-              {item.status === 'cancelled' && (
-                <View style={[styles.tokenBadge, { backgroundColor: COLORS.error + '10' }]}>
-                  <Ionicons name="alert-circle-outline" size={12} color={COLORS.error} />
-                  <Text style={[styles.tokenText, { color: COLORS.error }]}>
-                    Reason: {item.cancellationReason || 'Not specified'}
-                  </Text>
-                </View>
-              )}
-              {item.status === 'cancelled' && (
-                <View style={[styles.tokenBadge, { backgroundColor: COLORS.backgroundLight }]}>
-                  <Ionicons name="cart-outline" size={12} color={COLORS.textSecondary} />
-                  <Text style={[styles.tokenText, { color: COLORS.textSecondary }]}>
-                    Ordered: {placementDate}
-                  </Text>
-                </View>
-              )}
-              {item.tokenNumber && (
-                <View style={styles.tokenBadge}>
-                  <Ionicons name="pricetag-outline" size={12} color={COLORS.primary} />
-                  <Text style={styles.tokenText}>Token: {item.tokenNumber}</Text>
-                </View>
-              )}
-              {item.deliveryDate && item.deliveryTime && (
-                <View style={[styles.tokenBadge, { backgroundColor: COLORS.success + '10' }]}>
-                  <Ionicons name="time-outline" size={12} color={COLORS.success} />
-                  <Text style={[styles.tokenText, { color: COLORS.success }]}>Slot: {item.deliveryDate}, {item.deliveryTime}</Text>
-                </View>
-              )}
-              {!item.deliveryDate && item.status === 'ready' && (
-                <View style={[styles.tokenBadge, { backgroundColor: COLORS.warning + '10' }]}>
-                  <Ionicons name="alert-circle-outline" size={12} color={COLORS.warning} />
-                  <Text style={[styles.tokenText, { color: COLORS.warning }]}>Waiting for Schedule</Text>
-                </View>
-              )}
-              {item.items && item.items.some((orderItem: any) => orderItem.isCreditItem) && (
-                <View style={[styles.tokenBadge, { backgroundColor: COLORS.primary + '11' }]}>
-                  <Ionicons name="card-outline" size={12} color={COLORS.primary} />
-                  <Text style={[styles.tokenText, { color: COLORS.primary }]}>Subscription Credit</Text>
-                </View>
-              )}
-              {/* SLA Timer Badge */}
-              {(() => {
-                const remainingMs = getRemainingTimeMs(item);
-                if (remainingMs === null) return null;
-                const timerInfo = formatRemainingTime(remainingMs);
-                return (
-                  <View style={[styles.tokenBadge, { backgroundColor: timerInfo.isOverdue ? '#EF4444' + '15' : timerInfo.color + '15' }]}>
-                    <Ionicons name="alarm-outline" size={12} color={timerInfo.isOverdue ? '#EF4444' : timerInfo.color} />
-                    <Text style={[styles.tokenText, { color: timerInfo.isOverdue ? '#EF4444' : timerInfo.color, fontWeight: '700' }]}>
-                      {timerInfo.text}
-                    </Text>
-                  </View>
-                );
-              })()}
-              {/* Processing Sub-status Badge */}
-              {item.status === 'processing' && (
-                <View style={[styles.tokenBadge, { backgroundColor: COLORS.warning + '15' }]}>
-                  <Ionicons name="cog-outline" size={12} color={COLORS.warning} />
-                  <Text style={[styles.tokenText, { color: COLORS.warning, fontWeight: '700' }]}>
-                    Step: {PROCESSING_STEP_LABELS[item.processingStep || getOrderProcessingSteps(item)[0]] || 'Processing'}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
               <Text style={styles.statusText}>{item.status.replace('_', ' ').toUpperCase()}</Text>
             </View>
-            {/* Cancel Button only for New orders */}
-            {['placed', 'confirmed'].includes(item.status) && (
-              <TouchableOpacity onPress={() => handleCancelOrder(item)} style={styles.cancelButtonSmall}>
-                <Ionicons name="close-circle-outline" size={20} color={COLORS.error} />
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
+          </View>
+          <Text style={[styles.orderDate, item.status === 'cancelled' && { color: COLORS.error }]}>
+            {item.status === 'cancelled' ? `Cancelled: ${cancellationDate || 'N/A'}` : placementDate}
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+            {item.status === 'cancelled' && (
+              <View style={[styles.tokenBadge, { backgroundColor: COLORS.error + '10' }]}>
+                <Ionicons name="alert-circle-outline" size={12} color={COLORS.error} />
+                <Text style={[styles.tokenText, { color: COLORS.error }]}>
+                  Reason: {item.cancellationReason || 'Not specified'}
+                </Text>
+              </View>
             )}
-
-            {/* Edit Button for Pickup Completed */}
-            {item.status === 'pickup_completed' && (
-              <TouchableOpacity
-                onPress={() => handleEditOrder(item)}
-                style={[styles.cancelButtonSmall, { backgroundColor: COLORS.primary + '15' }]}
-              >
-                <Ionicons name="create-outline" size={20} color={COLORS.primary} />
-                <Text style={[styles.cancelButtonText, { color: COLORS.primary }]}>Edit</Text>
-              </TouchableOpacity>
+            {item.status === 'cancelled' && (
+              <View style={[styles.tokenBadge, { backgroundColor: COLORS.backgroundLight }]}>
+                <Ionicons name="cart-outline" size={12} color={COLORS.textSecondary} />
+                <Text style={[styles.tokenText, { color: COLORS.textSecondary }]}>
+                  Ordered: {placementDate}
+                </Text>
+              </View>
             )}
-
-            {/* Options Button */}
-            {['placed', 'confirmed', 'pickup_completed', 'processing', 'ready'].includes(item.status) && (
-              <TouchableOpacity
-                onPress={() => handleShowOptions(item)}
-                style={[styles.cancelButtonSmall, { backgroundColor: COLORS.primary + '15' }]}
-              >
-                <Ionicons name="ellipsis-vertical" size={20} color={COLORS.primary} />
-                <Text style={[styles.cancelButtonText, { color: COLORS.primary }]}>Options</Text>
-              </TouchableOpacity>
+            {item.tokenNumber && (
+              <View style={styles.tokenBadge}>
+                <Ionicons name="pricetag-outline" size={12} color={COLORS.primary} />
+                <Text style={styles.tokenText}>Token: {item.tokenNumber}</Text>
+              </View>
+            )}
+            {item.deliveryDate && item.deliveryTime && (
+              <View style={[styles.tokenBadge, { backgroundColor: COLORS.success + '10' }]}>
+                <Ionicons name="time-outline" size={12} color={COLORS.success} />
+                <Text style={[styles.tokenText, { color: COLORS.success }]}>Slot: {item.deliveryDate}, {item.deliveryTime}</Text>
+              </View>
+            )}
+            {!item.deliveryDate && item.status === 'ready' && (
+              <View style={[styles.tokenBadge, { backgroundColor: COLORS.warning + '10' }]}>
+                <Ionicons name="alert-circle-outline" size={12} color={COLORS.warning} />
+                <Text style={[styles.tokenText, { color: COLORS.warning }]}>Waiting for Schedule</Text>
+              </View>
+            )}
+            {item.items && item.items.some((orderItem: any) => orderItem.isCreditItem) && (
+              <View style={[styles.tokenBadge, { backgroundColor: COLORS.primary + '11' }]}>
+                <Ionicons name="card-outline" size={12} color={COLORS.primary} />
+                <Text style={[styles.tokenText, { color: COLORS.primary }]}>Subscription Credit</Text>
+              </View>
+            )}
+            {/* SLA Timer Badge */}
+            {(() => {
+              const remainingMs = getRemainingTimeMs(item);
+              if (remainingMs === null) return null;
+              const timerInfo = formatRemainingTime(remainingMs);
+              return (
+                <View style={[styles.tokenBadge, { backgroundColor: timerInfo.isOverdue ? '#EF4444' + '15' : timerInfo.color + '15' }]}>
+                  <Ionicons name="alarm-outline" size={12} color={timerInfo.isOverdue ? '#EF4444' : timerInfo.color} />
+                  <Text style={[styles.tokenText, { color: timerInfo.isOverdue ? '#EF4444' : timerInfo.color, fontWeight: '700' }]}>
+                    {timerInfo.text}
+                  </Text>
+                </View>
+              );
+            })()}
+            {/* Processing Sub-status Badge */}
+            {item.status === 'processing' && (
+              <View style={[styles.tokenBadge, { backgroundColor: COLORS.warning + '15' }]}>
+                <Ionicons name="cog-outline" size={12} color={COLORS.warning} />
+                <Text style={[styles.tokenText, { color: COLORS.warning, fontWeight: '700' }]}>
+                  Step: {PROCESSING_STEP_LABELS[item.processingStep || getOrderProcessingSteps(item)[0]] || 'Processing'}
+                </Text>
+              </View>
             )}
           </View>
+        </View>
+
+        {/* Action Buttons Row - Cancel, Edit, Options */}
+        <View style={styles.actionButtonsWrap}>
+          {['placed', 'confirmed'].includes(item.status) && (
+            <TouchableOpacity onPress={() => handleCancelOrder(item)} style={styles.cancelButtonSmall}>
+              <Ionicons name="close-circle-outline" size={16} color={COLORS.error} />
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          )}
+          {item.status === 'pickup_completed' && (
+            <TouchableOpacity
+              onPress={() => handleEditOrder(item)}
+              style={[styles.cancelButtonSmall, { backgroundColor: COLORS.primary + '15', borderColor: COLORS.primary + '40' }]}
+            >
+              <Ionicons name="create-outline" size={16} color={COLORS.primary} />
+              <Text style={[styles.cancelButtonText, { color: COLORS.primary }]}>Edit</Text>
+            </TouchableOpacity>
+          )}
+          {['placed', 'confirmed', 'pickup_completed', 'processing', 'ready'].includes(item.status) && (
+            <TouchableOpacity
+              onPress={() => handleShowOptions(item)}
+              style={[styles.cancelButtonSmall, { backgroundColor: COLORS.primary + '15', borderColor: COLORS.primary + '40' }]}
+            >
+              <Ionicons name="ellipsis-vertical" size={16} color={COLORS.primary} />
+              <Text style={[styles.cancelButtonText, { color: COLORS.primary }]}>Options</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Customer Info */}
@@ -1824,7 +1872,9 @@ export const AdminOrdersScreen: React.FC = () => {
         transparent={true}
         animationType="slide"
         onRequestClose={() => {
-          if (!uploadingProof) {
+          if (uploadingProof) {
+            handleCancelUpload();
+          } else {
             setProofModalVisible(false);
             setSelectedMedia(null);
           }
@@ -1834,11 +1884,18 @@ export const AdminOrdersScreen: React.FC = () => {
           <View style={[styles.modalContent, { maxHeight: '90%' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Garment Proof Required</Text>
-              {!uploadingProof && (
-                <TouchableOpacity onPress={() => { setProofModalVisible(false); setSelectedMedia(null); }}>
-                  <Ionicons name="close" size={24} color={COLORS.text} />
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                onPress={() => {
+                  if (uploadingProof) {
+                    handleCancelUpload();
+                  } else {
+                    setProofModalVisible(false);
+                    setSelectedMedia(null);
+                  }
+                }}
+              >
+                <Ionicons name="close" size={24} color={COLORS.text} />
+              </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1, paddingVertical: SPACING.md }}>
@@ -2644,10 +2701,20 @@ const styles = StyleSheet.create({
     ...SHADOWS.md,
   },
   cardHeader: {
+    marginBottom: 4,
+  },
+  headerTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: SPACING.sm,
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  actionButtonsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+    paddingTop: 4,
   },
   orderId: {
     ...TYPOGRAPHY.body,

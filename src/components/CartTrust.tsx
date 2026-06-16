@@ -1,14 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, RADIUS, TYPOGRAPHY } from '../utils/constants';
+import { ShieldCheck } from 'lucide-react-native';
+import { COLORS, SPACING, RADIUS } from '../utils/constants';
 
 export const CartTrust: React.FC = () => {
     return (
         <View style={styles.container}>
             {/* Trust Seal */}
             <View style={styles.sealContainer}>
-                <Ionicons name="shield-checkmark" size={32} color="#10B981" />
+            <ShieldCheck size={32} color="#10B981" strokeWidth={1.5} />
             </View>
 
             {/* Slogan */}

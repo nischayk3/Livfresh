@@ -5,8 +5,9 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore, useSubscriptionStore, useAdminAuthStore, useUIStore } from '../store';
+import { useAuthStore, useSubscriptionStore, useAdminAuthStore, useUIStore, useNotificationStore } from '../store';
 import { getCart, saveCart, getUserAddresses, getUser } from '../services/firestore';
+import { registerForPushNotifications, savePushToken } from '../services/notificationService';
 import { getAdminRole } from '../services/adminFirestore';
 import { auth, adminAuth, onAuthStateChanged } from '../services/firebase';
 import { useCartStore, useAddressStore } from '../store';
@@ -96,6 +97,10 @@ const EditProfileScreen = Platform.OS === 'web'
 const HelpSupportScreen = Platform.OS === 'web'
   ? lazy(() => import('../screens/Main/HelpSupportScreen').then(m => ({ default: m.HelpSupportScreen })))
   : require('../screens/Main/HelpSupportScreen').HelpSupportScreen;
+
+const NotificationsScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Main/NotificationsScreen').then(m => ({ default: m.NotificationsScreen })))
+  : require('../screens/Main/NotificationsScreen').NotificationsScreen;
 
 const SubscriptionsScreen = Platform.OS === 'web'
   ? lazy(() => import('../screens/Main/SubscriptionsScreen').then(m => ({ default: m.SubscriptionsScreen })))
@@ -210,6 +215,7 @@ const MainStack = () => (
     <Stack.Screen name="AddressForm" component={AddressFormScreen} />
     <Stack.Screen name="OrderSuccess" component={OrderSuccessScreen} />
     <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
+    <Stack.Screen name="Notifications" component={NotificationsScreen} />
     <Stack.Screen name="EditProfile" component={EditProfileScreen} />
     <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
     <Stack.Screen name="BuyCredits" component={BuyCreditsScreen} />
@@ -418,6 +424,27 @@ export const RootNavigator: React.FC = () => {
       }
     }
   }, [user?.uid]);
+  // 5. Initialize Push Notifications & Real-Time Inbox Listener on Login
+  React.useEffect(() => {
+    if (user?.uid) {
+      // Subscribe to real-time notifications in Firestore
+      const unsubscribeNotifs = useNotificationStore.getState().subscribeToNotifications(user.uid);
+
+      // Register for push notifications
+      const initPush = async () => {
+        const token = await registerForPushNotifications();
+        if (token) {
+          await savePushToken(user.uid, token);
+        }
+      };
+      initPush();
+
+      return () => {
+        unsubscribeNotifs();
+      };
+    }
+  }, [user?.uid]);
+
   // 6. Force Navigation to Location/Address if no address exists (Post-login flow)
   // note: We use a ref or check to ensure we only do this once per session/login if needed, 
   // but react-navigation 'replace' or 'reset' is better handled inside a specific screen or via this effect carefully.
@@ -495,6 +522,7 @@ export const RootNavigator: React.FC = () => {
                 AddressForm: 'address-form',
                 OrderSuccess: 'order-success',
                 OrderDetail: 'order/:orderId',
+                Notifications: 'notifications',
                 EditProfile: 'edit-profile',
                 HelpSupport: 'support',
                 BuyCredits: 'buy-credits',

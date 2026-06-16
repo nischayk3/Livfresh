@@ -3,5 +3,14 @@
   "compilerOptions": {
     "strict": true,
     "jsx": "react-native"
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "claude-temp",
+    ".expo",
+    "dist",
+    "functions",
+    "ios",
+    "android"
+  ]
 }

@@ -20,6 +20,12 @@ interface User {
     deliveryDay?: string;
     deliveryTime?: string;
   };
+  expoPushToken?: string | null;
+  notificationPreferences?: {
+    orderUpdates?: boolean;
+    weeklyReminders?: boolean;
+    promotions?: boolean;
+  };
 }
 
 interface AuthState {

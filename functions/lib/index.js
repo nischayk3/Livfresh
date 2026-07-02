@@ -233,7 +233,6 @@ exports.onOrderCreatedNotification = functions.firestore
         const userData = userDoc.data();
         const name = (userData === null || userData === void 0 ? void 0 : userData.name) || orderData.customerName || "Customer";
         const expoPushToken = userData === null || userData === void 0 ? void 0 : userData.expoPushToken;
-        const notificationPreferences = userData === null || userData === void 0 ? void 0 : userData.notificationPreferences;
         const pickupDate = orderData.pickupDate || ((_a = orderData.pickup) === null || _a === void 0 ? void 0 : _a.scheduledDate) || '';
         const pickupTime = orderData.pickupTimeSlot || ((_b = orderData.pickup) === null || _b === void 0 ? void 0 : _b.scheduledTime) || '';
         let body = "";
@@ -254,8 +253,8 @@ exports.onOrderCreatedNotification = functions.firestore
                 screen: "OrderDetail",
             }
         });
-        // 2. Send Push Notification if registered and preferences allow
-        if (expoPushToken && (notificationPreferences === null || notificationPreferences === void 0 ? void 0 : notificationPreferences.orderUpdates) !== false) {
+        // 2. Send Push Notification if token is registered
+        if (expoPushToken) {
             await (0, pushNotification_1.sendPushNotification)(expoPushToken, {
                 title,
                 body,
@@ -295,7 +294,6 @@ exports.onOrderStatusChanged = functions.firestore
         const userData = userDoc.data();
         const name = (userData === null || userData === void 0 ? void 0 : userData.name) || afterData.customerName || "Customer";
         const expoPushToken = userData === null || userData === void 0 ? void 0 : userData.expoPushToken;
-        const notificationPreferences = userData === null || userData === void 0 ? void 0 : userData.notificationPreferences;
         let title = "";
         let body = "";
         let data = {
@@ -337,8 +335,8 @@ exports.onOrderStatusChanged = functions.firestore
             body,
             data,
         });
-        // 2. Send Push Notification if registered and preferences allow
-        if (expoPushToken && (notificationPreferences === null || notificationPreferences === void 0 ? void 0 : notificationPreferences.orderUpdates) !== false) {
+        // 2. Send Push Notification if token is registered
+        if (expoPushToken) {
             await (0, pushNotification_1.sendPushNotification)(expoPushToken, {
                 title,
                 body,
@@ -388,10 +386,6 @@ exports.weeklyLaundryReminder = functions.pubsub
             const userData = userDoc.data();
             const name = userData.name || "there";
             const expoPushToken = userData.expoPushToken;
-            const notificationPreferences = userData.notificationPreferences;
-            // Skip if they opted out of weekly reminders
-            if ((notificationPreferences === null || notificationPreferences === void 0 ? void 0 : notificationPreferences.weeklyReminders) === false)
-                continue;
             const title = "🧺 Weekend Laundry Sorted!";
             const body = `Hey ${name}, the weekend's here! Schedule a pickup and we'll handle the laundry while you relax 🛋️`;
             const data = { screen: "Home" };
@@ -464,10 +458,6 @@ exports.creditExpiryReminder = functions.pubsub
                 continue;
             const userData = userSnap.data() || {};
             const expoPushToken = userData.expoPushToken;
-            const notificationPreferences = userData.notificationPreferences;
-            // Skip if opted out of promotions/reminders
-            if ((notificationPreferences === null || notificationPreferences === void 0 ? void 0 : notificationPreferences.promotions) === false)
-                continue;
             const title = "⚡ Credits Expiring Soon";
             const body = `You have ${creditsRemaining} SpinZo credits expiring in 3 days. Use them before they're gone!`;
             const data = { screen: "Credits" };

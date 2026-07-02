@@ -21,7 +21,7 @@
       "supportsTablet": true,
       "googleServicesFile": "./GoogleService-Info.plist",
       "bundleIdentifier": "com.nischayk3.Spinit",
-      "buildNumber": "35",
+      "buildNumber": "42",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [

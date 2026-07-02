@@ -36,16 +36,30 @@ export default Sentry.wrap(function App() {
   });
 
   useEffect(() => {
-    initAds();
-    prefetchCriticalAssets();
+    // Setup notification handlers immediately (lightweight)
     setupAndroidChannel();
     const unsubscribe = setupNotificationHandlers();
-    return () => unsubscribe();
+
+    // Defer non-critical operations to reduce JS bridge contention on Android cold start
+    const deferredTimer = setTimeout(() => {
+      initAds();
+      prefetchCriticalAssets();
+    }, 2000);
+
+    return () => {
+      clearTimeout(deferredTimer);
+      unsubscribe();
+    };
   }, []);
 
   const onLayoutRootView = useCallback(async () => {
     if (fontsLoaded || fontError) {
-      await SplashScreen.hideAsync();
+      try {
+        await SplashScreen.hideAsync();
+      } catch (e) {
+        // Swallow — hideAsync can throw on some Android devices if called multiple times
+        console.warn('SplashScreen.hideAsync warning:', e);
+      }
     }
   }, [fontsLoaded, fontError]);
 

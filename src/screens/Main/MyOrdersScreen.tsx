@@ -357,31 +357,17 @@ export const MyOrdersScreen: React.FC = () => {
     );
   };
 
-  // --- Main render ---
+  // Determine what to show in the FlatList body.
+  // Active tab: live order card(s) are rendered in ListHeader; no past orders shown below.
+  // History tab: show all past orders.
+  const listData = activeTab === 'current' ? [] : displayOrders;
 
-  // Determine what to show on Active tab: live orders + last 2 past orders
-  // The flatlist itself should only show past history orders under the active tab, avoiding duplicates of the highlighted live cards.
-  const listData = activeTab === 'current'
-    ? (currentOrders.length > 0 ? pastOrders.slice(0, 2) : [])
-    : displayOrders;
-
-  // ListHeader for Active tab: live order card + Recent Orders heading
+  // ListHeader for Active tab: live order card(s) only — no past orders section
   const renderListHeader = () => {
     if (activeTab === 'current' && currentOrders.length > 0) {
       return (
         <>
           {currentOrders.map(order => renderActiveOrderCard(order))}
-          {pastOrders.length > 0 && (
-            <View style={styles.recentSection}>
-              <View style={styles.recentHeaderRow}>
-                <Text style={styles.recentTitle}>Recent Orders</Text>
-                <TouchableOpacity onPress={() => setActiveTab('past')}>
-                  <Text style={styles.viewAllText}>View all</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.recentSubtitle}>Tap to view full details</Text>
-            </View>
-          )}
         </>
       );
     }

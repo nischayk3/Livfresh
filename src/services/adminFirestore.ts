@@ -21,7 +21,7 @@ import { adminDb as db } from './firebase';
 import { generateOTP } from '../utils/otpHelpers';
 import { SLOT_CONSTANTS } from '../utils/slotUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getStorage, ref, uploadBytes, uploadString, getDownloadURL } from 'firebase/storage';
 
 // Global cache for user profiles to minimize Firestore reads across all admin services
 const userCache: Record<string, any> = {};
@@ -1658,78 +1658,57 @@ export const scheduleOrderDeliveryAdmin = async (
       const oldDeliveryDate = orderData.deliveryDate;
       const oldDeliveryTime = orderData.deliveryTime;
 
-      // If exactly the same slot, no need to do anything
+      // If exactly the same slot, no-op
       if (oldDeliveryDate === deliveryDate && oldDeliveryTime === deliveryTime) {
         return;
       }
 
-      // Handle Slot Changes
-      if (oldDeliveryDate === deliveryDate) {
-        // Same Date, Different Slot
-        const scheduleRef = doc(db, 'daily_schedules', deliveryDate);
-        const scheduleSnap = await transaction.get(scheduleRef);
-        const slotCounts = scheduleSnap.exists() ? (scheduleSnap.data().slot_counts || {}) : {};
+      const timestamp = Timestamp.now();
+      const vendorId = orderData.vendorId || 'vendor_1';
+      const vendorOrderRef = doc(db, 'vendors', vendorId, 'orders', orderId);
 
-        // Release old
-        if (oldDeliveryTime) {
-          slotCounts[oldDeliveryTime] = Math.max(0, (slotCounts[oldDeliveryTime] || 0) - 1);
-        }
-
-        // Reserve new
-        const currentCount = slotCounts[deliveryTime] || 0;
-        if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
-          throw new Error(`Slot ${deliveryTime} is no longer available.`);
-        }
-        slotCounts[deliveryTime] = currentCount + 1;
-
-        transaction.set(scheduleRef, { slot_counts: slotCounts }, { merge: true });
-      } else {
-        // Different Dates
-        // 1. Decrement old slot count
-        if (oldDeliveryDate && oldDeliveryTime) {
-          const oldScheduleRef = doc(db, 'daily_schedules', oldDeliveryDate);
-          const oldScheduleSnap = await transaction.get(oldScheduleRef);
-          if (oldScheduleSnap.exists()) {
-            const oldSlotCounts = oldScheduleSnap.data().slot_counts || {};
-            const oldCount = oldSlotCounts[oldDeliveryTime] || 0;
-            transaction.set(oldScheduleRef, {
-              slot_counts: {
-                ...oldSlotCounts,
-                [oldDeliveryTime]: Math.max(0, oldCount - 1)
-              }
-            }, { merge: true });
-          }
-        }
-
-        // 2. Increment new slot count
-        const scheduleRef = doc(db, 'daily_schedules', deliveryDate);
-        const scheduleSnap = await transaction.get(scheduleRef);
-        const slotCounts = scheduleSnap.exists() ? (scheduleSnap.data().slot_counts || {}) : {};
-        const currentCount = slotCounts[deliveryTime] || 0;
-
-        if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
-          throw new Error(`Slot ${deliveryTime} is no longer available.`);
-        }
-
-        transaction.set(scheduleRef, {
-          slot_counts: { ...slotCounts, [deliveryTime]: currentCount + 1 }
-        }, { merge: true });
+      // ---------- ALL READS FIRST (Firestore rule: reads before writes) ----------
+      let oldScheduleSnap: any = null;
+      let oldScheduleRef: any = null;
+      if (oldDeliveryDate && oldDeliveryTime) {
+        oldScheduleRef = doc(db, 'daily_schedules', oldDeliveryDate);
+        oldScheduleSnap = await transaction.get(oldScheduleRef);
       }
 
-      const timestamp = Timestamp.now();
-      const updateData = {
+      const scheduleRef = doc(db, 'daily_schedules', deliveryDate);
+      const scheduleSnap = await transaction.get(scheduleRef);
+      const newSlotCounts = scheduleSnap.exists() ? { ...(scheduleSnap.data().slot_counts || {}) } : {};
+
+      // ---------- ALL WRITES AFTER ----------
+      // Release old slot
+      if (oldScheduleRef && oldScheduleSnap?.exists() && oldDeliveryTime) {
+        const oldSlotCounts = oldScheduleSnap.data().slot_counts || {};
+        const oldCount = oldSlotCounts[oldDeliveryTime] || 0;
+        const updatedOldSlotCounts = { ...oldSlotCounts, [oldDeliveryTime]: Math.max(0, oldCount - 1) };
+        transaction.set(oldScheduleRef, { slot_counts: updatedOldSlotCounts }, { merge: true });
+      }
+
+      // Reserve new slot
+      const currentCount = newSlotCounts[deliveryTime] || 0;
+      if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
+        throw new Error(`Slot ${deliveryTime} is no longer available.`);
+      }
+      newSlotCounts[deliveryTime] = currentCount + 1;
+      transaction.set(scheduleRef, { slot_counts: newSlotCounts }, { merge: true });
+
+      // Update order and vendor order
+      transaction.update(userOrderRef, {
         deliveryDate,
         deliveryTime,
         deliveryScheduledAt: timestamp,
         updatedAt: timestamp,
-      };
-
-      // Perform Writes
-      transaction.update(userOrderRef, updateData);
-
-      const vendorId = orderData.vendorId || 'vendor_1';
-      const vendorOrderRef = doc(db, 'vendors', vendorId, 'orders', orderId);
-      transaction.update(vendorOrderRef, updateData);
+      });
+      transaction.update(vendorOrderRef, {
+        deliveryDate,
+        deliveryTime,
+        deliveryScheduledAt: timestamp,
+        updatedAt: timestamp,
+      });
     });
 
     return true;
@@ -1766,60 +1745,9 @@ export const rescheduleOrderPickupAdmin = async (
         return;
       }
 
-      // Handle Slot Changes
-      if (oldPickupDate === pickupDate) {
-        // Same Date, Different Slot
-        const scheduleRef = doc(db, 'daily_schedules', pickupDate);
-        const scheduleSnap = await transaction.get(scheduleRef);
-        const slotCounts = scheduleSnap.exists() ? (scheduleSnap.data().slot_counts || {}) : {};
-
-        // Release old
-        if (oldPickupTime) {
-          slotCounts[oldPickupTime] = Math.max(0, (slotCounts[oldPickupTime] || 0) - 1);
-        }
-
-        // Reserve new
-        const currentCount = slotCounts[pickupTime] || 0;
-        if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
-          throw new Error(`Slot ${pickupTime} is no longer available.`);
-        }
-        slotCounts[pickupTime] = currentCount + 1;
-
-        transaction.set(scheduleRef, { slot_counts: slotCounts }, { merge: true });
-      } else {
-        // Different Dates
-        // 1. Decrement old slot count
-        if (oldPickupDate && oldPickupTime) {
-          const oldScheduleRef = doc(db, 'daily_schedules', oldPickupDate);
-          const oldScheduleSnap = await transaction.get(oldScheduleRef);
-          if (oldScheduleSnap.exists()) {
-            const oldSlotCounts = oldScheduleSnap.data().slot_counts || {};
-            const oldCount = oldSlotCounts[oldPickupTime] || 0;
-            transaction.set(oldScheduleRef, {
-              slot_counts: {
-                ...oldSlotCounts,
-                [oldPickupTime]: Math.max(0, oldCount - 1)
-              }
-            }, { merge: true });
-          }
-        }
-
-        // 2. Increment new slot count
-        const scheduleRef = doc(db, 'daily_schedules', pickupDate);
-        const scheduleSnap = await transaction.get(scheduleRef);
-        const slotCounts = scheduleSnap.exists() ? (scheduleSnap.data().slot_counts || {}) : {};
-        const currentCount = slotCounts[pickupTime] || 0;
-
-        if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
-          throw new Error(`Slot ${pickupTime} is no longer available.`);
-        }
-
-        transaction.set(scheduleRef, {
-          slot_counts: { ...slotCounts, [pickupTime]: currentCount + 1 }
-        }, { merge: true });
-      }
-
       const timestamp = Timestamp.now();
+      const vendorId = orderData.vendorId || 'vendor_1';
+      const vendorOrderRef = doc(db, 'vendors', vendorId, 'orders', orderId);
       const newPickupDetails = {
         ...(orderData.pickupDetails || {}),
         type: 'scheduled',
@@ -1827,17 +1755,41 @@ export const rescheduleOrderPickupAdmin = async (
         scheduledTime: pickupTime,
       };
 
-      const updateData = {
-        pickupDetails: newPickupDetails,
-        updatedAt: timestamp,
-      };
+      // ---------- ALL READS FIRST (Firestore rule: reads before writes) ----------
+      // Read old schedule if changing from a different date
+      let oldScheduleSnap: any = null;
+      let oldScheduleRef: any = null;
+      if (oldPickupDate && oldPickupTime) {
+        oldScheduleRef = doc(db, 'daily_schedules', oldPickupDate);
+        oldScheduleSnap = await transaction.get(oldScheduleRef);
+      }
 
-      // Perform Writes
-      transaction.update(userOrderRef, updateData);
+      // Read new schedule
+      const scheduleRef = doc(db, 'daily_schedules', pickupDate);
+      const scheduleSnap = await transaction.get(scheduleRef);
+      const newSlotCounts = scheduleSnap.exists() ? { ...(scheduleSnap.data().slot_counts || {}) } : {};
 
-      const vendorId = orderData.vendorId || 'vendor_1';
-      const vendorOrderRef = doc(db, 'vendors', vendorId, 'orders', orderId);
-      transaction.update(vendorOrderRef, updateData);
+      // ---------- ALL WRITES AFTER ----------
+      // Release old slot
+      let updatedOldSlotCounts: Record<string, number> | null = null;
+      if (oldScheduleRef && oldScheduleSnap?.exists() && oldPickupTime) {
+        const oldSlotCounts = oldScheduleSnap.data().slot_counts || {};
+        const oldCount = oldSlotCounts[oldPickupTime] || 0;
+        updatedOldSlotCounts = { ...oldSlotCounts, [oldPickupTime]: Math.max(0, oldCount - 1) };
+        transaction.set(oldScheduleRef, { slot_counts: updatedOldSlotCounts }, { merge: true });
+      }
+
+      // Reserve new slot
+      const currentCount = newSlotCounts[pickupTime] || 0;
+      if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
+        throw new Error(`Slot ${pickupTime} is no longer available.`);
+      }
+      newSlotCounts[pickupTime] = currentCount + 1;
+      transaction.set(scheduleRef, { slot_counts: newSlotCounts }, { merge: true });
+
+      // Update order and vendor order
+      transaction.update(userOrderRef, { pickupDetails: newPickupDetails, updatedAt: timestamp });
+      transaction.update(vendorOrderRef, { pickupDetails: newPickupDetails, updatedAt: timestamp });
     });
 
     return true;
@@ -1882,20 +1834,50 @@ export const updateOrderProcessingStepAdmin = async (
 
 /**
  * Upload order ready proof (photo or video) to Storage (Admin)
+ *
+ * Handles three URI formats:
+ * 1. data: URIs (base64) — from compressed images via ImageManipulator
+ * 2. file:// URIs — from ImagePicker on mobile, uses expo-file-system as fallback
+ * 3. http(s):// URIs — from ImagePicker on web
  */
 export const uploadOrderReadyProofAdmin = async (
   uri: string,
   orderId: string,
   isVideo: boolean = false
 ): Promise<string> => {
+  const storage = getStorage();
+  const extension = isVideo ? 'mp4' : 'jpg';
+  const timestamp = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const storageRef = ref(storage, `ready_proofs/${orderId}/proof_${timestamp}.${extension}`);
+
   try {
-    const storage = getStorage();
-    const response = await fetch(uri);
-    const blob = await response.blob();
-    const extension = isVideo ? 'mp4' : 'jpg';
-    const storageRef = ref(storage, `ready_proofs/${orderId}/proof_${Date.now()}.${extension}`);
-    await uploadBytes(storageRef, blob);
-    return await getDownloadURL(storageRef);
+    // Case 1: Base64 data URI (pre-compressed image from ImageManipulator)
+    if (uri.startsWith('data:')) {
+      const base64Data = uri.split(',')[1];
+      const mimeType = isVideo ? 'video/mp4' : 'image/jpeg';
+      await uploadString(storageRef, base64Data, 'base64', { contentType: mimeType });
+      return await getDownloadURL(storageRef);
+    }
+
+    // Case 2: file:// or http(s):// URI — try blob upload first (works on web)
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      // MUST set contentType explicitly — without it, Firebase stores as
+      // application/octet-stream which breaks video playback on mobile browsers
+      // (Safari/iOS Chrome check Content-Type header and reject mismatches)
+      const mimeType = isVideo ? 'video/mp4' : 'image/jpeg';
+      await uploadBytes(storageRef, blob, { contentType: mimeType });
+      return await getDownloadURL(storageRef);
+    } catch (blobError) {
+      // Case 3: Fallback for mobile where fetch(file://) fails — use expo-file-system
+      console.warn('Blob upload failed, trying FileSystem fallback:', blobError);
+      const { readAsStringAsync } = require('expo-file-system');
+      const base64Data = await readAsStringAsync(uri, { encoding: 'base64' });
+      const mimeType = isVideo ? 'video/mp4' : 'image/jpeg';
+      await uploadString(storageRef, base64Data, 'base64', { contentType: mimeType });
+      return await getDownloadURL(storageRef);
+    }
   } catch (error) {
     console.error('Error uploading ready proof:', error);
     throw new Error('Failed to upload proof to storage');

@@ -20,8 +20,8 @@ export const HelpSupportScreen: React.FC = () => {
     };
 
     const handleWhatsAppSupport = () => {
-        const whatsappUrl = `whatsapp://send?phone=${SUPPORT_PHONE.replace(/\D/g, '')}&text=${encodeURIComponent('Hi Spinit Team, I need help with...')}`;
-        const webUrl = `https://wa.me/${SUPPORT_PHONE.replace(/\D/g, '')}?text=${encodeURIComponent('Hi Spinit Team, I need help with...')}`;
+        const whatsappUrl = `whatsapp://send?phone=${SUPPORT_PHONE.replace(/\D/g, '')}&text=${encodeURIComponent('Hi SpinZo Team, I need help with...')}`;
+        const webUrl = `https://wa.me/${SUPPORT_PHONE.replace(/\D/g, '')}?text=${encodeURIComponent('Hi SpinZo Team, I need help with...')}`;
 
         Linking.canOpenURL(whatsappUrl).then(supported => {
             if (supported) {

@@ -39,6 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.creditExpiryReminder = exports.weeklyLaundryReminder = exports.onOrderStatusChanged = exports.onOrderCreatedNotification = exports.onOrderUpdatedWhatsApp = exports.onOrderCreatedWhatsApp = exports.verifyRazorpayPayment = exports.createRazorpayOrder = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
+const firestore_1 = require("firebase-admin/firestore");
 const razorpay_1 = __importDefault(require("razorpay"));
 const params_1 = require("firebase-functions/params");
 const whatsapp_1 = require("./whatsapp");
@@ -129,7 +130,7 @@ exports.verifyRazorpayPayment = functions.runWith({ secrets: [razorpayKeyId, raz
                 status: 'active',
                 paymentId: paymentId,
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                expiresAt: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)), // 30 days
+                expiresAt: firestore_1.Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)), // 30 days
                 isActive: true
             });
         }
@@ -363,7 +364,7 @@ exports.weeklyLaundryReminder = functions.pubsub
     try {
         // 1. Get userIds of users who placed an order in the last 7 days
         const activeOrdersSnap = await db.collectionGroup("orders")
-            .where("createdAt", ">=", admin.firestore.Timestamp.fromDate(sevenDaysAgo))
+            .where("createdAt", ">=", firestore_1.Timestamp.fromDate(sevenDaysAgo))
             .get();
         const activeUserIds = new Set();
         activeOrdersSnap.forEach((doc) => {
@@ -441,8 +442,8 @@ exports.creditExpiryReminder = functions.pubsub
     try {
         const expiringSubsSnap = await db.collectionGroup("subscriptions")
             .where("status", "==", "active")
-            .where("expiresAt", ">=", admin.firestore.Timestamp.fromDate(startRange))
-            .where("expiresAt", "<=", admin.firestore.Timestamp.fromDate(endRange))
+            .where("expiresAt", ">=", firestore_1.Timestamp.fromDate(startRange))
+            .where("expiresAt", "<=", firestore_1.Timestamp.fromDate(endRange))
             .get();
         const pushMessages = [];
         const batch = db.batch();

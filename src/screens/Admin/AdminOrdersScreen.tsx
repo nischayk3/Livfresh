@@ -35,6 +35,7 @@ import {
 } from '../../services/adminFirestore';
 import { useAdminPermissions } from '../../store/useAdminPermissions';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { Video, ResizeMode } from 'expo-av';
 
 // Status tabs configuration - mirroring SpinZo flow
@@ -583,7 +584,7 @@ export const AdminOrdersScreen: React.FC = () => {
         selectedMedia.type === 'video'
       );
 
-      const timeoutMs = selectedMedia.type === 'video' ? 60000 : 30000;
+      const timeoutMs = selectedMedia.type === 'video' ? 120000 : 60000;
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("UPLOAD_TIMEOUT")), timeoutMs)
       );
@@ -689,10 +690,34 @@ export const AdminOrdersScreen: React.FC = () => {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
-        setSelectedMedia({
-          uri: asset.uri,
-          type: asset.type === 'video' || asset.uri.endsWith('.mp4') || asset.uri.endsWith('.mov') ? 'video' : 'photo',
-        });
+        const isVideo = asset.type === 'video' || asset.uri.endsWith('.mp4') || asset.uri.endsWith('.mov');
+
+        if (isVideo) {
+          // For videos, store raw URI (upload function handles FileSystem fallback)
+          setSelectedMedia({ uri: asset.uri, type: 'video' });
+        } else {
+          // For photos: compress and convert to base64 data URI — critical for mobile upload
+          // fetch(file://) does NOT work on React Native mobile, but fetch(data:) does
+          try {
+            const manipResult = await ImageManipulator.manipulateAsync(
+              asset.uri,
+              [{ resize: { width: 800 } }],
+              { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+            );
+            if (manipResult.base64) {
+              setSelectedMedia({
+                uri: `data:image/jpeg;base64,${manipResult.base64}`,
+                type: 'photo',
+              });
+            } else {
+              throw new Error('Base64 conversion returned empty');
+            }
+          } catch (compressionError) {
+            // Fallback: store raw URI (will try blob, then FileSystem fallback)
+            console.warn('Image compression failed, using raw URI:', compressionError);
+            setSelectedMedia({ uri: asset.uri, type: 'photo' });
+          }
+        }
       }
     } catch (error) {
       console.error("Error picking media:", error);
@@ -877,7 +902,12 @@ export const AdminOrdersScreen: React.FC = () => {
     setOptionsModalVisible(false);
     setSelectedRescheduleSlot(null);
     setSelectedRescheduleDateIndex(0);
-    setRescheduleModalVisible(true);
+    // Critical: delay opening to avoid native Modal animation conflict on mobile
+    // Without this delay, the slide-out of the options modal and slide-in of the
+    // reschedule modal conflict, causing the reschedule modal to never render
+    setTimeout(() => {
+      setRescheduleModalVisible(true);
+    }, 350);
   };
 
   const handleCancelOption = () => {

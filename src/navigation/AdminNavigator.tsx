@@ -104,10 +104,26 @@ const AdminTabs = () => {
 export const AdminNavigator = () => {
   const { adminPhone, adminRole } = useAdminAuthStore();
   const navigation = useNavigation<any>();
+  const hasAttemptedRef = React.useRef(false);
+  const prevPhoneRef = React.useRef(adminPhone);
 
   React.useEffect(() => {
-    if (!adminPhone) {
-      navigation.navigate('AdminLogin');
+    // Reset redirect guard if session was lost (adminPhone went from value → null)
+    if (prevPhoneRef.current && !adminPhone) {
+      hasAttemptedRef.current = false;
+    }
+    prevPhoneRef.current = adminPhone;
+
+    if (!adminPhone && !hasAttemptedRef.current) {
+      hasAttemptedRef.current = true;
+      // Critical: delay navigation to avoid conflicts with:
+      // 1. Lazy-loaded AdminLoginScreen chunk loading on web
+      // 2. Nested navigator context resolution timing
+      // 3. React Navigation's animation/transition lifecycle
+      const timeout = setTimeout(() => {
+        navigation.replace('AdminLogin');
+      }, 300);
+      return () => clearTimeout(timeout);
     }
   }, [adminPhone, navigation]);
 

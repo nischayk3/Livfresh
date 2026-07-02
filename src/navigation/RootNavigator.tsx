@@ -223,6 +223,9 @@ const MainStack = () => (
   </Stack.Navigator>
 );
 
+// Hard timeout (ms) — if auth + hydration hasn't resolved, force past loading screen
+const STARTUP_TIMEOUT_MS = 8000;
+
 export const RootNavigator: React.FC = () => {
   const { isLoggedIn, user, isSessionExpired, logout } = useAuthStore();
   const { hasCompletedOnboarding } = useUIStore();
@@ -230,38 +233,66 @@ export const RootNavigator: React.FC = () => {
   const [isHydrated, setIsHydrated] = React.useState(false);
   const [isAuthLoading, setIsAuthLoading] = React.useState(true);
 
+  // Safety-net: force past loading screen after STARTUP_TIMEOUT_MS
+  React.useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (isAuthLoading || !isHydrated) {
+        console.warn('⚠️ Startup timeout reached — forcing past loading screen');
+        setIsAuthLoading(false);
+        setIsHydrated(true);
+      }
+    }, STARTUP_TIMEOUT_MS);
+    // Clear timeout once both gates have resolved normally
+    if (!isAuthLoading && isHydrated) {
+      clearTimeout(timeout);
+    }
+    return () => clearTimeout(timeout);
+  }, [isAuthLoading, isHydrated]);
+
   // 1. Listen to Auth State & Hydrate User Profile
   React.useEffect(() => {
     // Listen to USER App Auth
     const unsubscribeUser = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const authStore = useAuthStore.getState();
-        if (authStore.isSessionExpired()) {
-          console.log('⏰ User session expired (12 hours). Logging out...');
-          await authStore.logout();
-          return;
-        }
+      try {
+        if (firebaseUser) {
+          const authStore = useAuthStore.getState();
+          if (authStore.isSessionExpired()) {
+            console.log('⏰ User session expired (12 hours). Logging out...');
+            await authStore.logout();
+            return;
+          }
 
-        try {
-          const userData = await getUser(firebaseUser.uid);
-          console.log('🔍 RootNav: Fetched user data:', JSON.stringify(userData, null, 2));
-          if (userData) {
-            const currentUID = useAuthStore.getState().user?.uid;
-            // Only update if UID changes OR if it's the first time
-            if (currentUID !== firebaseUser.uid || !authStore.isLoggedIn) {
+          try {
+            const userData = await getUser(firebaseUser.uid);
+            console.log('🔍 RootNav: Fetched user data:', JSON.stringify(userData, null, 2));
+            if (userData) {
+              const currentUID = useAuthStore.getState().user?.uid;
+              // Only update if UID changes OR if it's the first time
+              if (currentUID !== firebaseUser.uid || !authStore.isLoggedIn) {
+                useAuthStore.getState().setUser({
+                  uid: firebaseUser.uid,
+                  phone: userData.phone || firebaseUser.phoneNumber || '',
+                  name: userData.name || '',
+                  // ... rest of data
+                  ...userData
+                } as any);
+              }
+
+              if (!useAuthStore.getState().loginTimestamp) {
+                useAuthStore.getState().setLoginTimestamp(Date.now());
+              }
+            } else {
               useAuthStore.getState().setUser({
                 uid: firebaseUser.uid,
-                phone: userData.phone || firebaseUser.phoneNumber || '',
-                name: userData.name || '',
-                // ... rest of data
-                ...userData
-              } as any);
-            }
-
-            if (!useAuthStore.getState().loginTimestamp) {
+                phone: firebaseUser.phoneNumber || '',
+                name: '',
+                email: '',
+              });
               useAuthStore.getState().setLoginTimestamp(Date.now());
             }
-          } else {
+          } catch (error) {
+            console.error('Failed to fetch user profile:', error);
+            // Fallback: set basic user data from Firebase Auth so the app doesn't hang
             useAuthStore.getState().setUser({
               uid: firebaseUser.uid,
               phone: firebaseUser.phoneNumber || '',
@@ -270,13 +301,15 @@ export const RootNavigator: React.FC = () => {
             });
             useAuthStore.getState().setLoginTimestamp(Date.now());
           }
-        } catch (error) {
-          console.error('Failed to fetch user profile:', error);
+        } else {
+          useAuthStore.getState().clearUser();
         }
-      } else {
-        useAuthStore.getState().clearUser();
+      } catch (outerError) {
+        console.error('Critical auth state error:', outerError);
+      } finally {
+        // ALWAYS clear the loading gate — this is the key fix for Android hangs
+        setIsAuthLoading(false);
       }
-      setIsAuthLoading(false);
     });
 
     // Listen to ADMIN App Auth
@@ -430,16 +463,21 @@ export const RootNavigator: React.FC = () => {
       // Subscribe to real-time notifications in Firestore
       const unsubscribeNotifs = useNotificationStore.getState().subscribeToNotifications(user.uid);
 
-      // Register for push notifications
-      const initPush = async () => {
-        const token = await registerForPushNotifications();
-        if (token) {
-          await savePushToken(user.uid, token);
+      // Defer push notification registration off the critical startup path
+      // to reduce JS bridge contention on Android cold start
+      const pushTimeout = setTimeout(async () => {
+        try {
+          const token = await registerForPushNotifications();
+          if (token) {
+            await savePushToken(user.uid, token);
+          }
+        } catch (error) {
+          console.error('Push notification registration failed:', error);
         }
-      };
-      initPush();
+      }, 3000);
 
       return () => {
+        clearTimeout(pushTimeout);
         unsubscribeNotifs();
       };
     }

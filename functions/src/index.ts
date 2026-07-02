@@ -1,5 +1,6 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
+import { Timestamp } from "firebase-admin/firestore";
 import Razorpay from "razorpay";
 import { defineSecret } from "firebase-functions/params";
 import { sendWhatsAppMessage, aisensyApiKey } from "./whatsapp";
@@ -130,7 +131,7 @@ export const verifyRazorpayPayment = functions.runWith({ secrets: [razorpayKeyId
                 status: 'active',
                 paymentId: paymentId,
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                expiresAt: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)), // 30 days
+                expiresAt: Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)), // 30 days
                 isActive: true
             });
         } else {
@@ -245,7 +246,6 @@ export const onOrderCreatedNotification = functions.firestore
             const userData = userDoc.data();
             const name = userData?.name || orderData.customerName || "Customer";
             const expoPushToken = userData?.expoPushToken;
-            const notificationPreferences = userData?.notificationPreferences;
 
             const pickupDate = orderData.pickupDate || orderData.pickup?.scheduledDate || '';
             const pickupTime = orderData.pickupTimeSlot || orderData.pickup?.scheduledTime || '';
@@ -270,8 +270,8 @@ export const onOrderCreatedNotification = functions.firestore
                 }
             });
 
-            // 2. Send Push Notification if registered and preferences allow
-            if (expoPushToken && notificationPreferences?.orderUpdates !== false) {
+            // 2. Send Push Notification if token is registered
+            if (expoPushToken) {
                 await sendPushNotification(expoPushToken, {
                     title,
                     body,
@@ -314,7 +314,6 @@ export const onOrderStatusChanged = functions.firestore
             const userData = userDoc.data();
             const name = userData?.name || afterData.customerName || "Customer";
             const expoPushToken = userData?.expoPushToken;
-            const notificationPreferences = userData?.notificationPreferences;
 
             let title = "";
             let body = "";
@@ -361,8 +360,8 @@ export const onOrderStatusChanged = functions.firestore
                 data,
             });
 
-            // 2. Send Push Notification if registered and preferences allow
-            if (expoPushToken && notificationPreferences?.orderUpdates !== false) {
+            // 2. Send Push Notification if token is registered
+            if (expoPushToken) {
                 await sendPushNotification(expoPushToken, {
                     title,
                     body,
@@ -391,7 +390,7 @@ export const weeklyLaundryReminder = functions.pubsub
         try {
             // 1. Get userIds of users who placed an order in the last 7 days
             const activeOrdersSnap = await db.collectionGroup("orders")
-                .where("createdAt", ">=", admin.firestore.Timestamp.fromDate(sevenDaysAgo))
+                .where("createdAt", ">=", Timestamp.fromDate(sevenDaysAgo))
                 .get();
 
             const activeUserIds = new Set<string>();
@@ -420,10 +419,6 @@ export const weeklyLaundryReminder = functions.pubsub
                 const userData = userDoc.data();
                 const name = userData.name || "there";
                 const expoPushToken = userData.expoPushToken;
-                const notificationPreferences = userData.notificationPreferences;
-
-                // Skip if they opted out of weekly reminders
-                if (notificationPreferences?.weeklyReminders === false) continue;
 
                 const title = "🧺 Weekend Laundry Sorted!";
                 const body = `Hey ${name}, the weekend's here! Schedule a pickup and we'll handle the laundry while you relax 🛋️`;
@@ -483,8 +478,8 @@ export const creditExpiryReminder = functions.pubsub
         try {
             const expiringSubsSnap = await db.collectionGroup("subscriptions")
                 .where("status", "==", "active")
-                .where("expiresAt", ">=", admin.firestore.Timestamp.fromDate(startRange))
-                .where("expiresAt", "<=", admin.firestore.Timestamp.fromDate(endRange))
+                .where("expiresAt", ">=", Timestamp.fromDate(startRange))
+                .where("expiresAt", "<=", Timestamp.fromDate(endRange))
                 .get();
 
             const pushMessages: any[] = [];
@@ -508,10 +503,6 @@ export const creditExpiryReminder = functions.pubsub
                 
                 const userData = userSnap.data() || {};
                 const expoPushToken = userData.expoPushToken;
-                const notificationPreferences = userData.notificationPreferences;
-
-                // Skip if opted out of promotions/reminders
-                if (notificationPreferences?.promotions === false) continue;
 
                 const title = "⚡ Credits Expiring Soon";
                 const body = `You have ${creditsRemaining} SpinZo credits expiring in 3 days. Use them before they're gone!`;
@@ -556,5 +547,4 @@ export const creditExpiryReminder = functions.pubsub
 
         return null;
     });
-
 

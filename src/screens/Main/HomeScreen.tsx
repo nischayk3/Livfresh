@@ -393,7 +393,7 @@ export const HomeScreen: React.FC = () => {
             </View>
             <View style={styles.availabilityBadge}>
               <View style={styles.liveDot} />
-              <Text style={styles.availabilityText}>9 AM - 10 PM</Text>
+              <Text style={styles.availabilityText}>9 AM - 9 PM</Text>
             </View>
           </MotiView>
         </View>

@@ -19,11 +19,13 @@ Notifications.setNotificationHandler({
 // Setup Android notification channel
 export async function setupAndroidChannel() {
   if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'Default',
+    await Notifications.setNotificationChannelAsync('default-v2', {
+      name: 'SpinZo Notifications',
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#994BFF',
+      sound: 'default',
+      showBadge: true,
     });
   }
 }

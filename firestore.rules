@@ -22,13 +22,21 @@ service cloud.firestore {
         );
     }
 
+    // Helper function to check if a phone number is registered ops staff
+    function isOpsStaff() {
+      return isAuthenticated() &&
+        'phone_number' in request.auth.token &&
+        request.auth.token.phone_number != null &&
+        request.auth.token.phone_number in get(/databases/$(database)/documents/config/opsStaff).data.phones;
+    }
+
     // --- Collection Group Rules ---
     
     match /{path=**}/orders/{orderId} {
-      allow read: if isAdmin() || (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid));
+      allow read: if isAdmin() || isOpsStaff() || (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid));
       allow write: if isAdmin() || (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid));
     }
-    
+
     match /{path=**}/subscriptions/{subscriptionId} {
       allow read: if isAdmin() || isAuthenticated(); 
       allow write: if isAdmin();
@@ -37,13 +45,14 @@ service cloud.firestore {
     // --- Regular Collection Rules ---
     
     match /config/{configId} {
-      allow read: if configId == 'adminPhones' || configId == 'serviceAvailability' || isAdmin() || isAuthenticated();
+      allow read: if configId == 'adminPhones' || configId == 'serviceAvailability' || configId == 'opsStaff' || isAdmin() || isAuthenticated();
       allow write: if isAdmin();
     }
     
     match /users/{userId} {
       allow create: if isAuthenticated() && request.auth.uid == userId;
-      allow read, update: if isAdmin() || isOwner(userId);
+      allow read: if isAdmin() || isOpsStaff() || isOwner(userId);
+      allow update: if isAdmin() || isOwner(userId);
       
       match /addresses/{addressId} {
         allow read, write: if isAdmin() || isOwner(userId);

@@ -22,11 +22,13 @@ service cloud.firestore {
         );
     }
 
-    // Helper function to check if a phone number is registered ops staff
+    // Helper function to check if a phone number is registered ops staff.
+    // config/opsStaff.phones keys must be full E.164 (+91XXXXXXXXXX), matching the raw phone_number claim.
     function isOpsStaff() {
       return isAuthenticated() &&
         'phone_number' in request.auth.token &&
         request.auth.token.phone_number != null &&
+        exists(/databases/$(database)/documents/config/opsStaff) &&
         request.auth.token.phone_number in get(/databases/$(database)/documents/config/opsStaff).data.phones;
     }
 

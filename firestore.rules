@@ -106,17 +106,17 @@ service cloud.firestore {
       allow write: if isAuthenticated();
     }
 
-    match /ops/staff/{staffId} {
+    match /ops_staff/{staffId} {
       allow read: if isOpsStaff();
       allow write: if isOpsStaff() && request.auth.uid == staffId;
     }
 
-    match /ops/tasks/{taskId} {
+    match /ops_tasks/{taskId} {
       allow read: if isOpsStaff();
       allow write: if false;
     }
 
-    match /ops/queue/{orderId} {
+    match /ops_queue/{orderId} {
       allow read: if isOpsStaff();
       allow write: if false;
     }

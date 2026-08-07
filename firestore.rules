@@ -120,5 +120,10 @@ service cloud.firestore {
       allow read: if isOpsStaff();
       allow write: if false;
     }
+
+    match /ops_process/{orderId} {
+      allow read: if isOpsStaff();
+      allow write: if false;
+    }
   }
 }

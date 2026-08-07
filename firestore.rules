@@ -105,5 +105,20 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAuthenticated();
     }
+
+    match /ops/staff/{staffId} {
+      allow read: if isOpsStaff();
+      allow write: if isOpsStaff() && request.auth.uid == staffId;
+    }
+
+    match /ops/tasks/{taskId} {
+      allow read: if isOpsStaff();
+      allow write: if false;
+    }
+
+    match /ops/queue/{orderId} {
+      allow read: if isOpsStaff();
+      allow write: if false;
+    }
   }
 }

@@ -47,7 +47,7 @@ service cloud.firestore {
     // --- Regular Collection Rules ---
     
     match /config/{configId} {
-      allow read: if configId == 'adminPhones' || configId == 'serviceAvailability' || configId == 'opsStaff' || isAdmin() || isAuthenticated();
+      allow read: if configId == 'adminPhones' || configId == 'serviceAvailability' || configId == 'opsStaff' || configId == 'opsStores' || isAdmin() || isAuthenticated();
       allow write: if isAdmin();
     }
     
@@ -111,6 +111,16 @@ service cloud.firestore {
       allow write: if isOpsStaff() && request.auth.uid == staffId;
     }
 
+    match /ops_attendance/{staffId} {
+      allow read: if isOpsStaff();
+      allow write: if isOpsStaff() && request.auth.uid == staffId;
+
+      match /shifts/{date} {
+        allow read: if isOpsStaff();
+        allow write: if isOpsStaff() && request.auth.uid == staffId;
+      }
+    }
+
     match /ops_tasks/{taskId} {
       allow read: if isOpsStaff();
       allow write: if false;
@@ -122,6 +132,11 @@ service cloud.firestore {
     }
 
     match /ops_process/{orderId} {
+      allow read: if isOpsStaff();
+      allow write: if false;
+    }
+
+    match /ops_delivery_tasks/{taskId} {
       allow read: if isOpsStaff();
       allow write: if false;
     }

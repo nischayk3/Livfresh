@@ -7,6 +7,8 @@ import { useAuthStore } from '../../store';
 import { scheduleOrderDelivery, subscribeToOrder, checkSlotAvailability } from '../../services/firestore';
 import { generateTimeSlots } from '../../utils/slotUtils';
 import { BrandLoader } from '../../components/BrandLoader';
+import { PaymentStatusCard } from '../../components/PaymentStatusCard';
+import { paymentService } from '../../services/paymentService';
 import {
   ArrowLeft,
   Share2,
@@ -115,6 +117,7 @@ export const OrderDetailScreen: React.FC = () => {
   const [busySlots, setBusySlots] = useState<string[]>([]);
   const [isLoadingBusySlots, setIsLoadingBusySlots] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
 
   const DATES = Array.from({ length: 5 }, (_, i) => {
     const d = startOfToday();
@@ -186,6 +189,37 @@ export const OrderDetailScreen: React.FC = () => {
       Alert.alert('Error', 'Failed to schedule delivery. Please try again.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handlePayNow = async () => {
+    if (!order?.id) {
+      Alert.alert('Error', 'Order not found.');
+      return;
+    }
+    setIsPaying(true);
+    try {
+      const user = useAuthStore.getState().user;
+      if (!user) {
+        Alert.alert('Login Required', 'Please log in to complete payment.');
+        return;
+      }
+      const result = await paymentService.payForOrder({
+        amount: order.billDetails?.total || 0,
+        spinzoOrderId: order.id,
+        user: { name: user.name || '', email: user.email || '', phone: user.phone },
+      });
+      if (result.success) {
+        Alert.alert('Payment Successful', 'Your payment has been received.');
+        // The order document is updated reactively via subscribeToOrder, so the
+        // PaymentStatusCard will flip to "paid" automatically.
+      } else {
+        Alert.alert('Payment Not Completed', result.error || 'Please try again.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } finally {
+      setIsPaying(false);
     }
   };
 
@@ -532,6 +566,19 @@ export const OrderDetailScreen: React.FC = () => {
               <Text style={styles.grandTotalValue}>₹{order.billDetails?.total}</Text>
             </View>
           </View>
+
+          <View style={styles.divider} />
+
+          {/* ═══════ PAYMENT STATUS ═══════ */}
+          {/* Only shown while payment is outstanding — a paid order renders nothing here. */}
+          {order.paymentStatus && order.paymentStatus !== 'paid' && (
+            <PaymentStatusCard
+              paymentStatus={order.paymentStatus === 'failed' ? 'failed' : 'pending'}
+              amount={order.billDetails?.total || 0}
+              onPayNow={handlePayNow}
+              isProcessing={isPaying}
+            />
+          )}
 
           <View style={styles.divider} />
 

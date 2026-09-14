@@ -570,8 +570,8 @@ export const OrderDetailScreen: React.FC = () => {
           <View style={styles.divider} />
 
           {/* ═══════ PAYMENT STATUS ═══════ */}
-          {/* Only shown while payment is outstanding — a paid order renders nothing here. */}
-          {order.paymentStatus && order.paymentStatus !== 'paid' && (
+          {/* Only shown while payment is outstanding — skip for paid, cancelled, or refunded orders. */}
+          {order.paymentStatus && order.paymentStatus !== 'paid' && order.status !== 'cancelled' && order.status !== 'refund_processed' && (
             <PaymentStatusCard
               paymentStatus={order.paymentStatus === 'failed' ? 'failed' : 'pending'}
               amount={order.billDetails?.total || 0}

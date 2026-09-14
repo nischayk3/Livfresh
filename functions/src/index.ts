@@ -33,6 +33,8 @@ export const createRazorpayOrder = functions.runWith({ secrets: [razorpayKeyId, 
     const keyId = process.env.RAZORPAY_KEY_ID || razorpayKeyId.value();
     const keySecret = process.env.RAZORPAY_KEY_SECRET || razorpayKeySecret.value();
 
+    console.log(`[Razorpay] Using key: ${keyId.substring(0, 12)}...`);
+
     const razorpay = new Razorpay({
         key_id: keyId,
         key_secret: keySecret

@@ -81,9 +81,10 @@ interface VerifyPaymentRequest {
     paymentId: string;
     signature: string;
     planDetails: {
-        type: 'single' | 'couple' | 'credits';
+        type: 'single' | 'couple' | 'credits' | 'checkout';
         credits?: number; // For credit packs
     };
+    spinzoOrderId?: string; // Firestore order doc ID, required for checkout
 }
 
 export const verifyRazorpayPayment = functions.runWith({ secrets: [razorpayKeyId, razorpayKeySecret] }).https.onCall(async (data: VerifyPaymentRequest, context) => {
@@ -99,9 +100,11 @@ export const verifyRazorpayPayment = functions.runWith({ secrets: [razorpayKeyId
     }
 
     // Verify Signature
+    // Must use the same secret the order was created with (env fallback for local dev).
+    const keySecret = process.env.RAZORPAY_KEY_SECRET || razorpayKeySecret.value();
     const crypto = require("crypto");
     const generatedSignature = crypto
-        .createHmac("sha256", razorpayKeySecret.value()) // Secret
+        .createHmac("sha256", keySecret) // Secret
         .update(orderId + "|" + paymentId)
         .digest("hex");
 
@@ -148,6 +151,38 @@ export const verifyRazorpayPayment = functions.runWith({ secrets: [razorpayKeyId
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 expiresAt: Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)), // 30 days
                 isActive: true
+            });
+        } else if (planDetails.type === 'checkout') {
+            if (!data.spinzoOrderId) {
+                throw new functions.https.HttpsError("invalid-argument", "Missing SpinZo order ID for checkout payment.");
+            }
+
+            // Write payment confirmation to the user's order document
+            const orderRef = db.collection("users").doc(userId).collection("orders").doc(data.spinzoOrderId);
+            const orderSnap = await orderRef.get();
+
+            if (!orderSnap.exists) {
+                throw new functions.https.HttpsError("not-found", "Order not found for payment update.");
+            }
+
+            batch.update(orderRef, {
+                paymentStatus: "paid",
+                paymentId: paymentId,
+                paymentMethod: "razorpay",
+                paidAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+
+            // Also update the vendor-mirrored order
+            const orderData = orderSnap.data();
+            const vendorId = orderData?.vendorId || 'default';
+            const vendorOrderRef = db.collection("vendors").doc(vendorId).collection("orders").doc(data.spinzoOrderId);
+            batch.update(vendorOrderRef, {
+                paymentStatus: "paid",
+                paymentId: paymentId,
+                paymentMethod: "razorpay",
+                paidAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
         } else {
             // Handle monthly subscriptions if implemented later

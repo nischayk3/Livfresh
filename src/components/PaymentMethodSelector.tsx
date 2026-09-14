@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../utils/constants';
+import { COLORS, SPACING, TYPOGRAPHY, RADIUS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 
 export type PaymentOption = 'now' | 'later';

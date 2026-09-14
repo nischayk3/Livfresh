@@ -44,7 +44,7 @@ const HOME_FAQS = [
   { question: "How do you ensure hygiene?", answer: "We wash each customer's clothes separately. Your clothes never mix with others, ensuring 100% hygiene." },
   { question: "How will my clothes be weighed?", answer: "Our delivery partner weighs your clothes on the spot using a digital weighing scale for accurate billing." },
   { question: "How long does the laundry process take?", answer: "Most orders are completed and delivered within 6 hours." },
-  { question: "What payment methods do you accept?", answer: "We accept UPI, GPay, Paytm, and cash on delivery." },
+  { question: "What payment methods do you accept?", answer: "We accept UPI, GPay, Paytm, and all major cards — 100% digital, no cash needed." },
   { question: "Where is SpinZo's store located?", answer: "SpinZo operates through trusted partner laundry units instead of walk-in stores to ensure faster doorstep service." },
 ];
 

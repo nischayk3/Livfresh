@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { MotiView, MotiText } from 'moti';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,10 +14,13 @@ import { AnimatedButton } from '../../components/AnimatedButton';
 
 export const OrderSuccessScreen: React.FC = () => {
     const navigation = useNavigation();
+    const route = useRoute();
+    const { paymentStatus } = (route.params as { paymentStatus?: string; orderId?: string }) || {};
     const insets = useSafeAreaInsets();
 
     const handleViewOrders = () => {
-        (navigation as any).navigate('MainTabs', { screen: 'MyOrders' });
+        const params = (route.params as { orderId?: string }) || {};
+        (navigation as any).navigate('MainTabs', { screen: 'MyOrders', params: { focusOrderId: params.orderId } });
     };
 
     const handleBackHome = () => {
@@ -69,6 +72,40 @@ export const OrderSuccessScreen: React.FC = () => {
                     <Text style={styles.trustSealText}>Premium Care Guaranteed</Text>
                 </MotiView>
             </View>
+
+            {/* Payment pending card */}
+            {paymentStatus === 'pending' && (
+                <View style={{
+                    backgroundColor: '#FFFBEB',
+                    borderWidth: 1,
+                    borderColor: '#FDE68A',
+                    borderRadius: 12,
+                    padding: 16,
+                    marginHorizontal: 24,
+                    marginTop: 16,
+                    alignItems: 'center',
+                }}>
+                    <Ionicons name="time-outline" size={24} color="#D97706" />
+                    <Text style={{
+                        fontFamily: 'Outfit_600SemiBold',
+                        fontSize: 15,
+                        color: '#92400E',
+                        marginTop: 8,
+                    }}>
+                        Payment pending
+                    </Text>
+                    <Text style={{
+                        fontFamily: 'Outfit_400Regular',
+                        fontSize: 13,
+                        color: '#A16207',
+                        textAlign: 'center',
+                        marginTop: 4,
+                        lineHeight: 18,
+                    }}>
+                        You can complete payment anytime from your order details.
+                    </Text>
+                </View>
+            )}
 
             <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
                 <AnimatedButton

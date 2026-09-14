@@ -173,17 +173,19 @@ export const verifyRazorpayPayment = functions.runWith({ secrets: [razorpayKeyId
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
 
-            // Also update the vendor-mirrored order
+            // Also update the vendor-mirrored order (use set with merge to be safe
+            // even if the mirrored doc hasn't been created yet — avoids a NOT_FOUND
+            // error that would roll back the user's paymentStatus write too).
             const orderData = orderSnap.data();
             const vendorId = orderData?.vendorId || 'default';
             const vendorOrderRef = db.collection("vendors").doc(vendorId).collection("orders").doc(data.spinzoOrderId);
-            batch.update(vendorOrderRef, {
+            batch.set(vendorOrderRef, {
                 paymentStatus: "paid",
                 paymentId: paymentId,
                 paymentMethod: "razorpay",
                 paidAt: admin.firestore.FieldValue.serverTimestamp(),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
+            }, { merge: true });
         } else {
             // Handle monthly subscriptions if implemented later
         }

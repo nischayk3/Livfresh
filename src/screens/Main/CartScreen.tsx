@@ -35,6 +35,11 @@ import {
   getNextInstantSlot,
 } from '../../utils/slotUtils';
 import { BrandLoader } from '../../components/BrandLoader';
+import {
+  PaymentMethodSelector,
+  PaymentOption,
+} from '../../components/PaymentMethodSelector';
+import { paymentService } from '../../services/paymentService';
 import { checkSlotAvailability } from '../../services/firestore';
 import AnalyticsService from '../../services/analytics';
 import { CartTrust } from '../../components/CartTrust';
@@ -73,6 +78,7 @@ export const CartScreen: React.FC = () => {
   const [orderCount, setOrderCount] = useState<number>(0);
   const [isDiscountApplied, setIsDiscountApplied] = useState(false);
   const [discountAmount, setDiscountAmount] = useState(0);
+  const [paymentOption, setPaymentOption] = useState<PaymentOption>('later');
 
   // Constants
   const PLATFORM_FEE = 0;
@@ -127,6 +133,12 @@ export const CartScreen: React.FC = () => {
     0,
     subtotal + PLATFORM_FEE + DELIVERY_FEE + gstAmount - actualDiscount,
   );
+
+  // Pay-now is only meaningful when there is an amount to charge.
+  const isPayNow = paymentOption === 'now' && totalAmount > 0;
+  const payButtonText = isPayNow
+    ? `Pay ₹${totalAmount}`
+    : 'Place Order (Pay Later)';
 
   const generateDates = () => {
     const dates = [];
@@ -354,8 +366,87 @@ export const CartScreen: React.FC = () => {
         userName: latestUser.name || 'Guest User',
         userPhone: latestUser.phone,
         status: 'placed',
-        paymentMode: 'cod',
+        paymentMode: isPayNow ? 'now' : 'later',
+        paymentStatus: 'pending',
       };
+
+      // ─── PAY NOW FLOW ───────────────────────────────────────────
+      // Order is created first as `paymentStatus: 'pending'`, then Razorpay
+      // collects payment and the backend flips it to 'paid' on verification.
+      if (isPayNow) {
+        setLoading(true);
+        try {
+          // 1. Create the order as "pending" payment
+          const orderId = await createOrder(latestUser.uid, {
+            ...orderData,
+          });
+
+          // 2. Consume subscription credit (mirrors the pay-later flow) so a
+          //    credit-backed item is never left unconsumed.
+          const creditItemNow = items.find((item) => item.isCreditItem);
+          if (creditItemNow && creditItemNow.creditSubscriptionId) {
+            try {
+              const { useCredit } = useSubscriptionStore.getState();
+              const success = await useCredit(latestUser.uid, creditItemNow.creditSubscriptionId, orderId);
+              if (success) console.log('[Credit] Subscription credit consumed');
+              else console.warn('[Credit] Credit utilization failed');
+            } catch (creditError) {
+              console.error('[Credit] Error:', creditError);
+            }
+          }
+
+          // 3. Run Razorpay payment
+          const result = await paymentService.payForOrder({
+            amount: totalAmount,
+            spinzoOrderId: orderId,
+            user: {
+              name: latestUser.name || 'Guest User',
+              email: latestUser.email || '',
+              phone: latestUser.phone,
+            },
+          });
+
+          if (!result.success) {
+            // Payment was not completed — order exists as pending, they can pay later
+            setIsNavigating(true);
+            clearCart();
+            await clearCartInFirestore(latestUser.uid);
+            navigation.dispatch(
+              CommonActions.reset({ index: 0, routes: [{ name: 'OrderSuccess', params: { orderId, paymentStatus: 'pending' } }] }),
+            );
+            return;
+          }
+
+          // Payment successful — backend already set paymentStatus: 'paid'
+          await trackPixelEvent('Purchase', {
+            value: totalAmount,
+            currency: 'INR',
+            num_items: items.length,
+            content_ids: items.map((i) => i.id),
+            content_type: 'product',
+          });
+
+          await AnalyticsService.logEvent('purchase', {
+            transaction_id: orderId,
+            value: totalAmount,
+            currency: 'INR',
+            items: items.map((i) => ({ item_id: i.id, item_name: i.serviceName, price: i.totalPrice })),
+          });
+
+          setIsNavigating(true);
+          clearCart();
+          await clearCartInFirestore(latestUser.uid);
+          navigation.dispatch(
+            CommonActions.reset({ index: 0, routes: [{ name: 'OrderSuccess', params: { orderId, paymentStatus: 'paid' } }] }),
+          );
+        } catch (error) {
+          console.error('Pay-now order placement failed', error);
+          showAlert({ title: 'Error', message: 'Failed to place order. Please try again.', type: 'error' });
+        } finally {
+          setLoading(false);
+        }
+        return; // exit early — do not fall through to the pay-later flow
+      }
 
       const orderId = await createOrder(latestUser.uid, orderData);
 
@@ -804,6 +895,23 @@ export const CartScreen: React.FC = () => {
             </TouchableOpacity>
           </MotiView>
 
+          {/* ─── Payment Method ─── */}
+          {/* Hidden when the total is ₹0 (fully credit-covered cart) — there is
+              nothing to charge and Razorpay rejects zero-amount orders. */}
+          {totalAmount > 0 && (
+            <MotiView
+              from={{ opacity: 0, translateY: 34 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ delay: 320, type: 'timing', duration: 300 }}
+            >
+              <PaymentMethodSelector
+                value={paymentOption}
+                onChange={setPaymentOption}
+                totalAmount={totalAmount}
+              />
+            </MotiView>
+          )}
+
           {/* ─── Trust Signals ─── */}
           <MotiView
             from={{ opacity: 0, translateY: 36 }}
@@ -829,7 +937,9 @@ export const CartScreen: React.FC = () => {
           <View style={styles.footerLeft}>
             <Text style={styles.footerLabel}>Total to Pay</Text>
             <Text style={styles.footerTotal}>₹{totalAmount}</Text>
-            <Text style={styles.footerSub}>Pay on delivery</Text>
+            <Text style={styles.footerSub}>
+              {isPayNow ? 'Pay securely online' : 'Pay on delivery'}
+            </Text>
           </View>
           <TouchableOpacity
             style={styles.placeOrderBtn}
@@ -847,7 +957,7 @@ export const CartScreen: React.FC = () => {
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <>
-                <Text style={styles.placeOrderText}>Cash on Delivery</Text>
+                <Text style={styles.placeOrderText} numberOfLines={1}>{payButtonText}</Text>
                 <ArrowLeft size={18} color="#FFFFFF" style={{ transform: [{ rotate: '180deg' }] }} />
               </>
             )}
@@ -1347,6 +1457,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     gap: 8,
     paddingHorizontal: 20,
+    flexShrink: 1,
     shadowColor: '#7C3AED',
     shadowOffset: { width: 0, height: 14 },
     shadowOpacity: 0.35,

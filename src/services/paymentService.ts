@@ -1,12 +1,28 @@
 import { Platform } from 'react-native';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import app from './firebase';
 import { COLORS } from '../utils/constants';
 
-const RAZORPAY_KEY_ID = 'rzp_test_YOUR_KEY_HERE'; // Replace with actual key
+// NOTE: Only the publishable Key ID belongs in the client. The Key Secret
+// must live exclusively in Cloud Functions config — never in this file.
+const RAZORPAY_KEY_ID = 'rzp_test_TbsIZVWpjDXRLC';
 
 export interface PaymentResponse {
     razorpay_payment_id: string;
     razorpay_order_id?: string;
     razorpay_signature?: string;
+}
+
+interface PayForOrderParams {
+    amount: number;           // in rupees (converted to paise in the function)
+    spinzoOrderId: string;    // Firestore order doc ID
+    user: { name: string; email?: string; phone: string };
+}
+
+interface PayForOrderResult {
+    success: boolean;
+    paymentId?: string;
+    error?: string;
 }
 
 export const paymentService = {
@@ -71,5 +87,80 @@ export const paymentService = {
             console.error('Subscription Error:', error.description);
             throw new Error(error.description || 'Subscription Failed');
         }
-    }
+    },
+
+    /**
+     * Initiate payment for a checkout order.
+     * Opens Razorpay modal. On success, verifies payment on the backend.
+     * Handles modal dismiss and payment.failed gracefully.
+     */
+    async payForOrder({ amount, spinzoOrderId, user }: PayForOrderParams): Promise<PayForOrderResult> {
+        if (Platform.OS === 'web') {
+            return { success: false, error: 'Payments are not supported on web.' };
+        }
+
+        const functions = getFunctions(app);
+        const createOrderFn = httpsCallable(functions, 'createRazorpayOrder');
+        const verifyPaymentFn = httpsCallable(functions, 'verifyRazorpayPayment');
+
+        try {
+            // Step 1: Create Razorpay order via backend
+            const orderResult = await createOrderFn({
+                amount: Math.round(amount * 100),
+                currency: 'INR',
+                orderType: 'checkout',
+                orderId: spinzoOrderId,
+            });
+
+            const { orderId: razorpayOrderId, keyId } = orderResult.data as any;
+
+            // Step 2: Open Razorpay Checkout modal
+            let razorpayData: any;
+            try {
+                const RazorpayCheckout = (await import('react-native-razorpay')).default;
+                razorpayData = await RazorpayCheckout.open({
+                    key: keyId,
+                    amount: Math.round(amount * 100),
+                    currency: 'INR',
+                    name: 'SpinZo Laundry',
+                    description: `Order #${spinzoOrderId.substring(0, 8).toUpperCase()}`,
+                    order_id: razorpayOrderId,
+                    prefill: {
+                        email: user.email || 'customer@example.com',
+                        contact: user.phone,
+                        name: user.name,
+                    },
+                    theme: { color: COLORS.primary },
+                });
+            } catch (modalError: any) {
+                // User dismissed the modal or payment failed (e.g. cancelled)
+                if (modalError?.code === 'PAYMENT_CANCELLED' ||
+                    (modalError?.description && modalError.description.toLowerCase().includes('cancelled'))) {
+                    return { success: false, error: 'Payment cancelled. You can pay anytime from your order.' };
+                }
+                return { success: false, error: modalError?.description || 'Payment was not completed.' };
+            }
+
+            // Step 3: Verify payment on backend
+            await verifyPaymentFn({
+                orderId: razorpayOrderId,
+                paymentId: razorpayData.razorpay_payment_id,
+                signature: razorpayData.razorpay_signature,
+                planDetails: { type: 'checkout' },
+                spinzoOrderId,
+            });
+
+            return {
+                success: true,
+                paymentId: razorpayData.razorpay_payment_id,
+            };
+
+        } catch (error: any) {
+            console.error('payForOrder error:', error);
+            return {
+                success: false,
+                error: error?.message || 'Payment failed. Please try again.',
+            };
+        }
+    },
 };

@@ -19,6 +19,8 @@ const razorpayKeySecret = defineSecret("RAZORPAY_LIVE_KEY_SECRET");
 interface CreateOrderRequest {
     amount: number; // in paise
     currency?: string;
+    orderType?: 'credits' | 'checkout';
+    orderId?: string; // SpinZo order ID, required for checkout
 }
 
 export const createRazorpayOrder = functions.runWith({ secrets: [razorpayKeyId, razorpayKeySecret] }).https.onCall(async (data: CreateOrderRequest, context) => {
@@ -27,22 +29,35 @@ export const createRazorpayOrder = functions.runWith({ secrets: [razorpayKeyId, 
         throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
     }
 
+    // Credentials: Firebase secrets in production, env vars for local development.
+    const keyId = process.env.RAZORPAY_KEY_ID || razorpayKeyId.value();
+    const keySecret = process.env.RAZORPAY_KEY_SECRET || razorpayKeySecret.value();
+
     const razorpay = new Razorpay({
-        key_id: razorpayKeyId.value(),
-        key_secret: razorpayKeySecret.value()
+        key_id: keyId,
+        key_secret: keySecret
     });
 
-    const { amount, currency = "INR" } = data;
+    const { amount, currency = "INR", orderType, orderId } = data;
 
     if (!amount || amount <= 0) {
         throw new functions.https.HttpsError("invalid-argument", "Amount must be greater than 0.");
     }
 
+    if (amount < 100) {
+        throw new functions.https.HttpsError("invalid-argument", "Minimum amount is 100 paise.");
+    }
+
     try {
+        // Checkout orders carry a SpinZo order ID in the receipt for traceability.
+        const receipt = (orderType === 'checkout' && orderId)
+            ? `chk_${orderId.substring(0, 20)}_${Date.now()}`
+            : `receipt_${Date.now()}_${context.auth.uid.substring(0, 5)}`;
+
         const options = {
             amount: amount,
             currency: currency,
-            receipt: `receipt_${Date.now()}_${context.auth.uid.substring(0, 5)}`,
+            receipt: receipt,
             payment_capture: 1, // Auto capture
         };
 
@@ -52,7 +67,7 @@ export const createRazorpayOrder = functions.runWith({ secrets: [razorpayKeyId, 
             orderId: order.id,
             currency: order.currency,
             amount: order.amount,
-            keyId: razorpayKeyId.value() // Send Key ID to frontend for init
+            keyId: keyId // Send Key ID to frontend for init
         };
 
     } catch (error: any) {

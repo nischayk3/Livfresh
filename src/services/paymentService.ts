@@ -5,7 +5,7 @@ import { COLORS } from '../utils/constants';
 
 // NOTE: Only the publishable Key ID belongs in the client. The Key Secret
 // must live exclusively in Cloud Functions config — never in this file.
-const RAZORPAY_KEY_ID = 'rzp_test_TbsIZVWpjDXRLC';
+const RAZORPAY_KEY_ID = 'rzp_test_TbtYp1s1J79R1v';
 
 export interface PaymentResponse {
     razorpay_payment_id: string;
@@ -95,10 +95,6 @@ export const paymentService = {
      * Handles modal dismiss and payment.failed gracefully.
      */
     async payForOrder({ amount, spinzoOrderId, user }: PayForOrderParams): Promise<PayForOrderResult> {
-        if (Platform.OS === 'web') {
-            return { success: false, error: 'Payments are not supported on web.' };
-        }
-
         const functions = getFunctions(app);
         const createOrderFn = httpsCallable(functions, 'createRazorpayOrder');
         const verifyPaymentFn = httpsCallable(functions, 'verifyRazorpayPayment');
@@ -114,11 +110,14 @@ export const paymentService = {
 
             const { orderId: razorpayOrderId, keyId } = orderResult.data as any;
 
-            // Step 2: Open Razorpay Checkout modal
+            // Step 2: Open Razorpay Checkout — platform-adaptive.
+            // - Web: loads https://checkout.razorpay.com/v1/checkout.js via window.Razorpay
+            // - Native (iOS/Android): uses react-native-razorpay's RazorpayCheckout
+            // The helper auto-resolves via Expo's platform file extensions.
             let razorpayData: any;
             try {
-                const RazorpayCheckout = (await import('react-native-razorpay')).default;
-                razorpayData = await RazorpayCheckout.open({
+                const { openRazorpay } = await import('../utils/payment_helper');
+                razorpayData = await openRazorpay({
                     key: keyId,
                     amount: Math.round(amount * 100),
                     currency: 'INR',
@@ -134,11 +133,11 @@ export const paymentService = {
                 });
             } catch (modalError: any) {
                 // User dismissed the modal or payment failed (e.g. cancelled)
-                if (modalError?.code === 'PAYMENT_CANCELLED' ||
-                    (modalError?.description && modalError.description.toLowerCase().includes('cancelled'))) {
+                const errDesc = (modalError?.description || modalError?.message || '').toLowerCase();
+                if (modalError?.code === 'PAYMENT_CANCELLED' || errDesc.includes('cancelled')) {
                     return { success: false, error: 'Payment cancelled. You can pay anytime from your order.' };
                 }
-                return { success: false, error: modalError?.description || 'Payment was not completed.' };
+                return { success: false, error: modalError?.description || modalError?.message || 'Payment was not completed.' };
             }
 
             // Step 3: Verify payment on backend

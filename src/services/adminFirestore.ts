@@ -521,14 +521,29 @@ export const enrichOrders = async (docs: any[]): Promise<any[]> => {
  * Fallback cache and fetcher for when collectionGroup indices are missing on status.
  * This loads all orders in memory once, then queries them client-side.
  */
-/**
- * Fallback cache and fetcher for when collectionGroup indices are missing on status.
- * This loads all orders in memory once, then queries them client-side.
- */
+
 let fallbackOrdersCache: any[] | null = null;
 let isStatusIndexAvailable = true;
 let isIndexCheckDone = false;
 let indexCheckPromise: Promise<boolean> | null = null;
+
+/**
+ * Filter collectionGroup snapshot docs to only include orders from `users/{uid}/orders`,
+ * excluding vendor mirror copies (e.g. `vendors/{vendorId}/orders`) which can contain stale data.
+ * Also deduplicates by doc.id.
+ */
+const filterUserOrders = (docs: any[]): any[] => {
+  const uniqueDocsMap = new Map();
+  docs.forEach(doc => {
+    // Only include docs from users/*/orders path, skip vendors/*/orders
+    const path = doc.ref?.path || '';
+    if (path.startsWith('vendors/')) return;
+    if (!uniqueDocsMap.has(doc.id)) {
+      uniqueDocsMap.set(doc.id, doc);
+    }
+  });
+  return Array.from(uniqueDocsMap.values());
+};
 const INDEX_CHECK_STORAGE_KEY = '@admin_is_status_index_available_v2';
 
 export const checkStatusIndex = async (): Promise<boolean> => {
@@ -598,14 +613,7 @@ export const getAllOrdersFallback = async (): Promise<any[]> => {
     const q = query(collectionGroup(db, 'orders'));
     const snapshot = await getDocs(q);
 
-    const uniqueDocsMap = new Map();
-    snapshot.docs.forEach(doc => {
-      if (!uniqueDocsMap.has(doc.id)) {
-        uniqueDocsMap.set(doc.id, doc);
-      }
-    });
-
-    const docs = Array.from(uniqueDocsMap.values());
+    const docs = filterUserOrders(snapshot.docs);
     const enriched = await enrichOrders(docs);
 
     // Client-side sorting: Newest first
@@ -654,14 +662,7 @@ export const subscribeToActiveOrdersAdmin = (callback: (orders: any[]) => void) 
     );
 
     unsubscribeActive = onSnapshot(q, async (snapshot) => {
-      const uniqueDocsMap = new Map();
-      snapshot.docs.forEach(doc => {
-        if (!uniqueDocsMap.has(doc.id)) {
-          uniqueDocsMap.set(doc.id, doc);
-        }
-      });
-
-      const activeDocs = Array.from(uniqueDocsMap.values());
+      const activeDocs = filterUserOrders(snapshot.docs);
       const enriched = await enrichOrders(activeDocs);
 
       // Client-side sorting: Newest first
@@ -695,14 +696,7 @@ export const subscribeToActiveOrdersAdmin = (callback: (orders: any[]) => void) 
     const q = query(collectionGroup(db, 'orders'));
 
     unsubscribeAll = onSnapshot(q, async (snapshot) => {
-      const uniqueDocsMap = new Map();
-      snapshot.docs.forEach(doc => {
-        if (!uniqueDocsMap.has(doc.id)) {
-          uniqueDocsMap.set(doc.id, doc);
-        }
-      });
-
-      const allDocs = Array.from(uniqueDocsMap.values());
+      const allDocs = filterUserOrders(snapshot.docs);
       const enriched = await enrichOrders(allDocs);
 
       // Filter to active statuses in memory

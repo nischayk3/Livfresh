@@ -1,6 +1,4 @@
 import firebase from '@react-native-firebase/app';
-import { initializeApp as webInitializeApp, getApps as getWebApps, getApp as getWebApp } from 'firebase/app';
-import { getFunctions as webGetFunctions } from 'firebase/functions';
 import { firebaseConfig } from './firebaseConfig';
 import authInstance, { onAuthStateChanged, signInWithPhoneNumber, signOut } from '@react-native-firebase/auth';
 
@@ -44,10 +42,6 @@ export const db = firestore();
 const adminApp = firebase.apps.find(a => a.name === 'Admin') || null;
 export const adminAuth = adminApp ? authInstance(adminApp) : auth;
 export const adminDb = adminApp ? getFirestore(adminApp) : db;
-
-// Web SDK initialization for Functions (since @react-native-firebase/functions is not installed)
-const webApp = getWebApps().length > 0 ? getWebApp() : webInitializeApp(firebaseConfig);
-export const functions = webGetFunctions(webApp);
 
 // Export modular-style functions from Native SDK
 export {

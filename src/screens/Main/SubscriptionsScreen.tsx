@@ -145,7 +145,7 @@ export const SubscriptionsScreen: React.FC = () => {
             <View style={styles.planInfo}>
               <View style={styles.planBadge}>
                 <Text style={styles.planBadgeText}>
-                  {activeSubscription.planType.toUpperCase()} PLAN
+                  {(activeSubscription.serviceType === 'wash_iron' ? 'WASH & IRON' : 'WASH & FOLD')} • {activeSubscription.kgPerCredit || (activeSubscription.planType === 'couple' ? 14 : 7)} KG
                 </Text>
               </View>
               <Text style={styles.planTitle}>
@@ -219,7 +219,7 @@ export const SubscriptionsScreen: React.FC = () => {
                   <Ionicons name="checkmark" size={12} color={COLORS.success} />
                 </View>
                 <Text style={styles.includedItem}>
-                  Wash & Fold up to {activeSubscription.kgPerCredit || (activeSubscription.planType === 'couple' ? 14 : 7)} kg
+                  {activeSubscription.serviceType === 'wash_iron' ? 'Wash & Iron' : 'Wash & Fold'} up to {activeSubscription.kgPerCredit || (activeSubscription.planType === 'couple' ? 14 : 7)} kg
                 </Text>
               </View>
               <View style={styles.includedRow}>
@@ -354,8 +354,8 @@ export const SubscriptionsScreen: React.FC = () => {
                   <Text style={styles.planSubtitle}>Wash & Fold • Pickup & Delivery included</Text>
                 </View>
                 <View style={styles.planMeta}>
-                  <Text style={[styles.planTitle, { color: '#7C3AED', fontSize: 22 }]}>₹399</Text>
-                  <Text style={styles.planSubtitle}>per credit</Text>
+                  <Text style={[styles.planTitle, { color: '#7C3AED', fontSize: 20 }]}>₹80 / kg</Text>
+                  <Text style={styles.planSubtitle}>Wash & Fold • from 2 credits</Text>
                 </View>
               </View>
               <View style={styles.statsContainer}>
@@ -365,23 +365,23 @@ export const SubscriptionsScreen: React.FC = () => {
               </View>
             </View>
 
-            {/* Couple Plan Card */}
+            {/* Wash & Iron Plan Card */}
             <View style={[styles.planCard, { marginTop: 12 }]}>
               <View style={styles.planHeader}>
                 <View style={styles.planInfo}>
-                  <View style={[styles.planBadge, { backgroundColor: '#FEF3C7' }]}><Text style={[styles.planBadgeText, { color: '#B45309' }]}>COUPLE PLAN</Text></View>
-                  <Text style={styles.planTitle}>14 kg per Credit</Text>
-                  <Text style={styles.planSubtitle}>Wash & Fold • Pickup & Delivery included</Text>
+                  <View style={[styles.planBadge, { backgroundColor: '#FEF3C7' }]}><Text style={[styles.planBadgeText, { color: '#B45309' }]}>WASH & IRON</Text></View>
+                  <Text style={styles.planTitle}>7 or 14 kg per Credit</Text>
+                  <Text style={styles.planSubtitle}>Wash & Iron • Pickup & Delivery included</Text>
                 </View>
                 <View style={styles.planMeta}>
-                  <Text style={[styles.planTitle, { color: '#7C3AED', fontSize: 22 }]}>₹798</Text>
-                  <Text style={styles.planSubtitle}>per credit</Text>
+                  <Text style={[styles.planTitle, { color: '#7C3AED', fontSize: 20 }]}>₹135 / kg</Text>
+                  <Text style={styles.planSubtitle}>Wash & Iron • from 2 credits</Text>
                 </View>
               </View>
               <View style={styles.statsContainer}>
                 <View style={styles.statItem}><Text style={styles.statValue}>2–4</Text><Text style={styles.statLabel}>Credits</Text></View>
                 <View style={styles.statItem}><Text style={styles.statValue}>30</Text><Text style={styles.statLabel}>Days valid</Text></View>
-                <View style={styles.statItem}><Text style={styles.statValue}>14kg</Text><Text style={styles.statLabel}>Per credit</Text></View>
+                <View style={styles.statItem}><Text style={styles.statValue}>7/14kg</Text><Text style={styles.statLabel}>Per credit</Text></View>
               </View>
             </View>
 

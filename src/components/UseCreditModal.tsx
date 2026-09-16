@@ -76,6 +76,10 @@ export const UseCreditModal: React.FC<UseCreditModalProps> = ({ visible, onClose
     const [isLoading, setIsLoading] = useState(false);
     const [isListening, setIsListening] = useState(false);
 
+    // A credit pack is locked to one service at purchase.
+    // Legacy docs without serviceType default to wash_fold.
+    const serviceType = subscription.serviceType || 'wash_fold';
+
     useEffect(() => {
         if (visible) {
             Animated.spring(slideAnim, {
@@ -196,9 +200,9 @@ export const UseCreditModal: React.FC<UseCreditModalProps> = ({ visible, onClose
         addItem({
             vendorId: 'vendor_1',
             vendorName: 'SpinZo Cloud Laundry',
-            serviceId: 'wash_fold',
-            serviceName: 'Wash & Fold (Subscription)',
-            serviceType: 'wash_fold',
+            serviceId: serviceType === 'wash_iron' ? 'wash_iron' : 'wash_fold',
+            serviceName: serviceType === 'wash_iron' ? 'Wash & Iron' : 'Wash & Fold (Subscription)',
+            serviceType: serviceType,
             weight: subscription.kgPerCredit,
             basePrice: 0,
             totalPrice: 0,
@@ -210,8 +214,9 @@ export const UseCreditModal: React.FC<UseCreditModalProps> = ({ visible, onClose
             photoUrls: selectedImages,
         });
 
-        // Add Ironing as a separate line item if enabled
-        if (ironingEnabled) {
+        // Ironing add-on only makes sense for Wash & Fold packs.
+        // Wash & Iron already includes ironing, so skip the separate line item.
+        if (ironingEnabled && serviceType === 'wash_fold') {
             addItem({
                 vendorId: 'vendor_1',
                 vendorName: 'SpinZo Cloud Laundry',
@@ -309,11 +314,12 @@ export const UseCreditModal: React.FC<UseCreditModalProps> = ({ visible, onClose
                             </View>
 
                             <View style={styles.serviceTitleContainer}>
-                                <Text style={styles.serviceTitle}>Wash & Fold (Subscription)</Text>
+                                <Text style={styles.serviceTitle}>{serviceType === 'wash_iron' ? 'Wash & Iron' : 'Wash & Fold'}</Text>
                                 <Text style={styles.serviceSubtitle}>Up to {subscription.kgPerCredit}kg included in your credit</Text>
                             </View>
 
-                            {/* Ironing Add-on Section */}
+                            {/* Ironing is already included for Wash & Iron packs — only show as add-on for Wash & Fold */}
+                            {serviceType === 'wash_fold' && (
                             <View style={styles.section}>
                                 <View style={styles.addonHeader}>
                                     <Text style={styles.sectionTitle}>Need Ironing?</Text>
@@ -351,6 +357,7 @@ export const UseCreditModal: React.FC<UseCreditModalProps> = ({ visible, onClose
                                     </View>
                                 )}
                             </View>
+                            )}
 
                             {/* Instructions Section */}
                             <View style={styles.section}>

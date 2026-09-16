@@ -29,11 +29,13 @@ export const createRazorpayOrder = functions.runWith({ secrets: [razorpayKeyId, 
         throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
     }
 
-    // Credentials: Firebase secrets in production, env vars for local development.
-    const keyId = process.env.RAZORPAY_KEY_ID || razorpayKeyId.value();
-    const keySecret = process.env.RAZORPAY_KEY_SECRET || razorpayKeySecret.value();
+    // Credentials from Firebase Secrets (bound via runWith).
+    // The secret names RAZORPAY_LIVE_KEY_ID / RAZORPAY_LIVE_KEY_SECRET are auto-injected
+    // as environment variables by the Firebase runtime.
+    const keyId = razorpayKeyId.value();
+    const keySecret = razorpayKeySecret.value();
 
-    console.log(`[Razorpay] Using key: ${keyId.substring(0, 12)}...`);
+    console.log(`[Razorpay] Creating order with key: ${keyId.substring(0, 12)}...`);
 
     const razorpay = new Razorpay({
         key_id: keyId,
@@ -85,9 +87,17 @@ interface VerifyPaymentRequest {
     planDetails: {
         type: 'single' | 'couple' | 'credits' | 'checkout';
         credits?: number; // For credit packs
+        serviceType?: 'wash_fold' | 'wash_iron'; // For credit packs
+        kgPerCredit?: number; // For credit packs (7 | 14)
     };
     spinzoOrderId?: string; // Firestore order doc ID, required for checkout
 }
+
+// Per-kg rate table for credit packs — MUST match src/utils/creditPricing.ts.
+const CREDIT_RATE_TABLE: Record<string, Record<number, number>> = {
+    wash_fold: { 2: 80, 3: 75, 4: 70 },
+    wash_iron: { 2: 135, 3: 130, 4: 125 },
+};
 
 export const verifyRazorpayPayment = functions.runWith({ secrets: [razorpayKeyId, razorpayKeySecret] }).https.onCall(async (data: VerifyPaymentRequest, context) => {
     if (!context.auth) {
@@ -101,9 +111,8 @@ export const verifyRazorpayPayment = functions.runWith({ secrets: [razorpayKeyId
         throw new functions.https.HttpsError("invalid-argument", "Missing payment details.");
     }
 
-    // Verify Signature
-    // Must use the same secret the order was created with (env fallback for local dev).
-    const keySecret = process.env.RAZORPAY_KEY_SECRET || razorpayKeySecret.value();
+    // Verify Signature — must use the same secret the order was created with.
+    const keySecret = razorpayKeySecret.value();
     const crypto = require("crypto");
     const generatedSignature = crypto
         .createHmac("sha256", keySecret) // Secret
@@ -141,13 +150,27 @@ export const verifyRazorpayPayment = functions.runWith({ secrets: [razorpayKeyId
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
 
+            // Lookup pricing from the server-side rate table (never trust client prices).
+            const svc = planDetails.serviceType || 'wash_fold';
+            const kg = planDetails.kgPerCredit || 7;
+            const cnt = planDetails.credits;
+            const ratePerKg = CREDIT_RATE_TABLE[svc]?.[cnt] ?? 80;
+            const pricePerCredit = ratePerKg * kg;
+            const totalAmount = pricePerCredit * cnt;
+
             // Create active subscription/credit pack log
             const subRef = db.collection("users").doc(userId).collection("subscriptions").doc();
             batch.set(subRef, {
                 planType: 'credits',
+                serviceType: svc,
+                ratePerKg: ratePerKg,
+                kgPerCredit: kg,
+                pricePerCredit: pricePerCredit,
+                totalAmount: totalAmount,
                 totalCredits: planDetails.credits,
                 creditsUsed: 0,
                 creditsRemaining: planDetails.credits,
+                currentCreditIndex: 0,
                 status: 'active',
                 paymentId: paymentId,
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),

@@ -23,26 +23,43 @@ import { AnimatedButton } from '../../components/AnimatedButton';
 import { MotiView } from 'moti';
 import { LinearGradient } from 'expo-linear-gradient';
 import AnalyticsService from '../../services/analytics';
-
-type PlanType = 'single' | 'couple';
+import {
+  ServiceType,
+  CreditWeight,
+  computePrice,
+  RATE_TABLE,
+  NORMAL_RATE,
+  CREDIT_OPTIONS,
+  serviceTypeLabel,
+} from '../../utils/creditPricing';
 
 const faqs = [
   {
     question: 'How do credits work?',
-    answer: 'Each credit can be used to place one laundry order. Simply select a service and use your credits during checkout.',
+    answer: 'Each credit covers one laundry order up to the pack weight (7kg or 14kg). Buy a pack of 2, 3, or 4 credits and enjoy a lower rate per kilogram on every order.',
   },
   {
     question: 'When do credits expire?',
     answer: 'Credits are valid for 30 days from the date of purchase. Use them anytime within this period.',
   },
   {
-    question: 'Can I buy more credits later?',
-    answer: 'Yes, you can purchase additional credits anytime after your current subscription is used up or expired.',
+    question: 'Can I choose between Wash & Fold and Wash & Iron?',
+    answer: 'Yes. Pick the service when you buy your pack. A pack is tied to one service so you always get its best rate.',
   },
   {
-    question: 'Is ironing included?',
-    answer: 'No, ironing is not included in the credit-based service. Credits cover Wash & Fold only.',
+    question: 'How am I saving money?',
+    answer: 'The more credits you buy, the lower the rate per kg. Plus credits are always cheaper than paying per order at the cash counter.',
   },
+];
+
+// Service cards show which rate applies and what each covers.
+const SERVICE_CARDS: {
+  id: ServiceType;
+  icon: 'shirt' | 'basket';
+  tagline: string;
+}[] = [
+  { id: 'wash_fold', icon: 'basket', tagline: 'Wash, dry & neatly fold. Pickup + delivery included.' },
+  { id: 'wash_iron', icon: 'shirt', tagline: 'Wash, dry & perfectly ironed. Pickup + delivery included.' },
 ];
 
 export const BuyCreditsScreen: React.FC = () => {
@@ -52,14 +69,17 @@ export const BuyCreditsScreen: React.FC = () => {
   const { activeSubscription, createSubscription, loading, fetchSubscriptions } = useSubscriptionStore();
   const { showAlert } = useUIStore();
 
-  const [planType, setPlanType] = useState<PlanType>('single');
-  const [creditCount, setCreditCount] = useState(2);
+  const [serviceType, setServiceType] = useState<ServiceType>('wash_fold');
+  const [kgPerCredit, setKgPerCredit] = useState<CreditWeight>(7);
+  const [creditCount, setCreditCount] = useState(3);
   const [purchasing, setPurchasing] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
-  const pricePerCredit = planType === 'single' ? 399 : 798;
-  const kgPerCredit = planType === 'single' ? 7 : 14;
-  const totalAmount = creditCount * pricePerCredit;
+  // Derived pricing from the shared helper.
+  const pricing = computePrice(serviceType, kgPerCredit, creditCount);
+  const { ratePerKg, pricePerCredit, totalAmount, savingsVsNormal, savingsPercent } = pricing;
+  // Legacy planType still feeds the subscription doc ('single' = 7kg, 'couple' = 14kg).
+  const planType = kgPerCredit === 7 ? 'single' as const : 'couple' as const;
 
   // Helper to load Razorpay script for Web
   const loadRazorpayScript = () => {
@@ -114,8 +134,8 @@ export const BuyCreditsScreen: React.FC = () => {
         value: totalAmount,
         currency: 'INR',
         items: [{
-          item_id: `subscription_${planType}_${creditCount}`,
-          item_name: `${planType === 'single' ? 'Single' : 'Couple'} Plan - ${creditCount} Credits`,
+          item_id: `subscription_${serviceType}_${kgPerCredit}_${creditCount}`,
+          item_name: `${serviceTypeLabel(serviceType)} ${kgPerCredit}kg - ${creditCount} Credits`,
           price: totalAmount
         }]
       });
@@ -124,7 +144,7 @@ export const BuyCreditsScreen: React.FC = () => {
       const order = await createRazorpayOrder(totalAmount * 100); // Amount in paise
 
       const options: any = {
-        description: `${planType === 'single' ? 'Single' : 'Couple'} Plan - ${creditCount} Credits`,
+        description: `${serviceTypeLabel(serviceType)} ${kgPerCredit}kg - ${creditCount} Credits`,
         image: 'https://i.imgur.com/3g7nmJC.png', // Or your app logo URL
         currency: order.currency,
         key: order.keyId,
@@ -149,8 +169,10 @@ export const BuyCreditsScreen: React.FC = () => {
             paymentId: data.razorpay_payment_id,
             signature: data.razorpay_signature,
             planDetails: {
-              type: planType,
-              credits: creditCount
+              type: 'credits',
+              credits: creditCount,
+              serviceType: serviceType,
+              kgPerCredit: kgPerCredit,
             }
           });
 
@@ -158,9 +180,10 @@ export const BuyCreditsScreen: React.FC = () => {
           await trackPixelEvent('Purchase', {
             value: totalAmount,
             currency: 'INR',
-            content_ids: [`subscription_${planType}_${creditCount}`],
+            content_ids: [`subscription_${serviceType}_${kgPerCredit}_${creditCount}`],
             content_type: 'product',
-            plan_type: planType,
+            service_type: serviceType,
+            kg_per_credit: kgPerCredit,
             credits: creditCount
           });
 
@@ -169,12 +192,13 @@ export const BuyCreditsScreen: React.FC = () => {
             value: totalAmount,
             currency: 'INR',
             items: [{
-              item_id: `subscription_${planType}_${creditCount}`,
-              item_name: `${planType === 'single' ? 'Single' : 'Couple'} Plan - ${creditCount} Credits`,
+              item_id: `subscription_${serviceType}_${kgPerCredit}_${creditCount}`,
+              item_name: `${serviceTypeLabel(serviceType)} ${kgPerCredit}kg - ${creditCount} Credits`,
               price: totalAmount,
               quantity: 1
             }],
-            plan_type: planType,
+            service_type: serviceType,
+            kg_per_credit: kgPerCredit,
             credits: creditCount
           });
 
@@ -295,118 +319,140 @@ export const BuyCreditsScreen: React.FC = () => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Plan Type Selection */}
-        <GlassCard intensity="low" style={styles.planTypeCard}>
-          <Text style={styles.sectionLabel}>Select Plan Type</Text>
-          <View style={styles.tabsContainer}>
-            <AnimatedButton
-              style={[
-                styles.tab,
-                planType === 'single' ? styles.tabActive : {}
-              ]}
-              onPress={() => setPlanType('single')}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  planType === 'single' ? styles.tabTextActive : {}
-                ]}
+        {/* ── SERVICE SELECTOR ── */}
+        <Text style={styles.sectionLabel}>Select Service</Text>
+        <View style={styles.serviceSelectorRow}>
+          {SERVICE_CARDS.map((svc) => {
+            const isSelected = serviceType === svc.id;
+            const perKg = `${RATE_TABLE[svc.id][3]}/kg`;
+            return (
+              <TouchableOpacity
+                key={svc.id}
+                style={[styles.serviceCard, isSelected && styles.serviceCardSelected]}
+                onPress={() => { setServiceType(svc.id); setCreditCount(3); }}
+                activeOpacity={0.85}
               >
-                Single
-              </Text>
-            </AnimatedButton>
-            <AnimatedButton
-              style={[
-                styles.tab,
-                planType === 'couple' ? styles.tabActive : {}
-              ]}
-              onPress={() => setPlanType('couple')}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  planType === 'couple' ? styles.tabTextActive : {}
-                ]}
-              >
-                Couple
-              </Text>
-            </AnimatedButton>
-          </View>
-        </GlassCard>
+                <View style={[styles.serviceCardIcon, isSelected && styles.serviceCardIconSelected]}>
+                  <Ionicons
+                    name={svc.icon === 'basket' ? 'basket-outline' : 'shirt-outline'}
+                    size={26}
+                    color={isSelected ? '#FFF' : COLORS.primary}
+                  />
+                </View>
+                <Text style={[styles.serviceCardTitle, isSelected && styles.serviceCardTitleSelected]}>
+                  {svc.id === 'wash_fold' ? 'Wash & Fold' : 'Wash & Iron'}
+                </Text>
+                <Text style={[styles.serviceCardTagline, isSelected && { color: '#FFFFFFCC' }]}>
+                  {svc.tagline}
+                </Text>
+                <View style={[styles.serviceCardRateBadge, isSelected && { backgroundColor: '#FFFFFF22' }]}>
+                  <Text style={[styles.serviceCardRateText, isSelected && { color: '#FFF' }]}>
+                    From {perKg}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-        {/* Plan Display Card */}
-        <MotiView
-          from={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ type: 'timing', duration: 400 }}
-        >
-          <LinearGradient
-            colors={['#F5F3FF', '#FFFFFF']}
-            style={styles.planDisplayCard}
+        {/* ── WEIGHT SELECTOR ── */}
+        <Text style={styles.sectionLabel}>Weight per Credit</Text>
+        <View style={styles.weightRow}>
+          <TouchableOpacity
+            style={[styles.weightOption, kgPerCredit === 7 && styles.weightOptionActive]}
+            onPress={() => setKgPerCredit(7)}
+            activeOpacity={0.85}
           >
-            <View style={styles.planIconContainer}>
-              <Ionicons name="card" size={28} color={COLORS.primary} />
-            </View>
-            <View style={styles.planInfo}>
-              <Text style={styles.planTitle}>
-                {planType.charAt(0).toUpperCase() + planType.slice(1)} Plan
-              </Text>
-              <Text style={styles.planSubtitle}>
-                {kgPerCredit} kg per credit • Valid 30 days
-              </Text>
-            </View>
-          </LinearGradient>
-        </MotiView>
+            <Ionicons
+              name="barbell-outline"
+              size={18}
+              color={kgPerCredit === 7 ? '#FFF' : COLORS.textSecondary}
+            />
+            <Text style={[styles.weightText, kgPerCredit === 7 && styles.weightTextActive]}>
+              7 kg
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.weightOption, kgPerCredit === 14 && styles.weightOptionActive]}
+            onPress={() => setKgPerCredit(14)}
+            activeOpacity={0.85}
+          >
+            <Ionicons
+              name="barbell-outline"
+              size={18}
+              color={kgPerCredit === 14 ? '#FFF' : COLORS.textSecondary}
+            />
+            <Text style={[styles.weightText, kgPerCredit === 14 && styles.weightTextActive]}>
+              14 kg
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-        {/* Credit Counter Card */}
+        {/* ── CREDIT COUNT + SAVINGS ── */}
+        <Text style={styles.sectionLabel}>How Many Credits?</Text>
         <GlassCard intensity="medium" style={styles.creditCounterCard}>
-          <Text style={styles.sectionLabel}>
-            Select number of credits (2-4 credits)
-          </Text>
           <View style={styles.counterContainer}>
-            <AnimatedButton
-              style={[
-                styles.counterButton,
-                creditCount <= 2 ? styles.counterButtonDisabled : {},
-              ]}
-              onPress={() => setCreditCount(Math.max(2, creditCount - 1))}
-              disabled={creditCount <= 2}
-            >
-              <Ionicons
-                name="remove"
-                size={20}
-                color={creditCount <= 2 ? COLORS.textSecondary : COLORS.primary}
-              />
-            </AnimatedButton>
-            <View style={styles.counterDisplay}>
-              <Text style={styles.counterValue}>{creditCount}</Text>
-              <Text style={styles.counterLabel}>Credits</Text>
-            </View>
-            <AnimatedButton
-              style={[
-                styles.counterButton,
-                styles.counterButtonPrimary,
-                creditCount >= 4 ? styles.counterButtonDisabled : {},
-              ]}
-              onPress={() => setCreditCount(Math.min(4, creditCount + 1))}
-              disabled={creditCount >= 4}
-            >
-              <Ionicons
-                name="add"
-                size={20}
-                color={creditCount >= 4 ? COLORS.textSecondary : '#FFFFFF'}
-              />
-            </AnimatedButton>
+            {CREDIT_OPTIONS.map((num) => {
+              const p = computePrice(serviceType, kgPerCredit, num);
+              const isSelected = creditCount === num;
+              return (
+                <TouchableOpacity
+                  key={num}
+                  style={[styles.creditPill, isSelected && styles.creditPillSelected]}
+                  onPress={() => setCreditCount(num)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.creditPillCount, isSelected && styles.creditPillCountSelected]}>
+                    {num}
+                  </Text>
+                  <Text style={[styles.creditPillLabel, isSelected && { color: '#FFFFFFCC' }]}>
+                    Credits
+                  </Text>
+                  <Text style={[styles.creditPillRate, isSelected && styles.creditPillRateSelected]}>
+                    ₹{p.ratePerKg}/kg
+                  </Text>
+                  <Text style={[styles.creditPillPrice, isSelected && styles.creditPillPriceSelected]}>
+                    ₹{p.totalAmount.toLocaleString()}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
+
+          {/* Savings callout */}
+          {savingsVsNormal > 0 && (
+            <MotiView
+              from={{ opacity: 0, translateY: 8 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ type: 'timing', duration: 300 }}
+              style={styles.savingsCallout}
+            >
+              <View style={styles.savingsIconWrap}>
+                <Ionicons name="leaf" size={18} color="#059669" />
+              </View>
+              <View style={styles.savingsTextWrap}>
+                <Text style={styles.savingsTitle}>
+                  Save ₹{savingsVsNormal.toLocaleString()} ({savingsPercent}% vs pay-per-order)
+                </Text>
+                <Text style={styles.savingsSub}>
+                  Normal rate ₹{NORMAL_RATE[serviceType]}/kg — you pay ₹{ratePerKg}/kg with this pack
+                </Text>
+              </View>
+            </MotiView>
+          )}
 
           <View style={styles.priceBreakdown}>
             <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>Price per credit</Text>
-              <Text style={styles.priceValue}>₹{pricePerCredit}</Text>
+              <Text style={styles.priceLabel}>Rate per kg</Text>
+              <Text style={styles.priceValue}>₹{ratePerKg}</Text>
+            </View>
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Per credit ({kgPerCredit} kg)</Text>
+              <Text style={styles.priceValue}>₹{pricePerCredit.toLocaleString()}</Text>
             </View>
             <View style={[styles.priceRow, styles.priceRowTotal]}>
-              <Text style={styles.totalLabel}>Total Amount</Text>
-              <Text style={styles.totalValue}>₹{totalAmount}</Text>
+              <Text style={styles.totalLabel}>Total for {creditCount} credits</Text>
+              <Text style={styles.totalValue}>₹{totalAmount.toLocaleString()}</Text>
             </View>
           </View>
 
@@ -415,7 +461,7 @@ export const BuyCreditsScreen: React.FC = () => {
           </Text>
         </GlassCard>
 
-        {/* Included / Not Included */}
+        {/* ── INCLUDED / NOT INCLUDED ── */}
         <View style={styles.includedSection}>
           <Text style={styles.sectionTitle}>What's Included</Text>
           <View style={styles.includedGrid}>
@@ -426,7 +472,7 @@ export const BuyCreditsScreen: React.FC = () => {
               </View>
               <View style={styles.includedList}>
                 <Text style={styles.includedItem}>
-                  • Wash & Fold up to {kgPerCredit} kg
+                  • {serviceType === 'wash_fold' ? 'Wash & Fold' : 'Wash & Iron'} up to {kgPerCredit} kg
                 </Text>
                 <Text style={styles.includedItem}>• Pickup included</Text>
                 <Text style={styles.includedItem}>• Delivery included</Text>
@@ -438,8 +484,8 @@ export const BuyCreditsScreen: React.FC = () => {
                 <Text style={styles.includedTitle}>Not Included</Text>
               </View>
               <View style={styles.includedList}>
-                <Text style={styles.includedItem}>• Ironing</Text>
                 <Text style={styles.includedItem}>• Dry cleaning</Text>
+                <Text style={styles.includedItem}>• Stain removal</Text>
               </View>
             </View>
           </View>
@@ -476,7 +522,7 @@ export const BuyCreditsScreen: React.FC = () => {
               <Text style={styles.purchaseButtonText}>
                 {activeSubscription
                   ? 'Active Subscription Exists'
-                  : `Pay ₹${totalAmount}`}
+                  : `Pay ₹${totalAmount.toLocaleString()}`}
               </Text>
             </>
           )}
@@ -523,14 +569,94 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     paddingBottom: 140, // enough to clear fixed bottom CTA + safe area
   },
-  planTypeCard: {
+  serviceSelectorRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginBottom: SPACING.lg,
+  },
+  serviceCard: {
+    flex: 1,
     backgroundColor: COLORS.background,
     borderRadius: RADIUS.lg,
     padding: SPACING.md,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: COLORS.borderLight,
-    marginBottom: SPACING.md,
     ...SHADOWS.sm,
+  },
+  serviceCardSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary,
+  },
+  serviceCardIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.sm,
+  },
+  serviceCardIconSelected: {
+    backgroundColor: '#FFFFFF22',
+  },
+  serviceCardTitle: {
+    ...TYPOGRAPHY.bodyBold,
+    color: COLORS.text,
+    fontSize: 15,
+  },
+  serviceCardTitleSelected: {
+    color: '#FFFFFF',
+  },
+  serviceCardTagline: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    fontSize: 11,
+    lineHeight: 15,
+    minHeight: 30,
+    marginTop: 2,
+  },
+  serviceCardRateBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: COLORS.backgroundLight,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 3,
+    borderRadius: RADIUS.full,
+    marginTop: SPACING.sm,
+  },
+  serviceCardRateText: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.primary,
+    fontWeight: '700',
+    fontSize: 11,
+  },
+  weightRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginBottom: SPACING.lg,
+  },
+  weightOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.background,
+    borderWidth: 2,
+    borderColor: COLORS.borderLight,
+  },
+  weightOptionActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary,
+  },
+  weightText: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+  },
+  weightTextActive: {
+    color: '#FFFFFF',
   },
   sectionLabel: {
     ...TYPOGRAPHY.body,
@@ -604,41 +730,89 @@ const styles = StyleSheet.create({
   },
   counterContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.lg,
+    alignItems: 'stretch',
+    gap: SPACING.sm,
     marginVertical: SPACING.md,
   },
-  counterButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1.5,
+  creditPill: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.backgroundLight,
+    borderWidth: 2,
+    borderColor: COLORS.borderLight,
+  },
+  creditPillSelected: {
     borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary,
+  },
+  creditPillCount: {
+    ...TYPOGRAPHY.display,
+    color: COLORS.text,
+    fontSize: 26,
+    fontWeight: '800',
+  },
+  creditPillCountSelected: {
+    color: '#FFFFFF',
+  },
+  creditPillLabel: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    fontSize: 10,
+  },
+  creditPillRate: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.primaryLight,
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  creditPillRateSelected: {
+    color: '#FFFFFF',
+  },
+  creditPillPrice: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.text,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  creditPillPriceSelected: {
+    color: '#FFFFFF',
+  },
+  savingsCallout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  savingsIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#D1FAE5',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  counterButtonPrimary: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+  savingsTextWrap: {
+    flex: 1,
   },
-  counterButtonDisabled: {
-    borderColor: COLORS.borderLight,
-    backgroundColor: COLORS.backgroundLight,
-    opacity: 0.5,
+  savingsTitle: {
+    ...TYPOGRAPHY.bodyBold,
+    color: '#059669',
+    fontSize: 14,
   },
-  counterDisplay: {
-    alignItems: 'center',
-    minWidth: 60,
-  },
-  counterValue: {
-    ...TYPOGRAPHY.display,
-    color: COLORS.text,
-    fontSize: 28,
-  },
-  counterLabel: {
+  savingsSub: {
     ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
+    color: '#047857',
+    fontSize: 11,
+    marginTop: 2,
   },
   priceBreakdown: {
     marginTop: SPACING.md,

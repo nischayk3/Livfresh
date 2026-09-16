@@ -29,6 +29,8 @@ import {
   Footprints,
   WashingMachine,
   BedDouble,
+  Lock,
+  Wallet,
 } from 'lucide-react-native';
 
 const ORDER_STEPS = [
@@ -314,6 +316,44 @@ export const OrderDetailScreen: React.FC = () => {
                   </View>
                 ))}
               </View>
+            </View>
+          )}
+
+          {/* ═══════ DELIVERY-DAY PAYMENT URGENCY ⚠️ ═══════ */}
+          {/* When the order is out for delivery and unpaid, the customer
+              MUST pay before the delivery partner can hand over the clothes.
+              Show a prominent gate banner that replaces the passive card. */}
+          {order.status === 'out_for_delivery' && order.paymentStatus && order.paymentStatus !== 'paid' && (
+            <View style={paymentStyles.deliveryGate}>
+              <View style={paymentStyles.gateIconRow}>
+                <View style={paymentStyles.lockCircle}>
+                  <Lock size={20} color="#DC2626" />
+                </View>
+                <View style={paymentStyles.gateTextWrap}>
+                  <Text style={paymentStyles.gateTitle}>Payment Required for Delivery</Text>
+                  <Text style={paymentStyles.gateSub}>
+                    Your clothes are on their way! Please complete payment before the delivery partner arrives.
+                    The order will be marked as delivered only after payment is confirmed.
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={[paymentStyles.gatePayButton, isPaying && { opacity: 0.6 }]}
+                onPress={handlePayNow}
+                disabled={isPaying}
+                activeOpacity={0.8}
+              >
+                {isPaying ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <>
+                    <Wallet size={18} color="#FFFFFF" />
+                    <Text style={paymentStyles.gatePayButtonText}>
+                      Pay ₹{order.billDetails?.total || 0}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
           )}
 
@@ -1356,5 +1396,60 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 16,
     fontFamily: 'Outfit_700Bold',
+  },
+});
+
+// ── Delivery-day payment gate styles ──
+const paymentStyles = StyleSheet.create({
+  deliveryGate: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  gateIconRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  lockCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gateTextWrap: {
+    flex: 1,
+  },
+  gateTitle: {
+    fontFamily: 'Outfit_700Bold',
+    fontSize: 15,
+    color: '#991B1B',
+    marginBottom: 4,
+  },
+  gateSub: {
+    fontFamily: 'Outfit_400Regular',
+    fontSize: 12,
+    color: '#B91C1C',
+    lineHeight: 17,
+  },
+  gatePayButton: {
+    backgroundColor: '#DC2626',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 10,
+    marginTop: 14,
+  },
+  gatePayButtonText: {
+    color: '#FFFFFF',
+    fontFamily: 'Outfit_700Bold',
+    fontSize: 16,
   },
 });

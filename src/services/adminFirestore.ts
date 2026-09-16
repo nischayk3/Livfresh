@@ -23,6 +23,12 @@ import { SLOT_CONSTANTS } from '../utils/slotUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getStorage, ref, uploadBytes, uploadString, getDownloadURL } from 'firebase/storage';
 
+// Per-kg rate table for credit packs — MUST match src/utils/creditPricing.ts.
+const CREDIT_RATE_TABLE: Record<string, Record<number, number>> = {
+  wash_fold: { 2: 80, 3: 75, 4: 70 },
+  wash_iron: { 2: 135, 3: 130, 4: 125 },
+};
+
 // Global cache for user profiles to minimize Firestore reads across all admin services
 const userCache: Record<string, any> = {};
 
@@ -1345,6 +1351,18 @@ export const updateOrderStatusAdmin = async (
       if (options.deliveryOTP !== currentOrder.deliveryOTP) {
         throw new Error('Invalid delivery OTP');
       }
+
+      // ⚠️ CASH/Payment gate: a delivered order must be paid before it can be
+      // handed over. Block the transition unless an admin explicitly overrides.
+      if (currentOrder.paymentStatus && currentOrder.paymentStatus !== 'paid') {
+        const allowUnpaid = !!options?.additionalData?.allowUnpaidDelivery;
+        if (!allowUnpaid) {
+          throw new Error(
+            "PAYMENT_REQUIRED: This order has not been paid yet. Ask the customer to pay in the SpinZo app before completing delivery."
+          );
+        }
+      }
+
       updateData.deliveryVerified = true;
       updateData.deliveredAt = timestamp;
     }
@@ -1376,47 +1394,43 @@ export const getSubscriptionStats = async (): Promise<{
   subscribers: any[];
 }> => {
   try {
-    const usersRef = collection(db, 'users');
-    const usersSnap = await getDocs(usersRef);
-
-    let totalSubscribers = 0;
-    let activeSubscribers = 0;
     const subscribers: any[] = [];
+    const seenUserIds = new Set<string>();
+    let activeSubscribers = 0;
 
-    for (const userDoc of usersSnap.docs) {
-      try {
-        const userData = userDoc.data();
-        const subscriptionsRef = collection(db, 'users', userDoc.id, 'subscriptions');
-        const subsSnap = await getDocs(subscriptionsRef);
+    // 1. Fetch ALL subscriptions via collectionGroup to avoid N+1 user iteration.
+    let allSubsSnap;
+    try {
+      // Try indexed collectionGroup first (fastest).
+      const allSubsQuery = query(
+        collectionGroup(db, 'subscriptions'),
+        orderBy('createdAt', 'desc')
+      );
+      allSubsSnap = await getDocs(allSubsQuery);
+    } catch (e) {
+      console.warn('[Stats] collectionGroup subscriptions query failed, falling back.', e);
+      // Fallback: iterate users (existing approach).
+      const usersRef = collection(db, 'users');
+      const usersSnap = await getDocs(usersRef);
 
-        // Get all subscriptions (active and past)
-        const allSubs = subsSnap.docs
-          .map(doc => ({ id: doc.id, ...doc.data() } as any));
+      for (const userDoc of usersSnap.docs) {
+        try {
+          const userData = userDoc.data();
+          const subscriptionsRef = collection(db, 'users', userDoc.id, 'subscriptions');
+          const subsSnap = await getDocs(subscriptionsRef);
+          const allSubs = subsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
 
-        // Find active subscriptions
-        const activeSubs = allSubs.filter((sub: any) => {
-          const status = sub.status || 'active';
-          const isActive = sub.isActive !== false;
-          return status === 'active' && isActive;
-        });
-
-        // Include this user if they have ANY subscription (active or past)
-        if (allSubs.length > 0) {
-          totalSubscribers++;
-
-          // For each subscription (active or past), add to the list
-          allSubs.forEach((sub: any) => {
+          for (const sub of allSubs) {
             const isActiveSubscription = sub.status === 'active' && sub.isActive !== false;
-
-            if (isActiveSubscription) {
-              activeSubscribers++;
-            }
+            if (isActiveSubscription) activeSubscribers++;
 
             subscribers.push({
               user_id: userDoc.id,
               phone: userData.phone || '',
               name: userData.name || '',
               plan_type: sub.planType || sub.plan_type || 'single',
+              serviceType: sub.serviceType || sub.service_type || 'wash_fold',
+              kgPerCredit: sub.kgPerCredit || sub.kg_per_credit || (sub.plan_type === 'couple' ? 14 : 7),
               total_credits: sub.totalCredits || sub.total_credits || 0,
               credits_remaining: sub.creditsRemaining || sub.credits_remaining || 0,
               credits_used: sub.creditsUsed || sub.credits_used || 0,
@@ -1424,16 +1438,57 @@ export const getSubscriptionStats = async (): Promise<{
               expires_at: sub.expiresAt?.toDate ? sub.expiresAt.toDate().toISOString() : (sub.expiresAt || ''),
               created_at: sub.createdAt?.toDate ? sub.createdAt.toDate().toISOString() : (sub.createdAt || ''),
             });
-          });
-        }
-      } catch (error: any) {
-        console.warn(`Cannot access subscriptions for user ${userDoc.id}:`, error.message);
-        continue;
+            seenUserIds.add(userDoc.id);
+          }
+        } catch (e) { continue; }
       }
+
+      return {
+        totalSubscribers: seenUserIds.size,
+        activeSubscribers,
+        subscribers,
+      };
+    }
+
+    // Fast path: collectionGroup succeeded. Group by user.
+    const userSnaps = new Map<string, any>();
+
+    for (const subDoc of allSubsSnap.docs) {
+      const userId = subDoc.ref.parent.parent?.id;
+      if (!userId) continue;
+      seenUserIds.add(userId);
+
+      const sub = subDoc.data() as any;
+      const isActiveSubscription = sub.status === 'active' && sub.isActive !== false;
+      if (isActiveSubscription) activeSubscribers++;
+
+      // Cache user info.
+      if (!userSnaps.has(userId)) {
+        try {
+          const userSnap = await getDoc(doc(db, 'users', userId));
+          userSnaps.set(userId, userSnap.exists() ? userSnap.data() : { phone: '', name: '' });
+        } catch { userSnaps.set(userId, { phone: '', name: '' }); }
+      }
+      const userData = userSnaps.get(userId)!;
+
+      subscribers.push({
+        user_id: userId,
+        phone: userData.phone || '',
+        name: userData.name || '',
+        plan_type: sub.planType || sub.plan_type || 'single',
+        serviceType: sub.serviceType || sub.service_type || 'wash_fold',
+        kgPerCredit: sub.kgPerCredit || sub.kg_per_credit || (sub.plan_type === 'couple' ? 14 : 7),
+        total_credits: sub.totalCredits || sub.total_credits || 0,
+        credits_remaining: sub.creditsRemaining || sub.credits_remaining || 0,
+        credits_used: sub.creditsUsed || sub.credits_used || 0,
+        status: sub.status || 'active',
+        expires_at: sub.expiresAt?.toDate ? sub.expiresAt.toDate().toISOString() : (sub.expiresAt || ''),
+        created_at: sub.createdAt?.toDate ? sub.createdAt.toDate().toISOString() : (sub.createdAt || ''),
+      });
     }
 
     return {
-      totalSubscribers,
+      totalSubscribers: seenUserIds.size,
       activeSubscribers,
       subscribers,
     };
@@ -1454,7 +1509,9 @@ export const addCreditsAdmin = async (
   name: string,
   phone: string,
   planType: 'single' | 'couple',
-  credits: number
+  credits: number,
+  serviceType: 'wash_fold' | 'wash_iron' = 'wash_fold',
+  kgPerCredit?: number
 ): Promise<{ success: boolean; error?: string }> => {
   try {
     // Normalize phone number - try multiple formats
@@ -1514,9 +1571,10 @@ export const addCreditsAdmin = async (
     );
     const activeSubSnap = await getDocs(activeSubQuery);
 
-    const kgPerCredit = planType === 'single' ? 7 : 14;
-    const pricePerCredit = 199; // Default price
-    const totalAmount = credits * pricePerCredit;
+    const effectiveKg = (kgPerCredit as 7 | 14) || (planType === 'single' ? 7 : 14);
+    const ratePerKg = CREDIT_RATE_TABLE[serviceType]?.[credits] ?? CREDIT_RATE_TABLE[serviceType]?.[3] ?? 80;
+    const pricePerCredit = ratePerKg * effectiveKg;
+    const totalAmount = pricePerCredit * credits;
     const expiresAt = Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)); // 30 days
 
     if (!activeSubSnap.empty) {
@@ -1525,6 +1583,9 @@ export const addCreditsAdmin = async (
       const existingData = existingSub.data();
 
       await updateDoc(existingSub.ref, {
+        serviceType,
+        ratePerKg: existingData.ratePerKg || ratePerKg,
+        kgPerCredit: effectiveKg,
         totalCredits: (existingData.totalCredits || 0) + credits,
         creditsRemaining: (existingData.creditsRemaining || 0) + credits,
         totalAmount: (existingData.totalAmount || 0) + totalAmount,
@@ -1536,13 +1597,15 @@ export const addCreditsAdmin = async (
       await setDoc(subRef, {
         userId,
         planType,
+        serviceType,
+        ratePerKg,
+        kgPerCredit: effectiveKg,
         totalCredits: credits,
         creditsUsed: 0,
         creditsRemaining: credits,
         currentCreditIndex: 0,
         pricePerCredit,
         totalAmount,
-        kgPerCredit,
         status: 'active',
         purchasedAt: Timestamp.now(),
         expiresAt,

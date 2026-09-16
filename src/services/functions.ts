@@ -13,9 +13,12 @@ interface VerifyPaymentRequest {
     paymentId: string;
     signature: string;
     planDetails: {
-        type: 'single' | 'couple' | 'credits';
+        type: 'single' | 'couple' | 'credits' | 'checkout';
         credits?: number;
+        serviceType?: 'wash_fold' | 'wash_iron';
+        kgPerCredit?: number;
     };
+    spinzoOrderId?: string; // Required for checkout — the Firestore order doc ID
 }
 
 export const createRazorpayOrder = async (amount: number, currency: string = 'INR') => {

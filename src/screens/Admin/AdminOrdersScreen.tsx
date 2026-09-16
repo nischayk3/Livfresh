@@ -58,7 +58,7 @@ const PROCESSING_STEP_LABELS: Record<string, string> = {
 
 const getOrderProcessingSteps = (order: any): string[] => {
   if (!order || !order.items || order.items.length === 0) {
-    return ['getting_washed', 'getting_folded'];
+    return ['getting_washed', 'getting_dried'];
   }
 
   const serviceTypes = order.items.map((item: any) => item.serviceType);
@@ -83,22 +83,19 @@ const getOrderProcessingSteps = (order: any): string[] => {
     steps.push('getting_washed');
   }
 
-  const needsDry = serviceTypes.some((type: string) => type === 'blanket_wash' || type === 'shoe_clean' || type === 'dry_clean');
-  const needsFold = serviceTypes.some((type: string) => type === 'wash_fold' || type === 'premium_laundry');
-  const needsIron = serviceTypes.some((type: string) => type === 'wash_iron' || type === 'ironing');
+  // Anything that is washed must be dried.
+  const needsDry = needsWash;
+  const needsIron = serviceTypes.some((type: string) => type === 'wash_iron' || type === 'ironing' || type === 'dry_clean');
 
   if (needsDry) {
     steps.push('getting_dried');
-  }
-  if (needsFold) {
-    steps.push('getting_folded');
   }
   if (needsIron) {
     steps.push('getting_ironed');
   }
 
   if (steps.length === 0) {
-    return ['getting_washed', 'getting_folded'];
+    return ['getting_washed', 'getting_dried'];
   }
 
   return steps;
@@ -773,7 +770,7 @@ export const AdminOrdersScreen: React.FC = () => {
         await updateOrderStatus(
           selectedOrder.userId,
           selectedOrder.id,
-          'pickup_completed', // Next status
+          'pickup_completed',
           {
             verifyPickup: true,
             pickupOTP: otpInput,
@@ -784,7 +781,7 @@ export const AdminOrdersScreen: React.FC = () => {
         await updateOrderStatus(
           selectedOrder.userId,
           selectedOrder.id,
-          'delivered', // Next status
+          'delivered',
           {
             verifyDelivery: true,
             deliveryOTP: otpInput
@@ -795,7 +792,57 @@ export const AdminOrdersScreen: React.FC = () => {
       setProcessing(false);
     } catch (error: any) {
       setProcessing(false);
-      Alert.alert("Verification Failed", error.message || "Invalid OTP");
+      const msg = error.message || '';
+
+      if (msg.startsWith('PAYMENT_REQUIRED')) {
+        // Payment gate triggered — ask the admin to get the customer to pay
+        Alert.alert(
+          "Payment Pending",
+          "This customer hasn't paid yet. Please ask them to open the SpinZo app and complete the payment from their order details page.\n\n" +
+          "You can send them a payment reminder via WhatsApp.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Send Reminder via WhatsApp",
+              onPress: () => {
+                if (!selectedOrder) return;
+                const phone = (selectedOrder.customerPhone || selectedOrder.userPhone || '').replace(/\D/g, '');
+                const finalPhone = phone.startsWith('91') ? phone : `91${phone}`;
+                const orderId = (selectedOrder.id || '').toUpperCase().slice(-6);
+                const message = `Hi ${selectedOrder.customerName || 'Customer'},\n\nYour order #${orderId} is out for delivery! 🚚\n\nBefore we can hand it over, please complete the payment in the SpinZo app:\n1. Open the app\n2. Go to your Order Details\n3. Tap "Pay Now"\n\nOnce paid, share the OTP with our delivery partner.`;
+                const url = `https://wa.me/${finalPhone}?text=${encodeURIComponent(message)}`;
+                Linking.openURL(url).catch(() => Alert.alert("Error", "Could not open WhatsApp"));
+              }
+            },
+            {
+              text: "Override & Deliver Anyway",
+              style: "destructive",
+              onPress: async () => {
+                setProcessing(true);
+                try {
+                  await updateOrderStatus(
+                    selectedOrder!.userId,
+                    selectedOrder!.id,
+                    'delivered',
+                    {
+                      verifyDelivery: true,
+                      deliveryOTP: otpInput,
+                      additionalData: { allowUnpaidDelivery: true }
+                    }
+                  );
+                  setOtpModalVisible(false);
+                } catch (e: any) {
+                  Alert.alert("Error", e.message || "Failed to deliver");
+                } finally {
+                  setProcessing(false);
+                }
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert("Verification Failed", msg || "Invalid OTP");
+      }
     }
   };
 
@@ -1080,6 +1127,18 @@ export const AdminOrdersScreen: React.FC = () => {
                 <Text style={[styles.tokenText, { color: COLORS.textSecondary }]}>
                   Ordered: {placementDate}
                 </Text>
+              </View>
+            )}
+            {item.paymentStatus && item.paymentStatus !== 'paid' && (
+              <View style={[styles.tokenBadge, styles.paymentTagUnpaid]}>
+                <Ionicons name="wallet-outline" size={12} color="#DC2626" />
+                <Text style={[styles.tokenText, styles.paymentTagUnpaidText]}>UNPAID</Text>
+              </View>
+            )}
+            {item.paymentStatus === 'paid' && (
+              <View style={[styles.tokenBadge, styles.paymentTagPaid]}>
+                <Ionicons name="checkmark-circle" size={12} color="#059669" />
+                <Text style={[styles.tokenText, styles.paymentTagPaidText]}>PAID</Text>
               </View>
             )}
             {item.tokenNumber && (
@@ -1390,8 +1449,7 @@ export const AdminOrdersScreen: React.FC = () => {
             // If there's a next step in the sequence
             if (currentIndex !== -1 && currentIndex < steps.length - 1) {
               const nextStep = steps[currentIndex + 1];
-              const nextStepLabel = nextStep === 'getting_folded' ? 'Folding'
-                : nextStep === 'getting_ironed' ? 'Ironing'
+              const nextStepLabel = nextStep === 'getting_ironed' ? 'Ironing'
                 : nextStep === 'getting_dried' ? 'Drying'
                 : 'Next Step';
 
@@ -3057,6 +3115,38 @@ const styles = StyleSheet.create({
   selectedReasonText: {
     color: COLORS.primary,
     fontWeight: '600',
+  },
+
+  // ── Payment status tags ──
+  paymentTagUnpaid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: '#FEF2F2',
+  },
+  paymentTagUnpaidText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#DC2626',
+    letterSpacing: 0.3,
+  },
+  paymentTagPaid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: '#ECFDF5',
+  },
+  paymentTagPaidText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#059669',
+    letterSpacing: 0.3,
   },
 });
 

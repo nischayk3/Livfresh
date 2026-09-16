@@ -51,19 +51,32 @@ exports.createRazorpayOrder = functions.runWith({ secrets: [razorpayKeyId, razor
     if (!context.auth) {
         throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
     }
+    // Credentials from Firebase Secrets (bound via runWith).
+    // The secret names RAZORPAY_LIVE_KEY_ID / RAZORPAY_LIVE_KEY_SECRET are auto-injected
+    // as environment variables by the Firebase runtime.
+    const keyId = razorpayKeyId.value();
+    const keySecret = razorpayKeySecret.value();
+    console.log(`[Razorpay] Creating order with key: ${keyId.substring(0, 12)}...`);
     const razorpay = new razorpay_1.default({
-        key_id: razorpayKeyId.value(),
-        key_secret: razorpayKeySecret.value()
+        key_id: keyId,
+        key_secret: keySecret
     });
-    const { amount, currency = "INR" } = data;
+    const { amount, currency = "INR", orderType, orderId } = data;
     if (!amount || amount <= 0) {
         throw new functions.https.HttpsError("invalid-argument", "Amount must be greater than 0.");
     }
+    if (amount < 100) {
+        throw new functions.https.HttpsError("invalid-argument", "Minimum amount is 100 paise.");
+    }
     try {
+        // Checkout orders carry a SpinZo order ID in the receipt for traceability.
+        const receipt = (orderType === 'checkout' && orderId)
+            ? `chk_${orderId.substring(0, 20)}_${Date.now()}`
+            : `receipt_${Date.now()}_${context.auth.uid.substring(0, 5)}`;
         const options = {
             amount: amount,
             currency: currency,
-            receipt: `receipt_${Date.now()}_${context.auth.uid.substring(0, 5)}`,
+            receipt: receipt,
             payment_capture: 1, // Auto capture
         };
         const order = await razorpay.orders.create(options);
@@ -71,7 +84,7 @@ exports.createRazorpayOrder = functions.runWith({ secrets: [razorpayKeyId, razor
             orderId: order.id,
             currency: order.currency,
             amount: order.amount,
-            keyId: razorpayKeyId.value() // Send Key ID to frontend for init
+            keyId: keyId // Send Key ID to frontend for init
         };
     }
     catch (error) {
@@ -79,7 +92,13 @@ exports.createRazorpayOrder = functions.runWith({ secrets: [razorpayKeyId, razor
         throw new functions.https.HttpsError("internal", error.message || "Failed to create order");
     }
 });
+// Per-kg rate table for credit packs — MUST match src/utils/creditPricing.ts.
+const CREDIT_RATE_TABLE = {
+    wash_fold: { 2: 80, 3: 75, 4: 70 },
+    wash_iron: { 2: 135, 3: 130, 4: 125 },
+};
 exports.verifyRazorpayPayment = functions.runWith({ secrets: [razorpayKeyId, razorpayKeySecret] }).https.onCall(async (data, context) => {
+    var _a, _b;
     if (!context.auth) {
         throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
     }
@@ -88,10 +107,11 @@ exports.verifyRazorpayPayment = functions.runWith({ secrets: [razorpayKeyId, raz
     if (!orderId || !paymentId || !signature) {
         throw new functions.https.HttpsError("invalid-argument", "Missing payment details.");
     }
-    // Verify Signature
+    // Verify Signature — must use the same secret the order was created with.
+    const keySecret = razorpayKeySecret.value();
     const crypto = require("crypto");
     const generatedSignature = crypto
-        .createHmac("sha256", razorpayKeySecret.value()) // Secret
+        .createHmac("sha256", keySecret) // Secret
         .update(orderId + "|" + paymentId)
         .digest("hex");
     if (generatedSignature !== signature) {
@@ -120,19 +140,63 @@ exports.verifyRazorpayPayment = functions.runWith({ secrets: [razorpayKeyId, raz
                 credits: admin.firestore.FieldValue.increment(planDetails.credits),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
+            // Lookup pricing from the server-side rate table (never trust client prices).
+            const svc = planDetails.serviceType || 'wash_fold';
+            const kg = planDetails.kgPerCredit || 7;
+            const cnt = planDetails.credits;
+            const ratePerKg = (_b = (_a = CREDIT_RATE_TABLE[svc]) === null || _a === void 0 ? void 0 : _a[cnt]) !== null && _b !== void 0 ? _b : 80;
+            const pricePerCredit = ratePerKg * kg;
+            const totalAmount = pricePerCredit * cnt;
             // Create active subscription/credit pack log
             const subRef = db.collection("users").doc(userId).collection("subscriptions").doc();
             batch.set(subRef, {
                 planType: 'credits',
+                serviceType: svc,
+                ratePerKg: ratePerKg,
+                kgPerCredit: kg,
+                pricePerCredit: pricePerCredit,
+                totalAmount: totalAmount,
                 totalCredits: planDetails.credits,
                 creditsUsed: 0,
                 creditsRemaining: planDetails.credits,
+                currentCreditIndex: 0,
                 status: 'active',
                 paymentId: paymentId,
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 expiresAt: firestore_1.Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)), // 30 days
                 isActive: true
             });
+        }
+        else if (planDetails.type === 'checkout') {
+            if (!data.spinzoOrderId) {
+                throw new functions.https.HttpsError("invalid-argument", "Missing SpinZo order ID for checkout payment.");
+            }
+            // Write payment confirmation to the user's order document
+            const orderRef = db.collection("users").doc(userId).collection("orders").doc(data.spinzoOrderId);
+            const orderSnap = await orderRef.get();
+            if (!orderSnap.exists) {
+                throw new functions.https.HttpsError("not-found", "Order not found for payment update.");
+            }
+            batch.update(orderRef, {
+                paymentStatus: "paid",
+                paymentId: paymentId,
+                paymentMethod: "razorpay",
+                paidAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            // Also update the vendor-mirrored order (use set with merge to be safe
+            // even if the mirrored doc hasn't been created yet — avoids a NOT_FOUND
+            // error that would roll back the user's paymentStatus write too).
+            const orderData = orderSnap.data();
+            const vendorId = (orderData === null || orderData === void 0 ? void 0 : orderData.vendorId) || 'default';
+            const vendorOrderRef = db.collection("vendors").doc(vendorId).collection("orders").doc(data.spinzoOrderId);
+            batch.set(vendorOrderRef, {
+                paymentStatus: "paid",
+                paymentId: paymentId,
+                paymentMethod: "razorpay",
+                paidAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true });
         }
         else {
             // Handle monthly subscriptions if implemented later

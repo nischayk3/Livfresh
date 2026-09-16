@@ -7,20 +7,31 @@ import { MotiView, MotiText } from 'moti';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { AnimatedButton } from '../../components/AnimatedButton';
+import { trackPixelEvent } from '../../utils/pixel';
 
-// NOTE: Ideally use Lottie here, but for now using a custom Animated sequence 
-// to guarantee it works without external asset dependencies immediately. 
+// NOTE: Ideally use Lottie here, but for now using a custom Animated sequence
+// to guarantee it works without external asset dependencies immediately.
 // If user has Lottie assets, we can swap this out easily.
 
 export const OrderSuccessScreen: React.FC = () => {
     const navigation = useNavigation();
     const route = useRoute();
-    const { paymentStatus } = (route.params as { paymentStatus?: string; orderId?: string }) || {};
+    const { paymentStatus, orderId } = (route.params as { paymentStatus?: string; orderId?: string }) || {};
     const insets = useSafeAreaInsets();
 
+    // Fire a conversion event on the dedicated success route so ad pixels
+    // (Meta/GA4) attribute the purchase regardless of how the user got here.
+    React.useEffect(() => {
+        if (orderId && paymentStatus === 'paid') {
+            trackPixelEvent('Purchase', {
+                content_type: 'product',
+                transaction_id: orderId,
+            });
+        }
+    }, [orderId, paymentStatus]);
+
     const handleViewOrders = () => {
-        const params = (route.params as { orderId?: string }) || {};
-        (navigation as any).navigate('MainTabs', { screen: 'MyOrders', params: { focusOrderId: params.orderId } });
+        (navigation as any).navigate('MainTabs', { screen: 'MyOrders', params: { focusOrderId: orderId } });
     };
 
     const handleBackHome = () => {
@@ -71,6 +82,18 @@ export const OrderSuccessScreen: React.FC = () => {
                     <Ionicons name="shield-checkmark" size={16} color={COLORS.primary} />
                     <Text style={styles.trustSealText}>Premium Care Guaranteed</Text>
                 </MotiView>
+
+                {orderId && (
+                    <MotiView
+                        from={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 900 }}
+                        style={styles.orderIdRow}
+                    >
+                        <Text style={styles.orderIdLabel}>Order ID</Text>
+                        <Text style={styles.orderIdValue}>#{orderId.slice(-6).toUpperCase()}</Text>
+                    </MotiView>
+                )}
             </View>
 
             {/* Payment pending card */}
@@ -185,6 +208,29 @@ const styles = StyleSheet.create({
         color: COLORS.primary,
         fontWeight: '700',
         letterSpacing: 0.5,
+    },
+    orderIdRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 20,
+        backgroundColor: COLORS.white,
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: RADIUS.md,
+        ...SHADOWS.sm,
+        borderWidth: 1,
+        borderColor: COLORS.borderLight,
+    },
+    orderIdLabel: {
+        ...TYPOGRAPHY.body,
+        color: COLORS.textSecondary,
+        fontSize: 14,
+    },
+    orderIdValue: {
+        ...TYPOGRAPHY.subheading,
+        color: COLORS.text,
+        fontWeight: '800',
     },
     footer: {
         paddingHorizontal: 24,

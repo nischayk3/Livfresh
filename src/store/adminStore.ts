@@ -121,7 +121,9 @@ interface AdminStoreState {
     name: string,
     phone: string,
     planType: 'single' | 'couple',
-    credits: number
+    credits: number,
+    serviceType?: 'wash_fold' | 'wash_iron',
+    kgPerCredit?: number
   ) => Promise<{ success: boolean; error?: string }>;
   bulkAddCredits: (
     rows: { name: string; phone: string; planType: string; credits: number }[]
@@ -246,20 +248,23 @@ export const useAdminStore = create<AdminStoreState>((set, get) => ({
       return true;
     } catch (error: any) {
       console.error('Error updating order status:', error);
-      
+      const msg = error.message || 'Failed to update order status';
+
       // Revert optimistic update using local state
-      set({ 
+      set({
         orders: previousOrders,
-        error: error.message || 'Failed to update order status' 
+        error: msg,
       });
 
-      return false;
+      // Re-throw so callers (e.g. OTP modal) can distinguish payment-required
+      // from generic failures and show a targeted prompt.
+      throw error;
     }
   },
 
-  addCredits: async (name, phone, planType, credits) => {
+  addCredits: async (name, phone, planType, credits, serviceType, kgPerCredit) => {
     try {
-      const result = await addCreditsAdmin(name, phone, planType, credits);
+      const result = await addCreditsAdmin(name, phone, planType, credits, serviceType, kgPerCredit);
       if (result.success) {
         // Refresh subscription stats
         get().fetchSubscriptionStats(true);

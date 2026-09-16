@@ -1,11 +1,29 @@
 import { Platform } from 'react-native';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import app from './firebase';
+import { createRazorpayOrder as createRzOrder, verifyRazorpayPayment as verifyRzPayment } from './functions';
 import { COLORS } from '../utils/constants';
 
 // NOTE: Only the publishable Key ID belongs in the client. The Key Secret
 // must live exclusively in Cloud Functions config — never in this file.
-const RAZORPAY_KEY_ID = 'rzp_test_TbtYp1s1J79R1v';
+const RAZORPAY_KEY_ID = 'rzp_live_Tbuy3Cyyz5yEqc';
+
+// Loads Razorpay checkout.js on web (mirrors the credit flow's loadRazorpayScript)
+const loadRazorpayScriptWeb = (): Promise<boolean> => {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined') {
+      resolve(false);
+      return;
+    }
+    if ((window as any).Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
 
 export interface PaymentResponse {
     razorpay_payment_id: string;
@@ -95,65 +113,73 @@ export const paymentService = {
      * Handles modal dismiss and payment.failed gracefully.
      */
     async payForOrder({ amount, spinzoOrderId, user }: PayForOrderParams): Promise<PayForOrderResult> {
-        const functions = getFunctions(app);
-        const createOrderFn = httpsCallable(functions, 'createRazorpayOrder');
-        const verifyPaymentFn = httpsCallable(functions, 'verifyRazorpayPayment');
-
         try {
-            // Step 1: Create Razorpay order via backend
-            const orderResult = await createOrderFn({
-                amount: Math.round(amount * 100),
-                currency: 'INR',
-                orderType: 'checkout',
-                orderId: spinzoOrderId,
-            });
+            // Step 1: Create Razorpay order on backend (mirrors the credit flow's approach)
+            const order = await createRzOrder(Math.round(amount * 100));
 
-            const { orderId: razorpayOrderId, keyId } = orderResult.data as any;
-
-            // Step 2: Open Razorpay Checkout — platform-adaptive.
-            // - Web: loads https://checkout.razorpay.com/v1/checkout.js via window.Razorpay
-            // - Native (iOS/Android): uses react-native-razorpay's RazorpayCheckout
-            // The helper auto-resolves via Expo's platform file extensions.
-            let razorpayData: any;
-            try {
-                const { openRazorpay } = await import('../utils/payment_helper');
-                razorpayData = await openRazorpay({
-                    key: keyId,
-                    amount: Math.round(amount * 100),
-                    currency: 'INR',
-                    name: 'SpinZo Laundry',
-                    description: `Order #${spinzoOrderId.substring(0, 8).toUpperCase()}`,
-                    order_id: razorpayOrderId,
-                    prefill: {
-                        email: user.email || 'customer@example.com',
-                        contact: user.phone,
-                        name: user.name,
-                    },
-                    theme: { color: COLORS.primary },
-                });
-            } catch (modalError: any) {
-                // User dismissed the modal or payment failed (e.g. cancelled)
-                const errDesc = (modalError?.description || modalError?.message || '').toLowerCase();
-                if (modalError?.code === 'PAYMENT_CANCELLED' || errDesc.includes('cancelled')) {
-                    return { success: false, error: 'Payment cancelled. You can pay anytime from your order.' };
-                }
-                return { success: false, error: modalError?.description || modalError?.message || 'Payment was not completed.' };
-            }
-
-            // Step 3: Verify payment on backend
-            await verifyPaymentFn({
-                orderId: razorpayOrderId,
-                paymentId: razorpayData.razorpay_payment_id,
-                signature: razorpayData.razorpay_signature,
-                planDetails: { type: 'checkout' },
-                spinzoOrderId,
-            });
-
-            return {
-                success: true,
-                paymentId: razorpayData.razorpay_payment_id,
+            // Step 2: Build Razorpay options (same shape as the credit flow)
+            const options: any = {
+                description: `Order #${spinzoOrderId.substring(0, 8).toUpperCase()}`,
+                image: 'https://i.imgur.com/3g7nmJC.png',
+                currency: order.currency,
+                key: order.keyId,
+                amount: order.amount,
+                name: 'SpinZo Laundry',
+                order_id: order.orderId,
+                prefill: {
+                    email: user.email || '',
+                    contact: user.phone || '',
+                    name: user.name || '',
+                },
+                theme: { color: COLORS.primary },
             };
 
+            // Step 3: Load Razorpay checkout.js on web (exactly like credits flow)
+            if (Platform.OS === 'web') {
+                const scriptLoaded = await loadRazorpayScriptWeb();
+                if (!scriptLoaded) {
+                    return { success: false, error: 'Razorpay SDK failed to load on this browser.' };
+                }
+            }
+
+            // Step 4: Open Razorpay via platform-adaptive helper (same as credits flow)
+            const { openRazorpay } = await import('../utils/payment_helper');
+
+            return new Promise<PayForOrderResult>((resolve) => {
+                openRazorpay(options)
+                    .then(async (data: any) => {
+                        try {
+                            // Success — verify payment on backend
+                            await verifyRzPayment({
+                                orderId: data.razorpay_order_id,
+                                paymentId: data.razorpay_payment_id,
+                                signature: data.razorpay_signature,
+                                planDetails: { type: 'checkout' },
+                                spinzoOrderId,
+                            });
+                            resolve({
+                                success: true,
+                                paymentId: data.razorpay_payment_id,
+                            });
+                        } catch (verifyError: any) {
+                            console.error('payForOrder: verification failed', verifyError);
+                            resolve({
+                                success: true,
+                                paymentId: data.razorpay_payment_id,
+                                error: 'Payment completed but verification had an issue.',
+                            });
+                        }
+                    })
+                    .catch((error: any) => {
+                        // User cancelled or payment failed
+                        const errDesc = (error?.description || error?.message || '').toLowerCase();
+                        if (errDesc.includes('cancelled') || error?.code === 'PAYMENT_CANCELLED') {
+                            resolve({ success: false, error: 'Payment cancelled. You can pay anytime from your order.' });
+                        } else {
+                            resolve({ success: false, error: error?.description || error?.message || 'Payment was not completed.' });
+                        }
+                    });
+            });
         } catch (error: any) {
             console.error('payForOrder error:', error);
             return {

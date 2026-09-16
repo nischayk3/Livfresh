@@ -13,7 +13,6 @@ import { MotiView } from 'moti';
 import {
   useNavigation,
   useFocusEffect,
-  CommonActions,
 } from '@react-navigation/native';
 import { format, addDays, startOfToday } from 'date-fns';
 import {
@@ -411,9 +410,7 @@ export const CartScreen: React.FC = () => {
             setIsNavigating(true);
             clearCart();
             await clearCartInFirestore(latestUser.uid);
-            navigation.dispatch(
-              CommonActions.reset({ index: 0, routes: [{ name: 'OrderSuccess', params: { orderId, paymentStatus: 'pending' } }] }),
-            );
+            (navigation as any).navigate('OrderSuccess', { orderId, paymentStatus: 'pending' });
             return;
           }
 
@@ -436,9 +433,7 @@ export const CartScreen: React.FC = () => {
           setIsNavigating(true);
           clearCart();
           await clearCartInFirestore(latestUser.uid);
-          navigation.dispatch(
-            CommonActions.reset({ index: 0, routes: [{ name: 'OrderSuccess', params: { orderId, paymentStatus: 'paid' } }] }),
-          );
+          (navigation as any).navigate('OrderSuccess', { orderId, paymentStatus: 'paid' });
         } catch (error) {
           console.error('Pay-now order placement failed', error);
           showAlert({ title: 'Error', message: 'Failed to place order. Please try again.', type: 'error' });
@@ -482,9 +477,7 @@ export const CartScreen: React.FC = () => {
       clearCart();
       await clearCartInFirestore(latestUser.uid);
 
-      navigation.dispatch(
-        CommonActions.reset({ index: 0, routes: [{ name: 'OrderSuccess' }] }),
-      );
+      (navigation as any).navigate('OrderSuccess');
     } catch (error) {
       console.error('Order placement failed', error);
       showAlert({ title: 'Error', message: 'Failed to place order. Please try again.', type: 'error' });

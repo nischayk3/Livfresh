@@ -14,10 +14,17 @@ import {
   updateDoc
 } from '../services/firebase';
 
+import { ServiceType, CreditWeight, computePrice } from '../utils/creditPricing';
+
 export interface Subscription {
   id: string;
   userId: string;
+  /** 'single' (7kg) | 'couple' (14kg) — retained for legacy, superseded by kgPerCredit. */
   planType: 'single' | 'couple';
+  /** Service this credit pack is locked to (defaults to wash_fold for legacy docs). */
+  serviceType: ServiceType;
+  /** Per-kg rate locked at purchase (replaces reliance on dynamic RATE_TABLE). */
+  ratePerKg: number;
   totalCredits: number;
   creditsUsed: number;
   creditsRemaining: number;
@@ -55,7 +62,9 @@ interface SubscriptionState {
   createSubscription: (
     userId: string,
     planType: 'single' | 'couple',
-    totalCredits: number
+    totalCredits: number,
+    serviceType?: ServiceType,
+    kgPerCredit?: CreditWeight
   ) => Promise<{ success: boolean; subscriptionId?: string; error?: string }>;
   useCredit: (userId: string, subscriptionId: string, orderId?: string) => Promise<boolean>;
   getTotalCredits: () => number;
@@ -165,7 +174,9 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
   createSubscription: async (
     userId: string,
     planType: 'single' | 'couple',
-    totalCredits: number
+    totalCredits: number,
+    serviceType: ServiceType = 'wash_fold',
+    kgPerCredit: CreditWeight = 7
   ) => {
     if (!userId) {
       return { success: false, error: 'User not authenticated' };
@@ -182,9 +193,8 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       return { success: false, error: 'You already have an active subscription' };
     }
 
-    const pricePerCredit = planType === 'single' ? 399 : 798;
-    const kgPerCredit = planType === 'single' ? 7 : 14;
-    const totalAmount = pricePerCredit * totalCredits;
+    // Pricing derived from the shared model (rate per kg × kg × credits).
+    const { pricePerCredit, totalAmount, ratePerKg } = computePrice(serviceType, kgPerCredit, totalCredits);
 
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30);
@@ -195,6 +205,8 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       const subscriptionData: Omit<Subscription, 'id'> = {
         userId,
         planType,
+        serviceType,
+        ratePerKg,
         totalCredits,
         creditsUsed: 0,
         creditsRemaining: totalCredits,

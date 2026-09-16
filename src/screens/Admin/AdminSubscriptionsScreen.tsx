@@ -42,6 +42,7 @@ export const AdminSubscriptionsScreen: React.FC = () => {
   const [formName, setFormName] = useState('');
   const [formPhone, setFormPhone] = useState('');
   const [formPlanType, setFormPlanType] = useState<'single' | 'couple'>('single');
+  const [formServiceType, setFormServiceType] = useState<'wash_fold' | 'wash_iron'>('wash_fold');
   const [formCredits, setFormCredits] = useState('2');
   const [submitting, setSubmitting] = useState(false);
 
@@ -85,7 +86,7 @@ export const AdminSubscriptionsScreen: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const result = await addCredits(formName, formPhone, formPlanType, creditsNum);
+      const result = await addCredits(formName, formPhone, formPlanType, creditsNum, formServiceType, formPlanType === 'single' ? 7 : 14);
       if (result.success) {
         showAlert({ title: 'Success', message: `Successfully added ${creditsNum} credits to ${formPhone}`, type: 'success' });
         setModalVisible(false);
@@ -120,12 +121,18 @@ export const AdminSubscriptionsScreen: React.FC = () => {
 
       <View style={styles.subscriberDetails}>
         <View style={styles.detailItem}>
-          <Text style={styles.detailLabel}>Plan Type</Text>
-          <Text style={styles.detailValue}>{item.plan_type === 'couple' ? '14kg Plan' : '7kg Plan'}</Text>
+          <Text style={styles.detailLabel}>Service</Text>
+          <Text style={styles.detailValue}>
+            {item.serviceType === 'wash_iron' ? 'Wash & Iron' : item.service_type === 'wash_iron' ? 'Wash & Iron' : 'Wash & Fold'}
+          </Text>
+        </View>
+        <View style={styles.detailItem}>
+          <Text style={styles.detailLabel}>Weight</Text>
+          <Text style={styles.detailValue}>{item.kgPerCredit || item.kg_per_credit || (item.plan_type === 'couple' ? 14 : 7)}kg</Text>
         </View>
         <View style={styles.detailItem}>
           <Text style={styles.detailLabel}>Credits Used</Text>
-          <Text style={styles.detailValue}>{item.credits_used} / {item.total_credits}</Text>
+          <Text style={styles.detailValue}>{item.credits_used || item.creditsUsed || 0} / {item.total_credits || item.totalCredits || 0}</Text>
         </View>
       </View>
 
@@ -286,13 +293,29 @@ export const AdminSubscriptionsScreen: React.FC = () => {
                       style={[styles.planOption, formPlanType === 'single' && styles.activePlan]}
                       onPress={() => setFormPlanType('single')}
                     >
-                      <Text style={[styles.planText, formPlanType === 'single' && styles.activePlanText]}>Single (7kg)</Text>
+                      <Text style={[styles.planText, formPlanType === 'single' && styles.activePlanText]}>7kg</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.planOption, formPlanType === 'couple' && styles.activePlan]}
                       onPress={() => setFormPlanType('couple')}
                     >
-                      <Text style={[styles.planText, formPlanType === 'couple' && styles.activePlanText]}>Couple (14kg)</Text>
+                      <Text style={[styles.planText, formPlanType === 'couple' && styles.activePlanText]}>14kg</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <Text style={styles.label}>Service *</Text>
+                  <View style={styles.planSelector}>
+                    <TouchableOpacity
+                      style={[styles.planOption, formServiceType === 'wash_fold' && styles.activePlan]}
+                      onPress={() => setFormServiceType('wash_fold')}
+                    >
+                      <Text style={[styles.planText, formServiceType === 'wash_fold' && styles.activePlanText]}>Wash & Fold</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.planOption, formServiceType === 'wash_iron' && styles.activePlan]}
+                      onPress={() => setFormServiceType('wash_iron')}
+                    >
+                      <Text style={[styles.planText, formServiceType === 'wash_iron' && styles.activePlanText]}>Wash & Iron</Text>
                     </TouchableOpacity>
                   </View>
 

@@ -84,9 +84,11 @@ export default Sentry.wrap(function App() {
     setupAndroidChannel();
     const unsubscribe = setupNotificationHandlers();
 
+    // Initialize Ads and Tracking (ATT prompt on iOS) immediately
+    initAds();
+
     // Defer non-critical operations to reduce JS bridge contention on Android cold start
     const deferredTimer = setTimeout(() => {
-      initAds();
       prefetchCriticalAssets();
     }, 2000);
 

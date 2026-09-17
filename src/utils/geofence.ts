@@ -72,19 +72,33 @@ export const SERVICE_ZONES: ServiceZone[] = [
 
 // Precise Polygon boundaries for SpinZo Service Area (Map Coordinates)
 export const NEW_MAP_POLYGON: Coordinate[] = [
-    { latitude: 12.923192293, longitude: 77.654096423 },
-    { latitude: 12.904117846, longitude: 77.654096423 },
-    { latitude: 12.903364877, longitude: 77.650663195 },
-    { latitude: 12.898010369, longitude: 77.637187777 },
-    { latitude: 12.899641831, longitude: 77.611824816 },
-    { latitude: 12.906376736, longitude: 77.585689372 },
-    { latitude: 12.916750645, longitude: 77.585689372 },
-    { latitude: 12.916750645, longitude: 77.580196208 },
-    { latitude: 12.943770981, longitude: 77.579938716 },
-    { latitude: 12.953934221, longitude: 77.5944441 },
-    { latitude: 12.944398355, longitude: 77.607576196 },
-    { latitude: 12.945234849, longitude: 77.629677594 },
-    { latitude: 12.923192293, longitude: 77.654096423 }, // closes loop
+    { latitude: 12.894226891, longitude: 77.599241985 },
+    { latitude: 12.899455983, longitude: 77.60076548 },
+    { latitude: 12.9022169, longitude: 77.601194633 },
+    { latitude: 12.905417016, longitude: 77.601838363 },
+    { latitude: 12.907560861, longitude: 77.600465072 },
+    { latitude: 12.911953077, longitude: 77.599912534 },
+    { latitude: 12.920298065, longitude: 77.600191484 },
+    { latitude: 12.932093512, longitude: 77.600620638 },
+    { latitude: 12.936527118, longitude: 77.601736437 },
+    { latitude: 12.944453038, longitude: 77.602723488 },
+    { latitude: 12.943992965, longitude: 77.607487092 },
+    { latitude: 12.943700192, longitude: 77.630575547 },
+    { latitude: 12.938597502, longitude: 77.63276423 },
+    { latitude: 12.920486294, longitude: 77.655681024 },
+    { latitude: 12.905866705, longitude: 77.654393562 },
+    { latitude: 12.90350323, longitude: 77.64999474 },
+    { latitude: 12.90350323, longitude: 77.648728738 },
+    { latitude: 12.899612858, longitude: 77.648728738 },
+    { latitude: 12.899320032, longitude: 77.645166765 },
+    { latitude: 12.896559083, longitude: 77.645424257 },
+    { latitude: 12.893839937, longitude: 77.644866358 },
+    { latitude: 12.892292103, longitude: 77.644866358 },
+    { latitude: 12.891999268, longitude: 77.64411534 },
+    { latitude: 12.890702424, longitude: 77.64411534 },
+    { latitude: 12.889238238, longitude: 77.640210043 },
+    { latitude: 12.8925431, longitude: 77.59892012 },
+    { latitude: 12.894226891, longitude: 77.599241985 }, // closes loop
 ];
 
 /**

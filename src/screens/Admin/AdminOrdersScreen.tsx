@@ -1055,7 +1055,7 @@ export const AdminOrdersScreen: React.FC = () => {
 
   const generateTimeSlots = () => {
     const slots = [];
-    for (let i = 9; i < 21; i++) {
+    for (let i = 8; i < 22; i++) {
       const start = `${i.toString().padStart(2, '0')}:00`;
       const end = `${(i + 1).toString().padStart(2, '0')}:00`;
       slots.push(`${start} - ${end}`);

@@ -100,6 +100,7 @@
               "RNFBApp",
               "RNFBAuth",
               "RNFBFirestore",
+              "RNFBAnalytics",
               "firebase-ios-sdk"
             ]
           }
@@ -107,6 +108,7 @@
       ],
       "./plugins/withFirebaseModularHeaders",
       "@react-native-firebase/app",
+      "@react-native-firebase/analytics",
       "expo-font",
       [
         "react-native-fbsdk-next",
@@ -114,9 +116,9 @@
           "appID": "1548776956231117",
           "clientToken": "e123bd0dc1f62abc525df57d1173fdff2",
           "displayName": "SpinZo",
-          "advertiserIDCollectionEnabled": true,
-          "autoLogAppEventsEnabled": true,
-          "isAutoInitEnabled": true
+          "advertiserIDCollectionEnabled": false,
+          "autoLogAppEventsEnabled": false,
+          "isAutoInitEnabled": false
         }
       ],
       "expo-video",

@@ -7,10 +7,10 @@
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const SLOT_CONSTANTS = {
-    /** Store opens at 9:00 AM */
-    OPERATIONAL_START_HOUR: 9,
-    /** Store closes at 9:00 PM */
-    OPERATIONAL_END_HOUR: 21,
+    /** Store opens at 8:00 AM */
+    OPERATIONAL_START_HOUR: 8,
+    /** Store closes at 10:00 PM */
+    OPERATIONAL_END_HOUR: 22,
     /** Maximum orders (pickup + delivery combined) per 1-hour slot */
     MAX_ORDERS_PER_SLOT: 2,
 } as const;

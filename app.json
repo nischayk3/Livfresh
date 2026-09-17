@@ -108,7 +108,6 @@
       ],
       "./plugins/withFirebaseModularHeaders",
       "@react-native-firebase/app",
-      "@react-native-firebase/analytics",
       "expo-font",
       [
         "react-native-fbsdk-next",

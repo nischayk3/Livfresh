@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.creditExpiryReminder = exports.weeklyLaundryReminder = exports.onOrderStatusChanged = exports.onOrderCreatedNotification = exports.onOrderUpdatedWhatsApp = exports.onOrderCreatedWhatsApp = exports.verifyRazorpayPayment = exports.createRazorpayOrder = void 0;
+exports.razorpayWebhook = exports.creditExpiryReminder = exports.weeklyLaundryReminder = exports.onOrderStatusChanged = exports.onOrderCreatedNotification = exports.onOrderUpdatedWhatsApp = exports.onOrderCreatedWhatsApp = exports.verifyRazorpayPayment = exports.createRazorpayOrder = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const firestore_1 = require("firebase-admin/firestore");
@@ -46,6 +46,7 @@ const whatsapp_1 = require("./whatsapp");
 admin.initializeApp();
 const razorpayKeyId = (0, params_1.defineSecret)("RAZORPAY_LIVE_KEY_ID");
 const razorpayKeySecret = (0, params_1.defineSecret)("RAZORPAY_LIVE_KEY_SECRET");
+const razorpayWebhookSecret = (0, params_1.defineSecret)("RAZORPAY_WEBHOOK_SECRET");
 exports.createRazorpayOrder = functions.runWith({ secrets: [razorpayKeyId, razorpayKeySecret] }).https.onCall(async (data, context) => {
     // Ensure the user is authenticated
     if (!context.auth) {
@@ -559,5 +560,140 @@ exports.creditExpiryReminder = functions.pubsub
         console.error("Error executing creditExpiryReminder:", error);
     }
     return null;
+});
+// ==========================================
+// RAZORPAY WEBHOOK — SERVER-SIDE SAFETY NET
+// ==========================================
+// This webhook fires independently of the client. Even if the iOS app
+// crashes, loses network, or the UPI app-switch kills it, this function
+// will update the order to "paid" when Razorpay confirms capture.
+//
+// Razorpay Dashboard setup:
+//   URL:    https://us-central1-spin-it-a135a.cloudfunctions.net/razorpayWebhook
+//   Events: payment.captured
+//   Secret: <store in Firebase Secret RAZORPAY_WEBHOOK_SECRET>
+exports.razorpayWebhook = functions
+    .runWith({ secrets: [razorpayWebhookSecret, razorpayKeyId, razorpayKeySecret] })
+    .https.onRequest(async (req, res) => {
+    var _a, _b, _c;
+    // Only accept POST
+    if (req.method !== "POST") {
+        res.status(405).send("Method Not Allowed");
+        return;
+    }
+    // 1. Verify webhook signature
+    const signature = req.headers["x-razorpay-signature"];
+    const secret = razorpayWebhookSecret.value();
+    if (!signature || !secret) {
+        console.error("[Webhook] Missing signature or secret");
+        res.status(400).send("Bad Request");
+        return;
+    }
+    const crypto = require("crypto");
+    const expectedSignature = crypto
+        .createHmac("sha256", secret)
+        .update(req.rawBody)
+        .digest("hex");
+    if (expectedSignature !== signature) {
+        console.error("[Webhook] Invalid signature");
+        res.status(400).send("Invalid Signature");
+        return;
+    }
+    // 2. Parse event
+    const event = req.body;
+    console.log(`[Webhook] Received event: ${event.event}`);
+    if (event.event !== "payment.captured") {
+        res.status(200).send("OK");
+        return;
+    }
+    const payment = (_b = (_a = event.payload) === null || _a === void 0 ? void 0 : _a.payment) === null || _b === void 0 ? void 0 : _b.entity;
+    if (!payment) {
+        console.error("[Webhook] Missing payment entity");
+        res.status(200).send("OK");
+        return;
+    }
+    const paymentId = payment.id;
+    const razorpayOrderId = payment.order_id;
+    console.log(`[Webhook] payment.captured: ${paymentId}, order: ${razorpayOrderId}, amount: ${payment.amount}`);
+    // 3. Fetch the Razorpay order to get the receipt (contains spinzoOrderId)
+    try {
+        const keyId = razorpayKeyId.value();
+        const keySecret = razorpayKeySecret.value();
+        const razorpay = new razorpay_1.default({ key_id: keyId, key_secret: keySecret });
+        const rzOrder = await razorpay.orders.fetch(razorpayOrderId);
+        const receipt = rzOrder.receipt || "";
+        // Our checkout receipts look like: chk_{spinzoOrderId_first20}_{timestamp}
+        if (!receipt.startsWith("chk_")) {
+            console.log(`[Webhook] Non-checkout receipt: ${receipt}, skipping order update`);
+            res.status(200).send("OK");
+            return;
+        }
+        // Extract the spinzoOrderId (between "chk_" and the last "_timestamp")
+        const receiptParts = receipt.split("_");
+        const spinzoOrderId = receiptParts.slice(1, -1).join("_");
+        if (!spinzoOrderId) {
+            console.error(`[Webhook] Could not extract spinzoOrderId from receipt: ${receipt}`);
+            res.status(200).send("OK");
+            return;
+        }
+        console.log(`[Webhook] Extracted spinzoOrderId: ${spinzoOrderId}`);
+        // 4. Find the user order in Firestore
+        const db = admin.firestore();
+        const ordersQuery = await db.collectionGroup("orders")
+            .where("id", "==", spinzoOrderId)
+            .limit(1)
+            .get();
+        if (ordersQuery.empty) {
+            console.error(`[Webhook] No order found with id: ${spinzoOrderId}`);
+            res.status(200).send("OK");
+            return;
+        }
+        const orderDoc = ordersQuery.docs[0];
+        const orderData = orderDoc.data();
+        // 5. Idempotency — skip if already paid
+        if (orderData.paymentStatus === "paid") {
+            console.log(`[Webhook] Order ${spinzoOrderId} already paid, skipping`);
+            res.status(200).send("OK");
+            return;
+        }
+        // 6. Update user order + vendor mirror + payment log
+        const batch = db.batch();
+        batch.update(orderDoc.ref, {
+            paymentStatus: "paid",
+            paymentId: paymentId,
+            paymentMethod: "razorpay",
+            paidAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        const vendorId = orderData.vendorId || "default";
+        const vendorOrderRef = db.collection("vendors").doc(vendorId).collection("orders").doc(spinzoOrderId);
+        batch.set(vendorOrderRef, {
+            paymentStatus: "paid",
+            paymentId: paymentId,
+            paymentMethod: "razorpay",
+            paidAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        const userId = (_c = orderDoc.ref.parent.parent) === null || _c === void 0 ? void 0 : _c.id;
+        if (userId) {
+            const paymentRef = db.collection("users").doc(userId).collection("payments").doc(paymentId);
+            batch.set(paymentRef, {
+                orderId: razorpayOrderId,
+                paymentId: paymentId,
+                amount: payment.amount,
+                planDetails: { type: "checkout" },
+                spinzoOrderId: spinzoOrderId,
+                status: "success",
+                source: "webhook",
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true });
+        }
+        await batch.commit();
+        console.log(`[Webhook] ✅ Order ${spinzoOrderId} marked as paid via webhook`);
+    }
+    catch (error) {
+        console.error(`[Webhook] Error processing payment.captured:`, error);
+    }
+    res.status(200).send("OK");
 });
 //# sourceMappingURL=index.js.map

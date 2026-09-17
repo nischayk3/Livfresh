@@ -23,6 +23,13 @@
       "bundleIdentifier": "com.nischayk3.Spinit",
       "buildNumber": "42",
       "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "tez",
+          "phonepe",
+          "paytmmp",
+          "bhim",
+          "upi"
+        ],
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
           "remote-notification"

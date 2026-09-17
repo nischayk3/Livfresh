@@ -22,7 +22,8 @@ interface VerifyPaymentRequest {
 
 const callFunction = async (functionName: string, data: any) => {
     // Ensure we use the correct auth instance (Native on mobile, Web on web)
-    const token = await auth.currentUser?.getIdToken();
+    // Force-refresh (true) to avoid stale cached tokens on iOS after backgrounding
+    const token = await auth.currentUser?.getIdToken(true);
     if (!token) {
         throw new Error("User must be logged in.");
     }

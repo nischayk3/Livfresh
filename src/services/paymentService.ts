@@ -148,27 +148,39 @@ export const paymentService = {
             return new Promise<PayForOrderResult>((resolve) => {
                 openRazorpay(options)
                     .then(async (data: any) => {
-                        try {
-                            // Success — verify payment on backend
-                            await verifyRzPayment({
-                                orderId: data.razorpay_order_id,
-                                paymentId: data.razorpay_payment_id,
-                                signature: data.razorpay_signature,
-                                planDetails: { type: 'checkout' },
-                                spinzoOrderId,
-                            });
-                            resolve({
-                                success: true,
-                                paymentId: data.razorpay_payment_id,
-                            });
-                        } catch (verifyError: any) {
-                            console.error('payForOrder: verification failed', verifyError);
-                            resolve({
-                                success: true,
-                                paymentId: data.razorpay_payment_id,
-                                error: 'Payment completed but verification had an issue.',
-                            });
+                        // Retry verification up to 3 times — iOS UPI app-switch
+                        // can cause transient network issues on resume.
+                        let lastError: any;
+                        for (let attempt = 1; attempt <= 3; attempt++) {
+                            try {
+                                await verifyRzPayment({
+                                    orderId: data.razorpay_order_id,
+                                    paymentId: data.razorpay_payment_id,
+                                    signature: data.razorpay_signature,
+                                    planDetails: { type: 'checkout' },
+                                    spinzoOrderId,
+                                });
+                                resolve({
+                                    success: true,
+                                    paymentId: data.razorpay_payment_id,
+                                });
+                                return;
+                            } catch (err: any) {
+                                lastError = err;
+                                console.warn(`payForOrder: verify attempt ${attempt}/3 failed`, err?.message);
+                                if (attempt < 3) {
+                                    await new Promise(r => setTimeout(r, 1500 * attempt));
+                                }
+                            }
                         }
+                        // All retries exhausted — money was collected but verification failed.
+                        // Report honestly so the UI doesn't mislead the customer.
+                        console.error('payForOrder: verification failed after 3 attempts', lastError);
+                        resolve({
+                            success: false,
+                            paymentId: data.razorpay_payment_id,
+                            error: 'Payment received but confirmation failed. Don\'t worry — your payment is safe and will be updated shortly.',
+                        });
                     })
                     .catch((error: any) => {
                         // User cancelled or payment failed

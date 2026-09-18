@@ -36,6 +36,7 @@ jobs:
         run: EAS_SKIP_AUTO_FINGERPRINT=1 eas build --platform android --profile production --local --non-interactive --output=app-release.aab
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=1024m'"
 
       - name: 💾 Upload Artifact
         uses: actions/upload-artifact@v4

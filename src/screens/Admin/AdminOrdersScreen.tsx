@@ -809,7 +809,7 @@ export const AdminOrdersScreen: React.FC = () => {
                 const phone = (selectedOrder.customerPhone || selectedOrder.userPhone || '').replace(/\D/g, '');
                 const finalPhone = phone.startsWith('91') ? phone : `91${phone}`;
                 const orderId = (selectedOrder.id || '').toUpperCase().slice(-6);
-                const message = `Hi ${selectedOrder.customerName || 'Customer'},\n\nYour order #${orderId} is out for delivery! 🚚\n\nBefore we can hand it over, please complete the payment in the SpinZo app:\n1. Open the app\n2. Go to your Order Details\n3. Tap "Pay Now"\n\nOnce paid, share the OTP with our delivery partner.`;
+                const message = `Hi ${selectedOrder.customerName || 'Customer'},\n\nYour order #${orderId} is out for delivery! 🚚\n\nThe final amount for your order is ₹${selectedOrder.billDetails?.total || '—'}. Please complete the payment in the SpinZo app:\n1. Open the app\n2. Go to your Order Details\n3. Tap "Pay Now"\n\nOnce paid, share the OTP with our delivery partner.`;
                 const url = `https://wa.me/${finalPhone}?text=${encodeURIComponent(message)}`;
                 Linking.openURL(url).catch(() => Alert.alert("Error", "Could not open WhatsApp"));
               }

@@ -319,21 +319,17 @@ export const OrderDetailScreen: React.FC = () => {
             </View>
           )}
 
-          {/* ═══════ DELIVERY-DAY PAYMENT URGENCY ⚠️ ═══════ */}
-          {/* When the order is out for delivery and unpaid, the customer
-              MUST pay before the delivery partner can hand over the clothes.
-              Show a prominent gate banner that replaces the passive card. */}
           {order.status === 'out_for_delivery' && order.paymentStatus && order.paymentStatus !== 'paid' && (
             <View style={paymentStyles.deliveryGate}>
               <View style={paymentStyles.gateIconRow}>
                 <View style={paymentStyles.lockCircle}>
-                  <Lock size={20} color="#DC2626" />
+                  <Lock size={20} color="#D97706" />
                 </View>
                 <View style={paymentStyles.gateTextWrap}>
-                  <Text style={paymentStyles.gateTitle}>Payment Required for Delivery</Text>
+                  <Text style={paymentStyles.gateTitle}>Complete Payment to Receive Your Order</Text>
                   <Text style={paymentStyles.gateSub}>
-                    Your clothes are on their way! Please complete payment before the delivery partner arrives.
-                    The order will be marked as delivered only after payment is confirmed.
+                    Your freshly cleaned clothes are almost here! 🧲{"\n"}
+                    Pay now so the delivery partner can hand them over.
                   </Text>
                 </View>
               </View>
@@ -610,8 +606,11 @@ export const OrderDetailScreen: React.FC = () => {
           <View style={styles.divider} />
 
           {/* ═══════ PAYMENT STATUS ═══════ */}
-          {/* Only shown while payment is outstanding — skip for paid, cancelled, or refunded orders. */}
-          {order.paymentStatus && order.paymentStatus !== 'paid' && order.status !== 'cancelled' && order.status !== 'refund_processed' && (
+          {/* Show after pickup verification (pickup_completed/processing/ready).
+              Hidden for placed/confirmed (amount not yet finalized) and
+              out_for_delivery (where the prominent amber banner takes over). */}
+          {order.paymentStatus && order.paymentStatus !== 'paid' && order.status !== 'cancelled' && order.status !== 'refund_processed'
+            && ['pickup_completed', 'processing', 'ready'].includes(order.status) && (
             <PaymentStatusCard
               paymentStatus={order.paymentStatus === 'failed' ? 'failed' : 'pending'}
               amount={order.billDetails?.total || 0}
@@ -1402,9 +1401,9 @@ const styles = StyleSheet.create({
 // ── Delivery-day payment gate styles ──
 const paymentStyles = StyleSheet.create({
   deliveryGate: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#FFFBEB',
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: '#FDE68A',
     borderRadius: 12,
     padding: 16,
     marginTop: 12,
@@ -1418,7 +1417,7 @@ const paymentStyles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#FEF3C7',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1428,17 +1427,17 @@ const paymentStyles = StyleSheet.create({
   gateTitle: {
     fontFamily: 'Outfit_700Bold',
     fontSize: 15,
-    color: '#991B1B',
+    color: '#92400E',
     marginBottom: 4,
   },
   gateSub: {
     fontFamily: 'Outfit_400Regular',
     fontSize: 12,
-    color: '#B91C1C',
+    color: '#B45309',
     lineHeight: 17,
   },
   gatePayButton: {
-    backgroundColor: '#DC2626',
+    backgroundColor: '#7C3AED',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

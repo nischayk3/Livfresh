@@ -1,6 +1,11 @@
 name: EAS Android Build
 on:
-  workflow_dispatch: # Allows manual trigger from GitHub UI
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: 'Override Android versionCode (leave empty to use app.json)'
+        required: false
+        type: string
 
 jobs:
   build:
@@ -32,6 +37,30 @@ jobs:
       - name: 🏗 Setup EAS CLI
         run: npm install -g eas-cli
 
+      - name: 🔢 Verify & Configure Versioning
+        run: |
+          if [ -n "${{ inputs.version_code }}" ]; then
+            echo "Overriding Android versionCode with: ${{ inputs.version_code }}"
+            node -e "
+              const fs = require('fs');
+              const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+              app.expo.android.versionCode = parseInt('${{ inputs.version_code }}', 10);
+              fs.writeFileSync('app.json', JSON.stringify(app, null, 2) + '\n');
+            "
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit -am "chore: override versionCode to ${{ inputs.version_code }} for build [skip ci]" || true
+          fi
+
+          VERSION_NAME=$(node -p "require('./app.json').expo.version")
+          VERSION_CODE=$(node -p "require('./app.json').expo.android.versionCode")
+          echo "Building SpinZo Android:"
+          echo "  - versionName: $VERSION_NAME"
+          echo "  - versionCode: $VERSION_CODE"
+
+          echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
+          echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
+
       - name: 🚀 Build Android (.aab)
         run: EAS_SKIP_AUTO_FINGERPRINT=1 eas build --platform android --profile production --local --non-interactive --output=app-release.aab
         env:
@@ -44,3 +73,12 @@ jobs:
           name: android-production-build
           path: app-release.aab
           if-no-files-found: warn
+
+      - name: 📊 Job Summary
+        if: always()
+        run: |
+          echo "### 🚀 Android Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **App Version:** \`${{ env.VERSION_NAME }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version Code:** \`${{ env.VERSION_CODE }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Artifact:** \`app-release.aab\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY

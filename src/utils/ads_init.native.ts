@@ -25,37 +25,27 @@ export const initAds = async () => {
             console.log('[FB SDK] Android: Initialized and auto-logging enabled');
         }
 
-        // Now initialize AppsFlyer (v7 API)
-        if (__DEV__) {
-            appsFlyer.enableDebug({ enabled: true });
-        }
-        
-        appsFlyer.registerDeepLinkListener({
-            onDeepLinking: (result: any) => {
-                 console.log('[AppsFlyer] deepLinkListener', result);
-            }
+        // Initialize AppsFlyer (standard v6 API)
+        appsFlyer.onDeepLink((result: any) => {
+            console.log('[AppsFlyer] onDeepLink:', result);
         });
 
-        appsFlyer.init({
-            devKey: '3f7wku9hKnq4jHuor4NXaP',
-            appId: '6758751814',
-        });
-        
-        appsFlyer.registerConversionListener({
-            onConversionDataSuccess: (conversionData: any) => {
-                console.log('[AppsFlyer] onConversionDataSuccess', conversionData);
+        appsFlyer.initSdk(
+            {
+                devKey: '3f7wku9hKnq4jHuor4NXaP',
+                appId: '6758751814',
+                isDebug: __DEV__,
+                onInstallConversionDataListener: true,
+                onDeepLinkListener: true,
+                timeToWaitForATTUserAuthorization: 10,
             },
-            onConversionDataFail: (error: any) => {
-                console.log('[AppsFlyer] onConversionDataFail', error);
+            (result: any) => {
+                console.log('[AppsFlyer] Init SUCCESS:', result);
+            },
+            (error: any) => {
+                console.error('[AppsFlyer] Init ERROR:', error);
             }
-        });
-
-        appsFlyer.registerSessionReadyListener(() => {
-            appsFlyer.start().then(
-                () => console.log('[AppsFlyer] Init SUCCESS'),
-                (error) => console.error('[AppsFlyer] Init ERROR:', error)
-            );
-        });
+        );
 
         if (Platform.OS === 'ios') {
             Settings.setAutoLogAppEventsEnabled(true);

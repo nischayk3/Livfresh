@@ -147,8 +147,8 @@ importers:
         specifier: 0.81.5
         version: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
       react-native-appsflyer:
-        specifier: 7.0.2-v2
-        version: 7.0.2-v2(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))
+        specifier: ^6.18.0
+        version: 6.18.0
       react-native-css-interop:
         specifier: 0.2.2
         version: 0.2.2(react-native-reanimated@4.1.6(@babel/core@7.29.0)(react-native-worklets@0.5.1(@babel/core@7.29.0)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native-safe-area-context@5.7.0(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native-svg@15.12.1(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(tailwindcss@3.4.19(yaml@2.8.2))
@@ -192,9 +192,6 @@ importers:
         specifier: ^5.0.9
         version: 5.0.12(@types/react@19.1.17)(react@19.1.0)(use-sync-external-store@1.6.0(react@19.1.0))
     devDependencies:
-      '@appsflyer-sdk/js-core-plugin':
-        specifier: ^7.1.0
-        version: 7.1.0
       '@babel/plugin-transform-react-jsx':
         specifier: ^7.28.6
         version: 7.28.6(@babel/core@7.29.0)
@@ -252,9 +249,6 @@ packages:
 
   '@apphosting/common@0.0.9':
     resolution: {integrity: sha512-ZbPZDcVhEN+8m0sf90PmQN4xWaKmmySnBSKKPaIOD0JvcDsRr509WenFEFlojP++VSxwFZDGG/TYsHs1FMMqpw==}
-
-  '@appsflyer-sdk/js-core-plugin@7.1.0':
-    resolution: {integrity: sha512-Gjni1Z67nBx1fpmMEXeAD6hnUradpAW8+vqQ1L1Bd071HqrBB2l6aXJby4cUvfStuyy2tf0PUYLLm0kc9EGZ1A==}
 
   '@babel/code-frame@7.10.4':
     resolution: {integrity: sha512-vG6SvB6oYEhvgisZNFRmRCUkLz11c7rp+tbNTynGqc6mS1d5ATd/sGyV6W0KZZnXRKMTzZDRgQT3Ou9jhpAfUg==}
@@ -5265,10 +5259,8 @@ packages:
   react-is@19.3.0:
     resolution: {integrity: sha512-UpMYezM4v5/18F28aC66AEsjXIgE02kyEMH6yLdgLXu/UTfa1Ntwck/nNLrbqJsEXW7gPb0coNO9FQse9WTovA==}
 
-  react-native-appsflyer@7.0.2-v2:
-    resolution: {integrity: sha512-RV5HyLb36TNod+CUA3VWNWdXOUg3P9XT2F9791TzWBkFJSgC9gcO+DL/zFOVZXAX5kJ416PVX8Jopvta9JjyWA==}
-    peerDependencies:
-      react-native: '>=0.76.0'
+  react-native-appsflyer@6.18.0:
+    resolution: {integrity: sha512-rsRWbsfr+7pCsDdnTRjgKdO8Ed0ICQPUM6zlHU3RSiTrAgNf04h4k8Ci6tLfbJax3gAN8bo7QqfWhnpA2jBqBQ==}
 
   react-native-css-interop@0.2.2:
     resolution: {integrity: sha512-2eUyl7RH1RT6TYbe5nm+d4HZ2Pr6Nmve158B57tb5W4Bo52Xzp+PFeWAdFnAr2HNB+r9b6qa8o3xH1YREVQU0g==}
@@ -6366,8 +6358,6 @@ snapshots:
   '@apphosting/common@0.0.8': {}
 
   '@apphosting/common@0.0.9': {}
-
-  '@appsflyer-sdk/js-core-plugin@7.1.0': {}
 
   '@babel/code-frame@7.10.4':
     dependencies:
@@ -12689,10 +12679,7 @@ snapshots:
 
   react-is@19.3.0: {}
 
-  react-native-appsflyer@7.0.2-v2(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)):
-    dependencies:
-      '@appsflyer-sdk/js-core-plugin': 7.1.0
-      react-native: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
+  react-native-appsflyer@6.18.0: {}
 
   react-native-css-interop@0.2.2(react-native-reanimated@4.1.6(@babel/core@7.29.0)(react-native-worklets@0.5.1(@babel/core@7.29.0)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native-safe-area-context@5.7.0(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native-svg@15.12.1(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(tailwindcss@3.4.19(yaml@2.8.2)):
     dependencies:

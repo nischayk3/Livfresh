@@ -55,7 +55,7 @@
         "react": "19.1.0",
         "react-dom": "19.1.0",
         "react-native": "0.81.5",
-        "react-native-appsflyer": "7.0.2-v2",
+        "react-native-appsflyer": "^6.18.0",
         "react-native-css-interop": "0.2.2",
         "react-native-fbsdk-next": "^13.4.3",
         "react-native-gesture-handler": "~2.28.0",
@@ -72,7 +72,6 @@
         "zustand": "^5.0.9"
     },
     "devDependencies": {
-        "@appsflyer-sdk/js-core-plugin": "^7.1.0",
         "@babel/plugin-transform-react-jsx": "^7.28.6",
         "@expo/config-plugins": "^54.0.4",
         "@sentry/cli": "^2.55.0",

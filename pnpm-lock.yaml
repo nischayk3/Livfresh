@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  react-native-appsflyer@7.0.2-v2:
+    hash: 40122bb52871a4a55082948d8ef0062df857f7bd431ae1f87f67cc4d20b950b8
+    path: patches/react-native-appsflyer@7.0.2-v2.patch
+
 importers:
 
   .:
@@ -148,7 +153,7 @@ importers:
         version: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
       react-native-appsflyer:
         specifier: 7.0.2-v2
-        version: 7.0.2-v2(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))
+        version: 7.0.2-v2(patch_hash=40122bb52871a4a55082948d8ef0062df857f7bd431ae1f87f67cc4d20b950b8)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))
       react-native-css-interop:
         specifier: 0.2.2
         version: 0.2.2(react-native-reanimated@4.1.6(@babel/core@7.29.0)(react-native-worklets@0.5.1(@babel/core@7.29.0)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native-safe-area-context@5.7.0(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native-svg@15.12.1(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(tailwindcss@3.4.19(yaml@2.8.2))
@@ -12689,7 +12694,7 @@ snapshots:
 
   react-is@19.3.0: {}
 
-  react-native-appsflyer@7.0.2-v2(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)):
+  react-native-appsflyer@7.0.2-v2(patch_hash=40122bb52871a4a55082948d8ef0062df857f7bd431ae1f87f67cc4d20b950b8)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)):
     dependencies:
       '@appsflyer-sdk/js-core-plugin': 7.1.0
       react-native: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)

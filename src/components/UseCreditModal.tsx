@@ -26,6 +26,7 @@ import * as Speech from 'expo-speech';
 import { useNavigation, CommonActions } from '@react-navigation/native';
 import { FaqAccordion } from './FaqAccordion';
 import { ASSET_URLS } from '../utils/assetUrls';
+import tracker from '../services/tracker';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const MIN_IRONING_COUNT = 4;
@@ -232,6 +233,17 @@ export const UseCreditModal: React.FC<UseCreditModalProps> = ({ visible, onClose
                 specialInstructions: 'Ironing add-on for credit order',
             });
         }
+
+        // Track AddToCart
+        tracker.logAddToCart({
+            item_id: serviceType === 'wash_iron' ? 'wash_iron' : 'wash_fold',
+            item_name: serviceType === 'wash_iron' ? 'Wash & Iron' : 'Wash & Fold (Subscription)',
+            item_category: 'Subscription Credit',
+            price: ironingEnabled ? ironingPrice : 0,
+            quantity: 1,
+            currency: 'INR',
+            total_value: ironingEnabled ? ironingPrice : 0,
+        });
 
         onClose();
 

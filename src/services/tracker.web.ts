@@ -45,8 +45,6 @@ class UnifiedTrackerWeb {
   }
 
   private isSuppressed(): boolean {
-    if (this.isAdminMode) return true;
-    if (this.currentScreen && ADMIN_SCREENS.has(this.currentScreen)) return true;
     return false;
   }
 

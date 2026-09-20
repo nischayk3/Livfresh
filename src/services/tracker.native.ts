@@ -47,8 +47,7 @@ class UnifiedTracker {
    * Check whether current screen/context is an admin section
    */
   private isSuppressed(): boolean {
-    if (this.isAdminMode) return true;
-    if (this.currentScreen && ADMIN_SCREENS.has(this.currentScreen)) return true;
+    // Allow all events across admin and non-admin so events are never dropped during testing or production
     return false;
   }
 

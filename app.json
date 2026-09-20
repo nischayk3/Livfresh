@@ -21,7 +21,7 @@
       "supportsTablet": true,
       "googleServicesFile": "./GoogleService-Info.plist",
       "bundleIdentifier": "com.nischayk3.Spinit",
-      "buildNumber": "47",
+      "buildNumber": "48",
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
           "tez",
@@ -31,7 +31,9 @@
           "upi"
         ],
         "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": ["remote-notification"],
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
         "NSCameraUsageDescription": "SpinZo uses your camera to photograph garments so you can attach care notes to your laundry order, helping us handle your clothes correctly.",
         "NSPhotoLibraryUsageDescription": "SpinZo accesses your photo library so you can attach existing photos of your garments to communicate special care instructions for your laundry order.",
         "NSMicrophoneUsageDescription": "SpinZo uses your microphone to let you add special garment care instructions to your laundry order using voice input.",
@@ -48,7 +50,9 @@
           }
         ]
       },
-      "associatedDomains": ["applinks:spinzonow.onelink.me"]
+      "associatedDomains": [
+        "applinks:spinzonow.onelink.me"
+      ]
     },
     "android": {
       "newArchEnabled": true,
@@ -84,7 +88,10 @@
               "host": "spinzonow.onelink.me"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },

@@ -9,6 +9,7 @@ import { generateTimeSlots } from '../../utils/slotUtils';
 import { BrandLoader } from '../../components/BrandLoader';
 import { PaymentStatusCard } from '../../components/PaymentStatusCard';
 import { paymentService } from '../../services/paymentService';
+import tracker from '../../services/tracker';
 import {
   ArrowLeft,
   Share2,
@@ -212,6 +213,20 @@ export const OrderDetailScreen: React.FC = () => {
         user: { name: user.name || '', email: user.email || '', phone: user.phone },
       });
       if (result.success) {
+        // Track Purchase Conversion across Firebase, AppsFlyer, and Meta!
+        await tracker.logPurchase({
+          transaction_id: order.id,
+          value: order.billDetails?.total || 0,
+          currency: 'INR',
+          payment_mode: 'online_razorpay',
+          items: order.items?.map((i: any) => ({
+            item_id: i.id || i.serviceId || 'order_item',
+            item_name: i.serviceName || 'Laundry Service',
+            price: i.totalPrice || 0,
+            quantity: i.quantity || 1,
+          })),
+        });
+
         Alert.alert('Payment Successful', 'Your payment has been received.');
         // The order document is updated reactively via subscribeToOrder, so the
         // PaymentStatusCard will flip to "paid" automatically.

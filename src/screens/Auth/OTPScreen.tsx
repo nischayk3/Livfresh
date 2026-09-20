@@ -17,11 +17,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { verifyOTP, getCurrentPhoneNumber } from '../../services/auth';
 import { useAuthStore, useUIStore } from '../../store';
-import { trackPixelEvent } from '../../utils/pixel';
+import tracker from '../../services/tracker';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandLoader } from '../../components/BrandLoader';
 import { AnimatedButton } from '../../components/AnimatedButton';
-import AnalyticsService from '../../services/analytics';
 import { MotiView } from 'moti';
 
 export const OTPScreen: React.FC = () => {
@@ -168,21 +167,18 @@ export const OTPScreen: React.FC = () => {
                 } as any);
             }
 
-            // Track Registration/Login Success
-            trackPixelEvent('CompleteRegistration', {
-                currency: 'INR',
-                value: 0
-            });
+            // Set User ID across Firebase, AppsFlyer, and Meta
+            await tracker.setUserId(firebaseUser.uid);
 
-            // Analytics Expert Tracking
-            AnalyticsService.setUserId(firebaseUser.uid);
             if (userData) {
-                AnalyticsService.logEvent('login', {
-                    method: 'phone_otp'
+                await tracker.logUserLogin({
+                    method: 'phone_otp',
+                    user_id: firebaseUser.uid,
                 });
             } else {
-                AnalyticsService.logEvent('sign_up', {
-                    method: 'phone_otp'
+                await tracker.logCompleteRegistration({
+                    method: 'phone_otp',
+                    user_id: firebaseUser.uid,
                 });
             }
         } catch (error: any) {

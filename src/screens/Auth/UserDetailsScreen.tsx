@@ -18,6 +18,7 @@ import { setUserData } from '../../services/auth';
 import { useAuthStore, useUIStore } from '../../store';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandLoader } from '../../components/BrandLoader';
+import tracker from '../../services/tracker';
 
 type GenderOption = 'male' | 'female' | 'other' | 'prefer_not_to_say';
 
@@ -84,9 +85,10 @@ export const UserDetailsScreen: React.FC = () => {
       } as any);
 
       console.log('✅ User registration complete');
-      // No manual navigation here. 
-      // Setting user state triggers RootNavigator to switch to Main stack.
-      // HomeScreen will handle the redirection to LocationPermission if needed.
+      tracker.logCompleteRegistration({
+        method: 'profile_details',
+        user_id: currentUid,
+      });
     } catch (error: any) {
       console.error('Registration error:', error);
       showAlert({

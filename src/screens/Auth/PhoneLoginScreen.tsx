@@ -21,7 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { requestOTP, initializeRecaptcha } from '../../services/auth';
 import { checkUserExists } from '../../services/firestore';
 import { useAuthStore, useUIStore } from '../../store';
-import { trackPixelEvent } from '../../utils/pixel';
+import tracker from '../../services/tracker';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandLoader } from '../../components/BrandLoader';
 
@@ -36,6 +36,10 @@ export const PhoneLoginScreen: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [loading, setLocalLoading] = useState(false);
   const [recaptchaReady, setRecaptchaReady] = useState(false);
+
+  useEffect(() => {
+    tracker.logLoginScreenViewed({ source: (route.params as any)?.source || 'direct' });
+  }, []);
 
   // RecaptchaVerifier logic moved to auth.web.ts or handled internally by the web SDK.
   // We just ensure the container exists on web.
@@ -61,11 +65,11 @@ export const PhoneLoginScreen: React.FC = () => {
     }
   };
 
-  const handleContinue = async () => {
-    if (phone.length !== 10) {
+  const handleSendOTP = async () => {
+    if (!phone || phone.length !== 10) {
       showAlert({
-        title: 'Invalid Phone',
-        message: 'Please enter a valid 10-digit phone number',
+        title: 'Invalid Number',
+        message: 'Please enter a valid 10-digit mobile number',
         type: 'warning'
       });
       return;
@@ -80,8 +84,8 @@ export const PhoneLoginScreen: React.FC = () => {
       // Request OTP - verifier handled internally by platform specific service
       await requestOTP(formattedPhone);
 
-      // Track Lead event (User requested OTP)
-      trackPixelEvent('Lead');
+      // Track Lead event across Firebase, AppsFlyer, and Meta
+      tracker.logOtpRequested({ phone: formattedPhone });
 
       // Store phone in store
       const { setOTPData } = useAuthStore.getState();
@@ -168,7 +172,7 @@ export const PhoneLoginScreen: React.FC = () => {
           </View>
 
           <TouchableOpacity
-            onPress={handleContinue}
+            onPress={handleSendOTP}
             disabled={phone.length !== 10 || loading}
             style={styles.buttonContainer}
             activeOpacity={0.8}

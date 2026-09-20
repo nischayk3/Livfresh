@@ -40,10 +40,7 @@
         "NSUserTrackingUsageDescription": "This identifier will be used to track your activity across apps and websites to provide personalized content and ads.",
         "SKAdNetworkItems": [
           {
-            "SKAdNetworkIdentifier": "v9wttpbfk9.skadnetwork"
-          },
-          {
-            "SKAdNetworkIdentifier": "n38lu8286q.skadnetwork"
+            "SKAdNetworkIdentifier": "cstr6suwn9.skadnetwork"
           },
           {
             "SKAdNetworkIdentifier": "v9wttpbfk9.skadnetwork"
@@ -78,7 +75,8 @@
         "android.permission.INTERNET",
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "com.google.android.gms.permission.AD_ID"
       ],
       "intentFilters": [
         {
@@ -135,9 +133,9 @@
           "appID": "1548776956231117",
           "clientToken": "e123bd0dc1f62abc525df57d1173fdff2",
           "displayName": "SpinZo",
-          "advertiserIDCollectionEnabled": false,
-          "autoLogAppEventsEnabled": false,
-          "isAutoInitEnabled": false
+          "advertiserIDCollectionEnabled": true,
+          "autoLogAppEventsEnabled": true,
+          "isAutoInitEnabled": true
         }
       ],
       "expo-video",
@@ -153,7 +151,7 @@
         "react-native-appsflyer",
         {
           "devKey": "3f7wku9hKnq4jHuor4NXaP",
-          "isDebug": true,
+          "isDebug": false,
           "appId": "6758751814"
         }
       ]

@@ -26,7 +26,7 @@ import Animated, {
 import { useAuthStore, useAddressStore, useNotificationStore } from '../../store';
 import { useCartStore } from '../../store';
 import { useSubscriptionStore } from '../../store';
-import AnalyticsService from '../../services/analytics';
+import tracker from '../../services/tracker';
 import { ServiceDetailScreen } from './ServiceDetailScreen';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandLoader } from '../../components/BrandLoader';
@@ -186,6 +186,11 @@ export const HomeScreen: React.FC = () => {
     }, [user?.uid, fetchSubscriptions])
   );
 
+  // Track Home Screen View
+  useEffect(() => {
+    tracker.logHomeViewed();
+  }, []);
+
   // Redirect to Location Permission if no address is set (e.g. fresh login)
   useEffect(() => {
     // Only redirect if they have NO address AND haven't explicitly skipped
@@ -223,7 +228,7 @@ export const HomeScreen: React.FC = () => {
 
   const handleServicePress = (serviceId: string) => {
     if (serviceId === 'subscription') {
-      AnalyticsService.logEvent('select_item', {
+      tracker.logCustomEvent('select_item', {
         item_id: 'subscription',
         item_name: 'Smart Care Subscription',
         item_category: 'Service'
@@ -232,7 +237,7 @@ export const HomeScreen: React.FC = () => {
       return;
     }
     const service = SERVICES.find(s => s.id === serviceId);
-    AnalyticsService.logEvent('select_item', {
+    tracker.logCustomEvent('select_item', {
       item_id: serviceId,
       item_name: service?.name || serviceId,
       item_category: 'Service'
@@ -264,7 +269,7 @@ export const HomeScreen: React.FC = () => {
       <TouchableOpacity
         activeOpacity={0.9}
         onPress={() => {
-          AnalyticsService.logEvent('select_promotion', {
+          tracker.logCustomEvent('select_promotion', {
             promotion_id: item.id,
             promotion_name: item.title,
             creative_name: item.badge

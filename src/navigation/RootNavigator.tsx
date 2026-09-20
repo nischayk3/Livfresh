@@ -13,7 +13,7 @@ import { auth, adminAuth, onAuthStateChanged } from '../services/firebase';
 import { useCartStore, useAddressStore } from '../store';
 import { COLORS, TYPOGRAPHY, SHADOWS } from '../utils/constants';
 import { BrandLoader } from '../components/BrandLoader';
-import AnalyticsService from '../services/analytics';
+import tracker from '../services/tracker';
 
 // Helper for lazy loading components with Web compatibility
 const lazyWeb = (importPath: () => Promise<any>) => {
@@ -322,6 +322,7 @@ export const RootNavigator: React.FC = () => {
           isAdmin: true,
           adminPhone: adminUser.phoneNumber,
         });
+        tracker.setAdminMode(true);
 
         // Fetch role and name to restore full permissions
         try {
@@ -343,6 +344,7 @@ export const RootNavigator: React.FC = () => {
           adminRole: null,
           adminName: null,
         });
+        tracker.setAdminMode(false);
       }
     });
 
@@ -510,7 +512,7 @@ export const RootNavigator: React.FC = () => {
       onReady={() => {
         routeNameRef.current = navigationRef.getCurrentRoute()?.name;
         if (routeNameRef.current) {
-          AnalyticsService.logScreenView(routeNameRef.current);
+          tracker.logScreenView({ screen_name: routeNameRef.current });
         }
       }}
       onStateChange={async () => {
@@ -518,7 +520,7 @@ export const RootNavigator: React.FC = () => {
         const currentRouteName = navigationRef.getCurrentRoute()?.name;
 
         if (previousRouteName !== currentRouteName && currentRouteName) {
-          await AnalyticsService.logScreenView(currentRouteName);
+          await tracker.logScreenView({ screen_name: currentRouteName });
         }
         routeNameRef.current = currentRouteName;
       }}

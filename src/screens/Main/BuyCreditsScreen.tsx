@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore, useSubscriptionStore, useUIStore } from '../../store';
-import { trackPixelEvent } from '../../utils/pixel';
+import tracker from '../../services/tracker';
 import { openRazorpay } from '../../utils/payment_helper';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandHeader } from '../../components/BrandHeader';
@@ -22,7 +22,6 @@ import { GlassCard } from '../../components/GlassCard';
 import { AnimatedButton } from '../../components/AnimatedButton';
 import { MotiView } from 'moti';
 import { LinearGradient } from 'expo-linear-gradient';
-import AnalyticsService from '../../services/analytics';
 import {
   ServiceType,
   CreditWeight,
@@ -100,10 +99,12 @@ export const BuyCreditsScreen: React.FC = () => {
   };
 
   React.useEffect(() => {
-    AnalyticsService.logEvent('view_item', {
-      item_id: 'credits_screen',
+    tracker.logViewItem({
+      item_id: 'subscription_credits',
       item_name: 'Buy Credits Screen',
-      item_category: 'Subscription'
+      item_category: 'Subscription',
+      price: totalAmount,
+      currency: 'INR'
     });
   }, []);
 
@@ -130,13 +131,15 @@ export const BuyCreditsScreen: React.FC = () => {
     try {
       setPurchasing(true);
 
-      AnalyticsService.logEvent('begin_checkout_credits', {
+      tracker.logBeginCheckout({
         value: totalAmount,
         currency: 'INR',
+        num_items: creditCount,
         items: [{
           item_id: `subscription_${serviceType}_${kgPerCredit}_${creditCount}`,
           item_name: `${serviceTypeLabel(serviceType)} ${kgPerCredit}kg - ${creditCount} Credits`,
-          price: totalAmount
+          price: totalAmount,
+          quantity: 1
         }]
       });
 
@@ -176,30 +179,18 @@ export const BuyCreditsScreen: React.FC = () => {
             }
           });
 
-          // Track Purchase Event
-          await trackPixelEvent('Purchase', {
-            value: totalAmount,
-            currency: 'INR',
-            content_ids: [`subscription_${serviceType}_${kgPerCredit}_${creditCount}`],
-            content_type: 'product',
-            service_type: serviceType,
-            kg_per_credit: kgPerCredit,
-            credits: creditCount
-          });
-
-          AnalyticsService.logEvent('purchase', {
+          // Track Purchase Event across Firebase, AppsFlyer, and Meta
+          await tracker.logPurchase({
             transaction_id: data.razorpay_payment_id,
             value: totalAmount,
             currency: 'INR',
+            payment_mode: 'online_razorpay',
             items: [{
               item_id: `subscription_${serviceType}_${kgPerCredit}_${creditCount}`,
               item_name: `${serviceTypeLabel(serviceType)} ${kgPerCredit}kg - ${creditCount} Credits`,
               price: totalAmount,
-              quantity: 1
+              quantity: 1,
             }],
-            service_type: serviceType,
-            kg_per_credit: kgPerCredit,
-            credits: creditCount
           });
 
           // Poll for subscription update to ensure consistency

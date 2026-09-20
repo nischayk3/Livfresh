@@ -26,8 +26,9 @@ import {
   createOrder,
   clearCartInFirestore,
   getUserOrders,
+  checkSlotAvailability,
 } from '../../services/firestore';
-import { trackPixelEvent } from '../../utils/pixel';
+import tracker from '../../services/tracker';
 import {
   SLOT_CONSTANTS,
   generateTimeSlots,
@@ -35,8 +36,6 @@ import {
 } from '../../utils/slotUtils';
 import { BrandLoader } from '../../components/BrandLoader';
 
-import { checkSlotAvailability } from '../../services/firestore';
-import AnalyticsService from '../../services/analytics';
 import { CartTrust } from '../../components/CartTrust';
 import {
   ArrowLeft,
@@ -263,15 +262,11 @@ export const CartScreen: React.FC = () => {
   useFocusEffect(
     React.useCallback(() => {
       if (items.length > 0) {
-        trackPixelEvent('InitiateCheckout', {
+        tracker.logBeginCheckout({
           value: totalAmount,
           currency: 'INR',
           num_items: items.length,
-        });
-        AnalyticsService.logEvent('begin_checkout', {
-          value: totalAmount,
-          currency: 'INR',
-          items: items.map((i) => ({ item_id: i.id, item_name: i.serviceName, price: i.totalPrice })),
+          items: items.map((i) => ({ item_id: i.id, item_name: i.serviceName, price: i.totalPrice, quantity: 1 })),
         });
       }
     }, [items.length, totalAmount]),
@@ -316,12 +311,12 @@ export const CartScreen: React.FC = () => {
       }
     }
 
-    AnalyticsService.logEvent('add_shipping_info', {
+    tracker.logCustomEvent('add_shipping_info', {
       currency: 'INR',
       value: totalAmount,
       items: items.map((i) => ({ item_id: i.id, item_name: i.serviceName, price: i.totalPrice })),
     });
-    AnalyticsService.logEvent('add_payment_info', {
+    tracker.logCustomEvent('add_payment_info', {
       payment_type: 'COD',
       currency: 'INR',
       value: totalAmount,
@@ -364,19 +359,12 @@ export const CartScreen: React.FC = () => {
 
       const orderId = await createOrder(latestUser.uid, orderData);
 
-      await trackPixelEvent('Purchase', {
-        value: totalAmount,
-        currency: 'INR',
-        num_items: items.length,
-        content_ids: items.map((i) => i.id),
-        content_type: 'product',
-      });
-
-      await AnalyticsService.logEvent('purchase', {
+      await tracker.logPurchase({
         transaction_id: orderId,
         value: totalAmount,
         currency: 'INR',
-        items: items.map((i) => ({ item_id: i.id, item_name: i.serviceName, price: i.totalPrice })),
+        payment_mode: 'later',
+        items: items.map((i) => ({ item_id: i.id, item_name: i.serviceName, price: i.totalPrice, quantity: 1 })),
       });
 
       setIsNavigating(true);

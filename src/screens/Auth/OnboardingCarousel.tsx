@@ -18,6 +18,7 @@ import { COLORS } from '../../utils/constants';
 import { PWAInstallBanner } from '../../components/PWAInstallBanner';
 import { useUIStore } from '../../store';
 import { ASSET_URLS } from '../../utils/assetUrls';
+import tracker from '../../services/tracker';
 
 const IMAGES = {
   slide1: { uri: ASSET_URLS.onboarding_screen_1 },
@@ -68,6 +69,10 @@ export const OnboardingCarousel: React.FC = () => {
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
+    tracker.logOnboardingViewed({ step_index: 0, total_steps: slides.length });
+  }, []);
+
+  useEffect(() => {
     const interval = setInterval(() => {
       if (currentIndex < slides.length - 1) {
         const nextIndex = currentIndex + 1;
@@ -92,11 +97,13 @@ export const OnboardingCarousel: React.FC = () => {
       flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
       setCurrentIndex(nextIndex);
     } else {
+      tracker.logOnboardingCompleted({ total_steps: slides.length });
       setHasCompletedOnboarding(true);
     }
   };
 
   const handleSkip = () => {
+    tracker.logOnboardingCompleted({ total_steps: slides.length });
     setHasCompletedOnboarding(true);
   };
 

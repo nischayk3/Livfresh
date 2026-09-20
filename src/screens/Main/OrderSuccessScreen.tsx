@@ -7,7 +7,6 @@ import { MotiView, MotiText } from 'moti';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { AnimatedButton } from '../../components/AnimatedButton';
-import { trackPixelEvent } from '../../utils/pixel';
 
 // NOTE: Ideally use Lottie here, but for now using a custom Animated sequence
 // to guarantee it works without external asset dependencies immediately.
@@ -19,14 +18,10 @@ export const OrderSuccessScreen: React.FC = () => {
     const { paymentStatus, orderId } = (route.params as { paymentStatus?: string; orderId?: string }) || {};
     const insets = useSafeAreaInsets();
 
-    // Fire a conversion event on the dedicated success route so ad pixels
-    // (Meta/GA4) attribute the purchase regardless of how the user got here.
+    // Clean success screen view tracking (purchases are tracked with full values in CartScreen & OrderDetailScreen)
     React.useEffect(() => {
-        if (orderId && paymentStatus === 'paid') {
-            trackPixelEvent('Purchase', {
-                content_type: 'product',
-                transaction_id: orderId,
-            });
+        if (orderId) {
+            console.log(`[OrderSuccessScreen] Order success presented for #${orderId}`);
         }
     }, [orderId, paymentStatus]);
 

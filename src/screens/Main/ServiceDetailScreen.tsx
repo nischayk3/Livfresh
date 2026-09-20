@@ -32,14 +32,13 @@ import { COLORS, SPACING, SHADOWS, RADIUS, TYPOGRAPHY } from '../../utils/consta
 import { useCartStore, useUIStore, useAuthStore, useServiceAvailabilityStore, isActiveService } from '../../store';
 import { uploadServicePhotos } from '../../services/firestore';
 import { CartItem } from '../../store/cartStore';
-import { trackPixelEvent } from '../../utils/pixel';
+import tracker from '../../services/tracker';
 import { FaqAccordion } from '../../components/FaqAccordion';
 import { TrustBanner } from '../../components/TrustBanner';
 import { ServiceStats } from '../../components/ServiceStats';
 import { ServiceInfo } from '../../components/ServiceInfo';
 import { GlassCard } from '../../components/GlassCard';
 import { AnimatedButton } from '../../components/AnimatedButton';
-import AnalyticsService from '../../services/analytics';
 import { ASSET_URLS } from '../../utils/assetUrls';
 
 // -------------- FAQ DATA --------------
@@ -130,12 +129,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       else if (serviceId === 'ironing') serviceName = 'Steam Iron';
       else if (serviceId === 'blanket_wash') serviceName = 'Blanket Wash';
 
-      trackPixelEvent('ViewContent', {
-        content_category: 'Laundry Service',
-        content_name: serviceName
-      });
-
-      AnalyticsService.logEvent('view_item', {
+      tracker.logViewItem({
         item_id: serviceId,
         item_name: serviceName,
         item_category: 'Laundry Service'
@@ -649,20 +643,15 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     // Guests CAN add to cart. Login is deferred to checkout (CartScreen.handlePlaceOrder)
     addItem(cartItem);
 
-    // Track AddToCart
-    trackPixelEvent('AddToCart', {
-      value: cartItem.totalPrice,
-      currency: 'INR'
-    });
-
-    AnalyticsService.logEvent('add_to_cart', {
-      value: cartItem.totalPrice,
+    // Track AddToCart across Firebase, AppsFlyer, and Meta
+    tracker.logAddToCart({
+      item_id: cartItem.serviceId,
+      item_name: cartItem.serviceName,
+      item_category: 'Laundry Service',
+      price: cartItem.totalPrice,
+      quantity: 1,
       currency: 'INR',
-      items: [{
-        item_id: cartItem.serviceId,
-        item_name: cartItem.serviceName,
-        price: cartItem.totalPrice
-      }]
+      total_value: cartItem.totalPrice,
     });
 
     onClose();

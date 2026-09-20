@@ -18,7 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
 import { addAddress, updateUserAddress } from '../../services/firestore';
 import { useAuthStore, useAddressStore, useUIStore } from '../../store';
-import AnalyticsService from '../../services/analytics';
+import tracker from '../../services/tracker';
 import { reverseGeocode } from '../../utils/geocoding';
 
 const ADDRESS_TYPES = [
@@ -119,8 +119,8 @@ export const AddressFormScreen: React.FC = () => {
         isPrimary: form.isDefault,
       };
 
-      AnalyticsService.logEvent('search', {
-        search_term: fullAddress,
+      tracker.logCustomEvent('add_shipping_info', {
+        shipping_tier: form.tag,
         location_type: 'address_form_save',
       });
 

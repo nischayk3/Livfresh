@@ -65,9 +65,9 @@ const BLANKET_WASH_FAQS = [
 ];
 
 const IRONING_FAQS = [
-  { question: "What is the minimum order for Ironing?", answer: "We require a minimum of 5 pieces for a standalone Steam Ironing service." },
-  { question: "What is the price per cloth?", answer: "Steam Ironing is priced at ₹18 per piece." },
-  { question: "Is there a delivery fee?", answer: "For standalone Ironing orders, delivery fee is ₹80 for 5-19 pieces, and ₹50 for 20+ pieces. This is waived if combined with other services." },
+  { question: "What is the minimum order for Ironing?", answer: "We require a minimum of 10 pieces for a standalone Steam Ironing service." },
+  { question: "What is the price per cloth?", answer: "Steam Ironing is priced at ₹10 per piece (originally ₹20)." },
+  { question: "Is there a delivery fee?", answer: "For standalone Ironing orders, delivery fee is ₹80 for 10-19 pieces, and ₹50 for 20+ pieces. This is waived if combined with other services." },
   { question: "How long does it take?", answer: "Ironing orders are usually delivered within 24-48 hours." },
 ];
 
@@ -153,7 +153,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   const [doubleBlanketCount, setDoubleBlanketCount] = useState(0);
 
   // Ironing state
-  const [ironingCount, setIroningCount] = useState(5); // Min 5 as requested
+  const [ironingCount, setIroningCount] = useState(10); // Min 10 as requested
 
   // Shoe Cleaning state
   const [shoeSelections, setShoeSelections] = useState<Record<string, number>>({
@@ -497,7 +497,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     }
 
     if (serviceId === 'ironing') {
-      return ironingCount * 18;
+      return ironingCount * 10;
     }
 
     // ... (Shoe/Dry Clean Logic remains same)
@@ -578,10 +578,10 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     }
 
     if (serviceId === 'ironing') {
-      if (ironingCount < 5) {
+      if (ironingCount < 10) {
         showAlert({
           title: 'Minimum Required',
-          message: 'Minimum 5 pieces required for Steam Ironing',
+          message: 'Minimum 10 pieces required for Steam Ironing',
           type: 'warning'
         });
         return;
@@ -629,7 +629,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     if (serviceId === 'ironing') {
       cartItem.ironingEnabled = true;
       cartItem.ironingCount = ironingCount;
-      cartItem.ironingPrice = ironingCount * 18;
+      cartItem.ironingPrice = ironingCount * 10;
       cartItem.clothesCount = ironingCount;
     }
 
@@ -714,8 +714,14 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
             </View>
 
             <View style={{ alignItems: 'center', marginTop: 12 }}>
-              <View style={styles.priceTag}>
-                <Text style={styles.priceTagText}>₹85 per kg</Text>
+              <View style={[styles.priceTag, { paddingHorizontal: 18 }]}>
+                <View style={styles.priceTagRow}>
+                  <Text style={styles.priceTagText}>₹85 per kg</Text>
+                  <Text style={styles.priceTagStrike}>₹120</Text>
+                  <View style={styles.discountBadge}>
+                    <Text style={styles.discountBadgeText}>29% OFF</Text>
+                  </View>
+                </View>
               </View>
               <Text style={{ fontSize: 13, color: COLORS.textSecondary, marginTop: 8, fontWeight: '500' }}>
                 <MaterialCommunityIcons name="tshirt-crew-outline" size={14} color={COLORS.textSecondary} /> ~ {Math.round(washFoldKg * 3.5)} clothes
@@ -836,8 +842,14 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
             </View>
 
             <View style={{ alignItems: 'center', marginTop: 12 }}>
-              <View style={styles.priceTag}>
-                <Text style={styles.priceTagText}>₹140 per kg</Text>
+              <View style={[styles.priceTag, { paddingHorizontal: 18 }]}>
+                <View style={styles.priceTagRow}>
+                  <Text style={styles.priceTagText}>₹140 per kg</Text>
+                  <Text style={styles.priceTagStrike}>₹180</Text>
+                  <View style={styles.discountBadge}>
+                    <Text style={styles.discountBadgeText}>22% OFF</Text>
+                  </View>
+                </View>
               </View>
               <Text style={{ fontSize: 13, color: COLORS.textSecondary, marginTop: 8, fontWeight: '500' }}>
                 <MaterialCommunityIcons name="tshirt-crew-outline" size={14} color={COLORS.textSecondary} /> ~ {Math.round(washIronKg * 3.5)} clothes
@@ -881,16 +893,16 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
         <View style={styles.premiumSelectorContainer}>
           <Text style={styles.premiumSelectorTitle}>Select Quantity</Text>
-          <Text style={styles.premiumSelectorSubtitle}>Min 5 - Max 50 pieces</Text>
+          <Text style={styles.premiumSelectorSubtitle}>Min 10 - Max 50 pieces</Text>
 
           <View style={styles.counterWrapper}>
             <TouchableOpacity
-              style={[styles.countBtn, ironingCount <= 5 && styles.countBtnDisabled]}
-              onPress={() => setIroningCount(Math.max(5, ironingCount - 1))}
-              disabled={ironingCount <= 5}
+              style={[styles.countBtn, ironingCount <= 10 && styles.countBtnDisabled]}
+              onPress={() => setIroningCount(Math.max(10, ironingCount - 1))}
+              disabled={ironingCount <= 10}
               activeOpacity={0.6}
             >
-              <MaterialCommunityIcons name="minus" size={24} color={ironingCount <= 5 ? '#CBD5E1' : '#7C3AED'} />
+              <MaterialCommunityIcons name="minus" size={24} color={ironingCount <= 10 ? '#CBD5E1' : '#7C3AED'} />
             </TouchableOpacity>
 
             <View style={styles.countDisplay}>
@@ -909,14 +921,20 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
           </View>
 
           <View style={styles.priceTag}>
-            <Text style={styles.priceTagText}>₹18 per piece</Text>
+            <View style={styles.priceTagRow}>
+              <Text style={styles.priceTagText}>₹10 per piece</Text>
+              <Text style={styles.priceTagStrike}>₹20</Text>
+              <View style={styles.discountBadge}>
+                <Text style={styles.discountBadgeText}>50% OFF</Text>
+              </View>
+            </View>
           </View>
         </View>
 
         <View style={[styles.infoBox, { marginTop: SPACING.lg, backgroundColor: 'rgba(124, 58, 237, 0.1)', borderColor: 'rgba(124, 58, 237, 0.2)' }]}>
           <MaterialCommunityIcons name="information" size={20} color="#7C3AED" style={{ marginRight: 8 }} />
           <Text style={[styles.infoBoxText, { color: '#6D28D9' }]}>
-            Standalone ironing orders have a ₹80 delivery fee (5-19 pieces) or ₹50 (20+ pieces). Waived if combined with other services!
+            Standalone ironing orders have a ₹80 delivery fee (10-19 pieces) or ₹50 (20+ pieces). Waived if combined with other services!
           </Text>
         </View>
       </View>
@@ -958,7 +976,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
         <View style={styles.blanketRow}>
           <View style={styles.blanketInfo}>
             <Text style={styles.blanketOptionText}>Single Blanket</Text>
-            <Text style={styles.blanketPrice}>₹299 / pc</Text>
+              <Text style={styles.blanketPrice}>₹299 / pc</Text>
           </View>
           <View style={styles.quantityControls}>
             <TouchableOpacity
@@ -984,7 +1002,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
         <View style={styles.blanketRow}>
           <View style={styles.blanketInfo}>
             <Text style={styles.blanketOptionText}>Double Blanket</Text>
-            <Text style={styles.blanketPrice}>₹399 / pc</Text>
+              <Text style={styles.blanketPrice}>₹399 / pc</Text>
           </View>
           <View style={styles.quantityControls}>
             <TouchableOpacity
@@ -1619,10 +1637,33 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(16, 185, 129, 0.2)',
   },
+  priceTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
   priceTagText: {
-    fontSize: 14,
-    fontFamily: 'Outfit_600SemiBold',
+    fontSize: 16,
+    fontFamily: 'Outfit_700Bold',
     color: '#166534',
+  },
+  priceTagStrike: {
+    fontSize: 13,
+    fontFamily: 'Outfit_500Medium',
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+  discountBadge: {
+    backgroundColor: '#F97316',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  discountBadgeText: {
+    fontSize: 11,
+    fontFamily: 'Outfit_700Bold',
+    color: '#FFFFFF',
   },
   infoBox: {
     flexDirection: 'row',
@@ -2054,6 +2095,24 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: '700',
     fontFamily: 'Outfit_700Bold',
+  },
+  blanketPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  blanketPriceStrike: {
+    fontSize: 12,
+    fontFamily: 'Outfit_500Medium',
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+  discountBadgeSmall: {
+    backgroundColor: '#F97316',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
   },
   shoeCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.4)',

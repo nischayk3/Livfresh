@@ -3,8 +3,14 @@ import { firebaseConfig } from './firebaseConfig';
 import authInstance, { onAuthStateChanged, signInWithPhoneNumber, signOut } from '@react-native-firebase/auth';
 
 export const deleteUser = async (user: any) => {
-    // Returning null to prevent actual deletion of the user as requested
-    return null;
+    if (user && typeof user.delete === 'function') {
+        return await user.delete();
+    }
+    const currentUser = authInstance().currentUser;
+    if (currentUser && typeof currentUser.delete === 'function') {
+        return await currentUser.delete();
+    }
+    throw new Error('No user logged in to delete');
 };
 import firestore, {
     getFirestore,

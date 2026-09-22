@@ -2174,7 +2174,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
 
     if (item.serviceId === 'ironing') {
       const count = item.ironingCount || item.clothesCount || 0;
-      return count * 18;
+      return count * 10;
     }
 
     // Default fallback to existing price if logic unknown
@@ -2246,7 +2246,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
 
     // Keep ironingPrice in sync for standalone ironing service
     if (updatedItem.serviceId === 'ironing') {
-      updatedItem.ironingPrice = (updatedItem.ironingCount || 0) * 18;
+      updatedItem.ironingPrice = (updatedItem.ironingCount || 0) * 10;
     }
 
     // Recalculate price for this item
@@ -2368,7 +2368,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
               {/* Standalone Steam Press / Ironing Editing */}
               {item.serviceId === 'ironing' && (
                 <View style={{ marginTop: 8 }}>
-                  <Text style={TYPOGRAPHY.caption}>Number of Pieces (₹18/pc)</Text>
+                  <Text style={TYPOGRAPHY.caption}>Number of Pieces (₹10/pc)</Text>
                   <Text style={{ fontSize: 11, color: COLORS.textSecondary, marginBottom: 4 }}>
                     Admin can adjust piece count (original customer limit does not apply)
                   </Text>

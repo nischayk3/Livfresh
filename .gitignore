@@ -28,3 +28,4 @@ ios
 node_modules
 web-build
 .claude
+.codegraph

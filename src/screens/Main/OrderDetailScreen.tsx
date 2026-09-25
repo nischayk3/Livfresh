@@ -334,7 +334,9 @@ export const OrderDetailScreen: React.FC = () => {
             </View>
           )}
 
-          {order.status === 'out_for_delivery' && order.paymentStatus && order.paymentStatus !== 'paid' && (
+          {order.status === 'out_for_delivery' && order.paymentStatus && order.paymentStatus !== 'paid'
+            && (order.billDetails?.total || 0) > 0 && order.paymentMode !== 'credit'
+            && !order.items?.every((i: any) => i.isCreditItem) && (
             <View style={paymentStyles.deliveryGate}>
               <View style={paymentStyles.gateIconRow}>
                 <View style={paymentStyles.lockCircle}>
@@ -625,7 +627,9 @@ export const OrderDetailScreen: React.FC = () => {
               Hidden for placed/confirmed (amount not yet finalized) and
               out_for_delivery (where the prominent amber banner takes over). */}
           {order.paymentStatus && order.paymentStatus !== 'paid' && order.status !== 'cancelled' && order.status !== 'refund_processed'
-            && ['pickup_completed', 'processing', 'ready'].includes(order.status) && (
+            && ['pickup_completed', 'processing', 'ready'].includes(order.status)
+            && (order.billDetails?.total || 0) > 0 && order.paymentMode !== 'credit'
+            && !order.items?.every((i: any) => i.isCreditItem) && (
             <PaymentStatusCard
               paymentStatus={order.paymentStatus === 'failed' ? 'failed' : 'pending'}
               amount={order.billDetails?.total || 0}

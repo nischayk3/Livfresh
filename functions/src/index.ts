@@ -59,11 +59,16 @@ export const createRazorpayOrder = functions.runWith({ secrets: [razorpayKeyId, 
             ? `chk_${orderId.substring(0, 20)}_${Date.now()}`
             : `receipt_${Date.now()}_${context.auth.uid.substring(0, 5)}`;
 
-        const options = {
+        const options: any = {
             amount: amount,
             currency: currency,
             receipt: receipt,
             payment_capture: 1, // Auto capture
+            notes: {
+                orderType: orderType || 'unknown',
+                spinzoOrderId: orderId || '',
+                userId: context.auth.uid,
+            },
         };
 
         const order = await razorpay.orders.create(options);
@@ -650,7 +655,8 @@ export const razorpayWebhook = functions
 
         // 1. Verify webhook signature
         const signature = req.headers["x-razorpay-signature"] as string;
-        const secret = razorpayWebhookSecret.value();
+        const rawSecret = razorpayWebhookSecret.value() || "";
+        const secret = rawSecret.trim();
 
         if (!signature || !secret) {
             console.error("[Webhook] Missing signature or secret");
@@ -665,54 +671,74 @@ export const razorpayWebhook = functions
             .digest("hex");
 
         if (expectedSignature !== signature) {
-            console.error("[Webhook] Invalid signature");
-            res.status(400).send("Invalid Signature");
-            return;
+            // Also check un-trimmed secret as fallback in case Razorpay secret itself had whitespace
+            const fallbackSignature = crypto
+                .createHmac("sha256", rawSecret)
+                .update(req.rawBody)
+                .digest("hex");
+
+            if (fallbackSignature !== signature) {
+                console.error(`[Webhook] Invalid signature. Header: ${signature}, Computed: ${expectedSignature}`);
+                res.status(400).send("Invalid Signature");
+                return;
+            }
         }
 
         // 2. Parse event
         const event = req.body;
         console.log(`[Webhook] Received event: ${event.event}`);
 
-        if (event.event !== "payment.captured") {
+        if (event.event !== "payment.captured" && event.event !== "order.paid") {
+            console.log(`[Webhook] Unhandled event: ${event.event}, skipping`);
             res.status(200).send("OK");
             return;
         }
 
         const payment = event.payload?.payment?.entity;
-        if (!payment) {
-            console.error("[Webhook] Missing payment entity");
-            res.status(200).send("OK");
-            return;
-        }
+        const rzOrderPayload = event.payload?.order?.entity;
 
-        const paymentId = payment.id;
-        const razorpayOrderId = payment.order_id;
+        const paymentId = payment?.id || "webhook_captured";
+        const razorpayOrderId = payment?.order_id || rzOrderPayload?.id;
 
-        console.log(`[Webhook] payment.captured: ${paymentId}, order: ${razorpayOrderId}, amount: ${payment.amount}`);
+        console.log(`[Webhook] ${event.event}: paymentId=${paymentId}, orderId=${razorpayOrderId}, amount=${payment?.amount || rzOrderPayload?.amount}`);
 
-        // 3. Fetch the Razorpay order to get the receipt (contains spinzoOrderId)
+        // 3. Extract spinzoOrderId from payload or fetch the Razorpay order
         try {
-            const keyId = razorpayKeyId.value();
-            const keySecret = razorpayKeySecret.value();
-            const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
+            let spinzoOrderId: string = "";
 
-            const rzOrder = await razorpay.orders.fetch(razorpayOrderId);
-            const receipt: string = (rzOrder as any).receipt || "";
-
-            // Our checkout receipts look like: chk_{spinzoOrderId_first20}_{timestamp}
-            if (!receipt.startsWith("chk_")) {
-                console.log(`[Webhook] Non-checkout receipt: ${receipt}, skipping order update`);
-                res.status(200).send("OK");
-                return;
+            // Check order entity directly from payload (provided by order.paid event)
+            if (rzOrderPayload) {
+                spinzoOrderId = rzOrderPayload.notes?.spinzoOrderId || "";
+                if (!spinzoOrderId && rzOrderPayload.receipt?.startsWith("chk_")) {
+                    const parts = rzOrderPayload.receipt.split("_");
+                    spinzoOrderId = parts.slice(1, -1).join("_");
+                }
             }
 
-            // Extract the spinzoOrderId (between "chk_" and the last "_timestamp")
-            const receiptParts = receipt.split("_");
-            const spinzoOrderId = receiptParts.slice(1, -1).join("_");
+            // Check payment notes if not found yet
+            if (!spinzoOrderId && payment?.notes?.spinzoOrderId) {
+                spinzoOrderId = payment.notes.spinzoOrderId;
+            }
+
+            // Fallback: Fetch order from Razorpay API if notes were not in the webhook payload
+            if (!spinzoOrderId && razorpayOrderId) {
+                const keyId = razorpayKeyId.value();
+                const keySecret = razorpayKeySecret.value();
+                const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
+
+                const rzOrder = await razorpay.orders.fetch(razorpayOrderId);
+                const receipt: string = (rzOrder as any).receipt || "";
+                const notes = (rzOrder as any).notes || {};
+                spinzoOrderId = notes.spinzoOrderId || "";
+
+                if (!spinzoOrderId && receipt.startsWith("chk_")) {
+                    const receiptParts = receipt.split("_");
+                    spinzoOrderId = receiptParts.slice(1, -1).join("_");
+                }
+            }
 
             if (!spinzoOrderId) {
-                console.error(`[Webhook] Could not extract spinzoOrderId from receipt: ${receipt}`);
+                console.log(`[Webhook] No spinzoOrderId found in notes or receipt, skipping order update`);
                 res.status(200).send("OK");
                 return;
             }

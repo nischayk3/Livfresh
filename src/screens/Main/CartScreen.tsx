@@ -352,8 +352,8 @@ export const CartScreen: React.FC = () => {
         userName: latestUser.name || 'Guest User',
         userPhone: latestUser.phone,
         status: 'placed',
-        paymentMode: 'later',
-        paymentStatus: 'pending',
+        paymentMode: totalAmount === 0 ? 'credit' : 'later',
+        paymentStatus: totalAmount === 0 ? 'paid' : 'pending',
       };
 
 

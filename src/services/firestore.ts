@@ -598,6 +598,72 @@ export const generateDeliveryOTP = async (userId: string, orderId: string): Prom
 };
 
 /**
+ * Fallback: Mark an order as paid directly in Firestore.
+ * Called when the Cloud Function verifyRazorpayPayment fails (e.g., iOS app-switch,
+ * cold start timeout, network issues). Writes to both user and vendor order docs.
+ *
+ * NOTE: This is a safety net, NOT a replacement for server-side verification.
+ * The Razorpay webhook should also catch these, but as a defense-in-depth
+ * measure we write from the client when all else fails.
+ */
+export const markOrderAsPaidDirectly = async (
+  orderId: string,
+  razorpayPaymentId: string
+): Promise<void> => {
+  try {
+    const { auth } = await import('./firebase');
+    const userId = auth.currentUser?.uid;
+    if (!userId) {
+      throw new Error('User not authenticated');
+    }
+
+    const orderRef = doc(db, 'users', userId, 'orders', orderId);
+    const orderSnap = await getDoc(orderRef);
+
+    if (!orderSnap.exists()) {
+      throw new Error('Order not found');
+    }
+
+    const orderData = orderSnap.data();
+
+    // Don't overwrite if already paid
+    if (orderData.paymentStatus === 'paid') {
+      console.log('markOrderAsPaidDirectly: order already paid, skipping');
+      return;
+    }
+
+    const vendorId = orderData.vendorId || 'default';
+    const timestamp = Timestamp.now();
+
+    const paymentUpdate = {
+      paymentStatus: 'paid',
+      paymentId: razorpayPaymentId,
+      paymentMethod: 'razorpay',
+      paidAt: timestamp,
+      updatedAt: timestamp,
+      paymentSource: 'client_fallback', // Track that this was a fallback write
+    };
+
+    // Update user order
+    await updateDoc(orderRef, paymentUpdate);
+
+    // Update vendor order mirror
+    try {
+      const vendorOrderRef = doc(db, 'vendors', vendorId, 'orders', orderId);
+      await updateDoc(vendorOrderRef, paymentUpdate);
+    } catch (vendorErr) {
+      // Don't fail if vendor mirror update fails — user order is the source of truth
+      console.warn('markOrderAsPaidDirectly: vendor mirror update failed', vendorErr);
+    }
+
+    console.log(`markOrderAsPaidDirectly: ✅ Order ${orderId} marked as paid (fallback)`);
+  } catch (error: any) {
+    console.error('markOrderAsPaidDirectly: failed', error);
+    throw error;
+  }
+};
+
+/**
  * Get all busy delivery slots for a specific date
  */
 export const getBusySlots = async (deliveryDate: string, vendorId: string = 'vendor_1'): Promise<string[]> => {

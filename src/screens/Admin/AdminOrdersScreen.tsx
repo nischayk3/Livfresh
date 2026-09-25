@@ -1129,7 +1129,10 @@ export const AdminOrdersScreen: React.FC = () => {
                 </Text>
               </View>
             )}
-            {item.paymentStatus && item.paymentStatus !== 'paid' && (
+            {item.paymentStatus && item.paymentStatus !== 'paid'
+              && (item.billDetails?.total ?? item.total ?? 0) > 0
+              && item.paymentMode !== 'credit'
+              && !item.items?.every((i: any) => i.isCreditItem) && (
               <View style={[styles.tokenBadge, styles.paymentTagUnpaid]}>
                 <Ionicons name="wallet-outline" size={12} color="#DC2626" />
                 <Text style={[styles.tokenText, styles.paymentTagUnpaidText]}>UNPAID</Text>

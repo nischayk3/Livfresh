@@ -22,10 +22,30 @@ interface VerifyPaymentRequest {
 
 const callFunction = async (functionName: string, data: any) => {
     // Ensure we use the correct auth instance (Native on mobile, Web on web)
-    // Force-refresh (true) to avoid stale cached tokens on iOS after backgrounding
-    const token = await auth.currentUser?.getIdToken(true);
-    if (!token) {
+    // Wait briefly for auth state to recover if returning from an external UPI app on iOS/Android
+    let user = auth.currentUser;
+    if (!user) {
+        for (let i = 0; i < 6; i++) {
+            await new Promise(r => setTimeout(r, 500));
+            user = auth.currentUser;
+            if (user) break;
+        }
+    }
+    if (!user) {
         throw new Error("User must be logged in.");
+    }
+
+    // Force-refresh (true) to avoid stale cached tokens on iOS after backgrounding
+    let token: string | null = null;
+    try {
+        token = await user.getIdToken(true);
+    } catch (tokenErr) {
+        console.warn('Failed to force-refresh ID token, attempting without force:', tokenErr);
+        token = await user.getIdToken(false);
+    }
+
+    if (!token) {
+        throw new Error("Failed to retrieve authentication token.");
     }
     
     // Cloud Functions endpoint
@@ -40,19 +60,32 @@ const callFunction = async (functionName: string, data: any) => {
         body: JSON.stringify({ data }) // Firebase expects the payload to be wrapped in { data: ... }
     });
     
-    const result = await response.json();
+    let result: any = null;
+    try {
+        result = await response.json();
+    } catch {
+        // Response was not JSON (e.g. 504 / 502 / proxy error)
+    }
     
     if (!response.ok) {
-        throw new Error(result.error?.message || 'Function call failed');
+        throw new Error(result?.error?.message || `Function call failed with status ${response.status}`);
     }
     
     // Firebase wraps the response in { data: ... } or { result: ... }
-    return result.data ?? result.result;
+    return result?.data ?? result?.result;
 };
 
-export const createRazorpayOrder = async (amount: number, currency: string = 'INR') => {
+export const createRazorpayOrder = async (
+    amount: number,
+    currency: string = 'INR',
+    orderType?: 'checkout' | 'credits' | 'subscription',
+    orderId?: string
+) => {
     try {
-        const data = await callFunction('createRazorpayOrder', { amount, currency }) as CreateOrderResponse;
+        const payload: any = { amount, currency };
+        if (orderType) payload.orderType = orderType;
+        if (orderId) payload.orderId = orderId;
+        const data = await callFunction('createRazorpayOrder', payload) as CreateOrderResponse;
         return data;
     } catch (error) {
         console.error('Error calling createRazorpayOrder:', error);

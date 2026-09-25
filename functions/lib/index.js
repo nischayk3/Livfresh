@@ -79,6 +79,11 @@ exports.createRazorpayOrder = functions.runWith({ secrets: [razorpayKeyId, razor
             currency: currency,
             receipt: receipt,
             payment_capture: 1, // Auto capture
+            notes: {
+                orderType: orderType || 'unknown',
+                spinzoOrderId: orderId || '',
+                userId: context.auth.uid,
+            },
         };
         const order = await razorpay.orders.create(options);
         return {
@@ -575,7 +580,7 @@ exports.creditExpiryReminder = functions.pubsub
 exports.razorpayWebhook = functions
     .runWith({ secrets: [razorpayWebhookSecret, razorpayKeyId, razorpayKeySecret] })
     .https.onRequest(async (req, res) => {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     // Only accept POST
     if (req.method !== "POST") {
         res.status(405).send("Method Not Allowed");
@@ -583,7 +588,8 @@ exports.razorpayWebhook = functions
     }
     // 1. Verify webhook signature
     const signature = req.headers["x-razorpay-signature"];
-    const secret = razorpayWebhookSecret.value();
+    const rawSecret = razorpayWebhookSecret.value() || "";
+    const secret = rawSecret.trim();
     if (!signature || !secret) {
         console.error("[Webhook] Missing signature or secret");
         res.status(400).send("Bad Request");
@@ -595,44 +601,61 @@ exports.razorpayWebhook = functions
         .update(req.rawBody)
         .digest("hex");
     if (expectedSignature !== signature) {
-        console.error("[Webhook] Invalid signature");
-        res.status(400).send("Invalid Signature");
-        return;
+        // Also check un-trimmed secret as fallback in case Razorpay secret itself had whitespace
+        const fallbackSignature = crypto
+            .createHmac("sha256", rawSecret)
+            .update(req.rawBody)
+            .digest("hex");
+        if (fallbackSignature !== signature) {
+            console.error(`[Webhook] Invalid signature. Header: ${signature}, Computed: ${expectedSignature}`);
+            res.status(400).send("Invalid Signature");
+            return;
+        }
     }
     // 2. Parse event
     const event = req.body;
     console.log(`[Webhook] Received event: ${event.event}`);
-    if (event.event !== "payment.captured") {
+    if (event.event !== "payment.captured" && event.event !== "order.paid") {
+        console.log(`[Webhook] Unhandled event: ${event.event}, skipping`);
         res.status(200).send("OK");
         return;
     }
     const payment = (_b = (_a = event.payload) === null || _a === void 0 ? void 0 : _a.payment) === null || _b === void 0 ? void 0 : _b.entity;
-    if (!payment) {
-        console.error("[Webhook] Missing payment entity");
-        res.status(200).send("OK");
-        return;
-    }
-    const paymentId = payment.id;
-    const razorpayOrderId = payment.order_id;
-    console.log(`[Webhook] payment.captured: ${paymentId}, order: ${razorpayOrderId}, amount: ${payment.amount}`);
-    // 3. Fetch the Razorpay order to get the receipt (contains spinzoOrderId)
+    const rzOrderPayload = (_d = (_c = event.payload) === null || _c === void 0 ? void 0 : _c.order) === null || _d === void 0 ? void 0 : _d.entity;
+    const paymentId = (payment === null || payment === void 0 ? void 0 : payment.id) || "webhook_captured";
+    const razorpayOrderId = (payment === null || payment === void 0 ? void 0 : payment.order_id) || (rzOrderPayload === null || rzOrderPayload === void 0 ? void 0 : rzOrderPayload.id);
+    console.log(`[Webhook] ${event.event}: paymentId=${paymentId}, orderId=${razorpayOrderId}, amount=${(payment === null || payment === void 0 ? void 0 : payment.amount) || (rzOrderPayload === null || rzOrderPayload === void 0 ? void 0 : rzOrderPayload.amount)}`);
+    // 3. Extract spinzoOrderId from payload or fetch the Razorpay order
     try {
-        const keyId = razorpayKeyId.value();
-        const keySecret = razorpayKeySecret.value();
-        const razorpay = new razorpay_1.default({ key_id: keyId, key_secret: keySecret });
-        const rzOrder = await razorpay.orders.fetch(razorpayOrderId);
-        const receipt = rzOrder.receipt || "";
-        // Our checkout receipts look like: chk_{spinzoOrderId_first20}_{timestamp}
-        if (!receipt.startsWith("chk_")) {
-            console.log(`[Webhook] Non-checkout receipt: ${receipt}, skipping order update`);
-            res.status(200).send("OK");
-            return;
+        let spinzoOrderId = "";
+        // Check order entity directly from payload (provided by order.paid event)
+        if (rzOrderPayload) {
+            spinzoOrderId = ((_e = rzOrderPayload.notes) === null || _e === void 0 ? void 0 : _e.spinzoOrderId) || "";
+            if (!spinzoOrderId && ((_f = rzOrderPayload.receipt) === null || _f === void 0 ? void 0 : _f.startsWith("chk_"))) {
+                const parts = rzOrderPayload.receipt.split("_");
+                spinzoOrderId = parts.slice(1, -1).join("_");
+            }
         }
-        // Extract the spinzoOrderId (between "chk_" and the last "_timestamp")
-        const receiptParts = receipt.split("_");
-        const spinzoOrderId = receiptParts.slice(1, -1).join("_");
+        // Check payment notes if not found yet
+        if (!spinzoOrderId && ((_g = payment === null || payment === void 0 ? void 0 : payment.notes) === null || _g === void 0 ? void 0 : _g.spinzoOrderId)) {
+            spinzoOrderId = payment.notes.spinzoOrderId;
+        }
+        // Fallback: Fetch order from Razorpay API if notes were not in the webhook payload
+        if (!spinzoOrderId && razorpayOrderId) {
+            const keyId = razorpayKeyId.value();
+            const keySecret = razorpayKeySecret.value();
+            const razorpay = new razorpay_1.default({ key_id: keyId, key_secret: keySecret });
+            const rzOrder = await razorpay.orders.fetch(razorpayOrderId);
+            const receipt = rzOrder.receipt || "";
+            const notes = rzOrder.notes || {};
+            spinzoOrderId = notes.spinzoOrderId || "";
+            if (!spinzoOrderId && receipt.startsWith("chk_")) {
+                const receiptParts = receipt.split("_");
+                spinzoOrderId = receiptParts.slice(1, -1).join("_");
+            }
+        }
         if (!spinzoOrderId) {
-            console.error(`[Webhook] Could not extract spinzoOrderId from receipt: ${receipt}`);
+            console.log(`[Webhook] No spinzoOrderId found in notes or receipt, skipping order update`);
             res.status(200).send("OK");
             return;
         }
@@ -674,7 +697,7 @@ exports.razorpayWebhook = functions
             paidAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
-        const userId = (_c = orderDoc.ref.parent.parent) === null || _c === void 0 ? void 0 : _c.id;
+        const userId = (_h = orderDoc.ref.parent.parent) === null || _h === void 0 ? void 0 : _h.id;
         if (userId) {
             const paymentRef = db.collection("users").doc(userId).collection("payments").doc(paymentId);
             batch.set(paymentRef, {

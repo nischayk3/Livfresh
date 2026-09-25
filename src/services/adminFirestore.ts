@@ -1348,12 +1348,20 @@ export const updateOrderStatusAdmin = async (
 
       // ⚠️ CASH/Payment gate: a delivered order must be paid before it can be
       // handed over. Block the transition unless an admin explicitly overrides.
+      // SKIP for credit/subscription orders that don't require payment.
       if (currentOrder.paymentStatus && currentOrder.paymentStatus !== 'paid') {
-        const allowUnpaid = !!options?.additionalData?.allowUnpaidDelivery;
-        if (!allowUnpaid) {
-          throw new Error(
-            "PAYMENT_REQUIRED: This order has not been paid yet. Ask the customer to pay in the SpinZo app before completing delivery."
-          );
+        const orderTotal = currentOrder.billDetails?.total ?? currentOrder.total ?? 0;
+        const isAllCredits = currentOrder.items?.every((i: any) => i.isCreditItem);
+        const isCreditMode = currentOrder.paymentMode === 'credit';
+
+        // Only enforce payment gate for orders that actually need payment
+        if (orderTotal > 0 && !isAllCredits && !isCreditMode) {
+          const allowUnpaid = !!options?.additionalData?.allowUnpaidDelivery;
+          if (!allowUnpaid) {
+            throw new Error(
+              "PAYMENT_REQUIRED: This order has not been paid yet. Ask the customer to pay in the SpinZo app before completing delivery."
+            );
+          }
         }
       }
 

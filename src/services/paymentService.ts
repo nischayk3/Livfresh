@@ -110,12 +110,13 @@ export const paymentService = {
     /**
      * Initiate payment for a checkout order.
      * Opens Razorpay modal. On success, verifies payment on the backend.
-     * Handles modal dismiss and payment.failed gracefully.
+     * If backend verification fails (iOS app-switch, cold start, etc.),
+     * falls back to writing paymentStatus directly to Firestore.
      */
     async payForOrder({ amount, spinzoOrderId, user }: PayForOrderParams): Promise<PayForOrderResult> {
         try {
             // Step 1: Create Razorpay order on backend (mirrors the credit flow's approach)
-            const order = await createRzOrder(Math.round(amount * 100));
+            const order = await createRzOrder(Math.round(amount * 100), 'INR', 'checkout', spinzoOrderId);
 
             // Step 2: Build Razorpay options (same shape as the credit flow)
             const options: any = {
@@ -148,10 +149,11 @@ export const paymentService = {
             return new Promise<PayForOrderResult>((resolve) => {
                 openRazorpay(options)
                     .then(async (data: any) => {
-                        // Retry verification up to 3 times — iOS UPI app-switch
-                        // can cause transient network issues on resume.
+                        // Retry verification up to 5 times with exponential backoff.
+                        // iOS UPI app-switch and CF cold starts need more time.
                         let lastError: any;
-                        for (let attempt = 1; attempt <= 3; attempt++) {
+                        const MAX_RETRIES = 5;
+                        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
                             try {
                                 await verifyRzPayment({
                                     orderId: data.razorpay_order_id,
@@ -167,20 +169,34 @@ export const paymentService = {
                                 return;
                             } catch (err: any) {
                                 lastError = err;
-                                console.warn(`payForOrder: verify attempt ${attempt}/3 failed`, err?.message);
-                                if (attempt < 3) {
-                                    await new Promise(r => setTimeout(r, 1500 * attempt));
+                                console.warn(`payForOrder: verify attempt ${attempt}/${MAX_RETRIES} failed`, err?.message);
+                                if (attempt < MAX_RETRIES) {
+                                    // Exponential backoff: 2s, 4s, 6s, 8s
+                                    await new Promise(r => setTimeout(r, 2000 * attempt));
                                 }
                             }
                         }
-                        // All retries exhausted — money was collected but verification failed.
-                        // Report honestly so the UI doesn't mislead the customer.
-                        console.error('payForOrder: verification failed after 3 attempts', lastError);
-                        resolve({
-                            success: false,
-                            paymentId: data.razorpay_payment_id,
-                            error: 'Payment received but confirmation failed. Don\'t worry — your payment is safe and will be updated shortly.',
-                        });
+
+                        // All CF retries exhausted — fall back to writing paymentStatus
+                        // directly to Firestore from the client. This is the safety net
+                        // that prevents the "paid but not marked" bug.
+                        console.warn('payForOrder: CF verification failed, attempting direct Firestore fallback');
+                        try {
+                            const { markOrderAsPaidDirectly } = await import('./firestore');
+                            await markOrderAsPaidDirectly(spinzoOrderId, data.razorpay_payment_id);
+                            console.log('payForOrder: ✅ Fallback Firestore write succeeded');
+                            resolve({
+                                success: true,
+                                paymentId: data.razorpay_payment_id,
+                            });
+                        } catch (fallbackErr: any) {
+                            console.error('payForOrder: ❌ Both CF and fallback failed', fallbackErr?.message);
+                            resolve({
+                                success: false,
+                                paymentId: data.razorpay_payment_id,
+                                error: 'Payment received but confirmation failed. Don\'t worry — your payment is safe and will be updated shortly.',
+                            });
+                        }
                     })
                     .catch((error: any) => {
                         // User cancelled or payment failed

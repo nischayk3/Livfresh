@@ -580,7 +580,7 @@ exports.creditExpiryReminder = functions.pubsub
 exports.razorpayWebhook = functions
     .runWith({ secrets: [razorpayWebhookSecret, razorpayKeyId, razorpayKeySecret] })
     .https.onRequest(async (req, res) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
     // Only accept POST
     if (req.method !== "POST") {
         res.status(405).send("Method Not Allowed");
@@ -655,7 +655,38 @@ exports.razorpayWebhook = functions
             }
         }
         if (!spinzoOrderId) {
-            console.log(`[Webhook] No spinzoOrderId found in notes or receipt, skipping order update`);
+            // Legacy fallback for older app builds (where orderId is undefined in Razorpay)
+            const rawContact = (payment === null || payment === void 0 ? void 0 : payment.contact) || "";
+            const cleanPhone = rawContact.replace(/\D/g, "");
+            const phone10 = cleanPhone.slice(-10);
+            const paymentAmountInRupees = (payment === null || payment === void 0 ? void 0 : payment.amount) ? Math.round(payment.amount / 100) : 0;
+            if (phone10) {
+                console.log(`[Webhook] Attempting legacy user lookup for phone ending in ${phone10}, amount ₹${paymentAmountInRupees}`);
+                const db = admin.firestore();
+                let userDocs = await db.collection("users").where("phone", "==", `+91${phone10}`).limit(1).get();
+                if (userDocs.empty) {
+                    userDocs = await db.collection("users").where("phone", "==", phone10).limit(1).get();
+                }
+                if (!userDocs.empty) {
+                    const targetUid = userDocs.docs[0].id;
+                    const recentOrdersSnap = await db.collection("users").doc(targetUid).collection("orders")
+                        .orderBy("createdAt", "desc")
+                        .limit(5)
+                        .get();
+                    for (const oDoc of recentOrdersSnap.docs) {
+                        const oData = oDoc.data();
+                        const oTotal = (_l = (_k = (_j = (_h = oData.billDetails) === null || _h === void 0 ? void 0 : _h.total) !== null && _j !== void 0 ? _j : oData.total) !== null && _k !== void 0 ? _k : oData.totalAmount) !== null && _l !== void 0 ? _l : 0;
+                        if (oData.paymentStatus !== "paid" && (oTotal === paymentAmountInRupees || paymentAmountInRupees === 0)) {
+                            spinzoOrderId = oDoc.id;
+                            console.log(`[Webhook] ✅ Legacy fallback matched order: ${spinzoOrderId} for user ${targetUid}`);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if (!spinzoOrderId) {
+            console.log(`[Webhook] No spinzoOrderId found in notes, receipt, or phone lookup, skipping order update`);
             res.status(200).send("OK");
             return;
         }
@@ -697,7 +728,7 @@ exports.razorpayWebhook = functions
             paidAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
-        const userId = (_h = orderDoc.ref.parent.parent) === null || _h === void 0 ? void 0 : _h.id;
+        const userId = (_m = orderDoc.ref.parent.parent) === null || _m === void 0 ? void 0 : _m.id;
         if (userId) {
             const paymentRef = db.collection("users").doc(userId).collection("payments").doc(paymentId);
             batch.set(paymentRef, {

@@ -580,7 +580,7 @@ exports.creditExpiryReminder = functions.pubsub
 exports.razorpayWebhook = functions
     .runWith({ secrets: [razorpayWebhookSecret, razorpayKeyId, razorpayKeySecret] })
     .https.onRequest(async (req, res) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
     // Only accept POST
     if (req.method !== "POST") {
         res.status(405).send("Method Not Allowed");
@@ -625,33 +625,46 @@ exports.razorpayWebhook = functions
     const paymentId = (payment === null || payment === void 0 ? void 0 : payment.id) || "webhook_captured";
     const razorpayOrderId = (payment === null || payment === void 0 ? void 0 : payment.order_id) || (rzOrderPayload === null || rzOrderPayload === void 0 ? void 0 : rzOrderPayload.id);
     console.log(`[Webhook] ${event.event}: paymentId=${paymentId}, orderId=${razorpayOrderId}, amount=${(payment === null || payment === void 0 ? void 0 : payment.amount) || (rzOrderPayload === null || rzOrderPayload === void 0 ? void 0 : rzOrderPayload.amount)}`);
-    // 3. Extract spinzoOrderId from payload or fetch the Razorpay order
+    // 3. Extract spinzoOrderId and userId from payload or fetch the Razorpay order
     try {
         let spinzoOrderId = "";
+        let matchedUserId = "";
         // Check order entity directly from payload (provided by order.paid event)
         if (rzOrderPayload) {
             spinzoOrderId = ((_e = rzOrderPayload.notes) === null || _e === void 0 ? void 0 : _e.spinzoOrderId) || "";
-            if (!spinzoOrderId && ((_f = rzOrderPayload.receipt) === null || _f === void 0 ? void 0 : _f.startsWith("chk_"))) {
+            matchedUserId = ((_f = rzOrderPayload.notes) === null || _f === void 0 ? void 0 : _f.userId) || "";
+            if (!spinzoOrderId && ((_g = rzOrderPayload.receipt) === null || _g === void 0 ? void 0 : _g.startsWith("chk_"))) {
                 const parts = rzOrderPayload.receipt.split("_");
                 spinzoOrderId = parts.slice(1, -1).join("_");
             }
         }
         // Check payment notes if not found yet
-        if (!spinzoOrderId && ((_g = payment === null || payment === void 0 ? void 0 : payment.notes) === null || _g === void 0 ? void 0 : _g.spinzoOrderId)) {
+        if (!spinzoOrderId && ((_h = payment === null || payment === void 0 ? void 0 : payment.notes) === null || _h === void 0 ? void 0 : _h.spinzoOrderId)) {
             spinzoOrderId = payment.notes.spinzoOrderId;
         }
+        if (!matchedUserId && ((_j = payment === null || payment === void 0 ? void 0 : payment.notes) === null || _j === void 0 ? void 0 : _j.userId)) {
+            matchedUserId = payment.notes.userId;
+        }
         // Fallback: Fetch order from Razorpay API if notes were not in the webhook payload
-        if (!spinzoOrderId && razorpayOrderId) {
-            const keyId = razorpayKeyId.value();
-            const keySecret = razorpayKeySecret.value();
-            const razorpay = new razorpay_1.default({ key_id: keyId, key_secret: keySecret });
-            const rzOrder = await razorpay.orders.fetch(razorpayOrderId);
-            const receipt = rzOrder.receipt || "";
-            const notes = rzOrder.notes || {};
-            spinzoOrderId = notes.spinzoOrderId || "";
-            if (!spinzoOrderId && receipt.startsWith("chk_")) {
-                const receiptParts = receipt.split("_");
-                spinzoOrderId = receiptParts.slice(1, -1).join("_");
+        if ((!spinzoOrderId || !matchedUserId) && razorpayOrderId) {
+            try {
+                const keyId = razorpayKeyId.value();
+                const keySecret = razorpayKeySecret.value();
+                const razorpay = new razorpay_1.default({ key_id: keyId, key_secret: keySecret });
+                const rzOrder = await razorpay.orders.fetch(razorpayOrderId);
+                const receipt = rzOrder.receipt || "";
+                const notes = rzOrder.notes || {};
+                if (!spinzoOrderId)
+                    spinzoOrderId = notes.spinzoOrderId || "";
+                if (!matchedUserId)
+                    matchedUserId = notes.userId || "";
+                if (!spinzoOrderId && receipt.startsWith("chk_")) {
+                    const receiptParts = receipt.split("_");
+                    spinzoOrderId = receiptParts.slice(1, -1).join("_");
+                }
+            }
+            catch (fetchErr) {
+                console.warn(`[Webhook] Could not fetch Razorpay order ${razorpayOrderId}:`, fetchErr === null || fetchErr === void 0 ? void 0 : fetchErr.message);
             }
         }
         if (!spinzoOrderId) {
@@ -669,13 +682,14 @@ exports.razorpayWebhook = functions
                 }
                 if (!userDocs.empty) {
                     const targetUid = userDocs.docs[0].id;
+                    matchedUserId = targetUid;
                     const recentOrdersSnap = await db.collection("users").doc(targetUid).collection("orders")
                         .orderBy("createdAt", "desc")
                         .limit(5)
                         .get();
                     for (const oDoc of recentOrdersSnap.docs) {
                         const oData = oDoc.data();
-                        const oTotal = (_l = (_k = (_j = (_h = oData.billDetails) === null || _h === void 0 ? void 0 : _h.total) !== null && _j !== void 0 ? _j : oData.total) !== null && _k !== void 0 ? _k : oData.totalAmount) !== null && _l !== void 0 ? _l : 0;
+                        const oTotal = (_o = (_m = (_l = (_k = oData.billDetails) === null || _k === void 0 ? void 0 : _k.total) !== null && _l !== void 0 ? _l : oData.total) !== null && _m !== void 0 ? _m : oData.totalAmount) !== null && _o !== void 0 ? _o : 0;
                         if (oData.paymentStatus !== "paid" && (oTotal === paymentAmountInRupees || paymentAmountInRupees === 0)) {
                             spinzoOrderId = oDoc.id;
                             console.log(`[Webhook] ✅ Legacy fallback matched order: ${spinzoOrderId} for user ${targetUid}`);
@@ -690,20 +704,60 @@ exports.razorpayWebhook = functions
             res.status(200).send("OK");
             return;
         }
-        console.log(`[Webhook] Extracted spinzoOrderId: ${spinzoOrderId}`);
-        // 4. Find the user order in Firestore
+        console.log(`[Webhook] Extracted spinzoOrderId: ${spinzoOrderId}, matchedUserId: ${matchedUserId || 'unknown'}`);
+        // 4. Find the user order in Firestore using multi-strategy resolution
         const db = admin.firestore();
-        const ordersQuery = await db.collectionGroup("orders")
-            .where("id", "==", spinzoOrderId)
-            .limit(1)
-            .get();
-        if (ordersQuery.empty) {
+        let orderDoc = null;
+        let finalUserId = matchedUserId;
+        // Strategy A: Direct fetch if userId is known (fast O(1), requires no index)
+        if (finalUserId) {
+            const directRef = db.collection("users").doc(finalUserId).collection("orders").doc(spinzoOrderId);
+            const directSnap = await directRef.get();
+            if (directSnap.exists) {
+                orderDoc = directSnap;
+            }
+        }
+        // Strategy B: Check vendor mirrors to resolve user and order (fast O(1), requires no index)
+        if (!orderDoc) {
+            const vendorCandidates = ["default", "vendor_1", "vendor_2"];
+            for (const vId of vendorCandidates) {
+                const vSnap = await db.collection("vendors").doc(vId).collection("orders").doc(spinzoOrderId).get();
+                if (vSnap.exists) {
+                    const vData = vSnap.data();
+                    const uId = vData === null || vData === void 0 ? void 0 : vData.userId;
+                    if (uId) {
+                        finalUserId = uId;
+                        const uSnap = await db.collection("users").doc(uId).collection("orders").doc(spinzoOrderId).get();
+                        if (uSnap.exists) {
+                            orderDoc = uSnap;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        // Strategy C: collectionGroup query fallback
+        if (!orderDoc) {
+            try {
+                const ordersQuery = await db.collectionGroup("orders")
+                    .where("id", "==", spinzoOrderId)
+                    .limit(1)
+                    .get();
+                if (!ordersQuery.empty) {
+                    orderDoc = ordersQuery.docs[0];
+                    finalUserId = ((_p = orderDoc.ref.parent.parent) === null || _p === void 0 ? void 0 : _p.id) || "";
+                }
+            }
+            catch (cgErr) {
+                console.warn(`[Webhook] collectionGroup query error:`, cgErr === null || cgErr === void 0 ? void 0 : cgErr.message);
+            }
+        }
+        if (!orderDoc || !orderDoc.exists) {
             console.error(`[Webhook] No order found with id: ${spinzoOrderId}`);
             res.status(200).send("OK");
             return;
         }
-        const orderDoc = ordersQuery.docs[0];
-        const orderData = orderDoc.data();
+        const orderData = orderDoc.data() || {};
         // 5. Idempotency — skip if already paid
         if (orderData.paymentStatus === "paid") {
             console.log(`[Webhook] Order ${spinzoOrderId} already paid, skipping`);
@@ -728,7 +782,7 @@ exports.razorpayWebhook = functions
             paidAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
-        const userId = (_m = orderDoc.ref.parent.parent) === null || _m === void 0 ? void 0 : _m.id;
+        const userId = (_q = orderDoc.ref.parent.parent) === null || _q === void 0 ? void 0 : _q.id;
         if (userId) {
             const paymentRef = db.collection("users").doc(userId).collection("payments").doc(paymentId);
             batch.set(paymentRef, {

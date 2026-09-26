@@ -702,13 +702,15 @@ export const razorpayWebhook = functions
 
         console.log(`[Webhook] ${event.event}: paymentId=${paymentId}, orderId=${razorpayOrderId}, amount=${payment?.amount || rzOrderPayload?.amount}`);
 
-        // 3. Extract spinzoOrderId from payload or fetch the Razorpay order
+        // 3. Extract spinzoOrderId and userId from payload or fetch the Razorpay order
         try {
             let spinzoOrderId: string = "";
+            let matchedUserId: string = "";
 
             // Check order entity directly from payload (provided by order.paid event)
             if (rzOrderPayload) {
                 spinzoOrderId = rzOrderPayload.notes?.spinzoOrderId || "";
+                matchedUserId = rzOrderPayload.notes?.userId || "";
                 if (!spinzoOrderId && rzOrderPayload.receipt?.startsWith("chk_")) {
                     const parts = rzOrderPayload.receipt.split("_");
                     spinzoOrderId = parts.slice(1, -1).join("_");
@@ -719,21 +721,29 @@ export const razorpayWebhook = functions
             if (!spinzoOrderId && payment?.notes?.spinzoOrderId) {
                 spinzoOrderId = payment.notes.spinzoOrderId;
             }
+            if (!matchedUserId && payment?.notes?.userId) {
+                matchedUserId = payment.notes.userId;
+            }
 
             // Fallback: Fetch order from Razorpay API if notes were not in the webhook payload
-            if (!spinzoOrderId && razorpayOrderId) {
-                const keyId = razorpayKeyId.value();
-                const keySecret = razorpayKeySecret.value();
-                const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
+            if ((!spinzoOrderId || !matchedUserId) && razorpayOrderId) {
+                try {
+                    const keyId = razorpayKeyId.value();
+                    const keySecret = razorpayKeySecret.value();
+                    const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
 
-                const rzOrder = await razorpay.orders.fetch(razorpayOrderId);
-                const receipt: string = (rzOrder as any).receipt || "";
-                const notes = (rzOrder as any).notes || {};
-                spinzoOrderId = notes.spinzoOrderId || "";
+                    const rzOrder = await razorpay.orders.fetch(razorpayOrderId);
+                    const receipt: string = (rzOrder as any).receipt || "";
+                    const notes = (rzOrder as any).notes || {};
+                    if (!spinzoOrderId) spinzoOrderId = notes.spinzoOrderId || "";
+                    if (!matchedUserId) matchedUserId = notes.userId || "";
 
-                if (!spinzoOrderId && receipt.startsWith("chk_")) {
-                    const receiptParts = receipt.split("_");
-                    spinzoOrderId = receiptParts.slice(1, -1).join("_");
+                    if (!spinzoOrderId && receipt.startsWith("chk_")) {
+                        const receiptParts = receipt.split("_");
+                        spinzoOrderId = receiptParts.slice(1, -1).join("_");
+                    }
+                } catch (fetchErr: any) {
+                    console.warn(`[Webhook] Could not fetch Razorpay order ${razorpayOrderId}:`, fetchErr?.message);
                 }
             }
 
@@ -754,6 +764,7 @@ export const razorpayWebhook = functions
 
                     if (!userDocs.empty) {
                         const targetUid = userDocs.docs[0].id;
+                        matchedUserId = targetUid;
                         const recentOrdersSnap = await db.collection("users").doc(targetUid).collection("orders")
                             .orderBy("createdAt", "desc")
                             .limit(5)
@@ -778,23 +789,65 @@ export const razorpayWebhook = functions
                 return;
             }
 
-            console.log(`[Webhook] Extracted spinzoOrderId: ${spinzoOrderId}`);
+            console.log(`[Webhook] Extracted spinzoOrderId: ${spinzoOrderId}, matchedUserId: ${matchedUserId || 'unknown'}`);
 
-            // 4. Find the user order in Firestore
+            // 4. Find the user order in Firestore using multi-strategy resolution
             const db = admin.firestore();
-            const ordersQuery = await db.collectionGroup("orders")
-                .where("id", "==", spinzoOrderId)
-                .limit(1)
-                .get();
+            let orderDoc: admin.firestore.DocumentSnapshot | null = null;
+            let finalUserId: string = matchedUserId;
 
-            if (ordersQuery.empty) {
+            // Strategy A: Direct fetch if userId is known (fast O(1), requires no index)
+            if (finalUserId) {
+                const directRef = db.collection("users").doc(finalUserId).collection("orders").doc(spinzoOrderId);
+                const directSnap = await directRef.get();
+                if (directSnap.exists) {
+                    orderDoc = directSnap;
+                }
+            }
+
+            // Strategy B: Check vendor mirrors to resolve user and order (fast O(1), requires no index)
+            if (!orderDoc) {
+                const vendorCandidates = ["default", "vendor_1", "vendor_2"];
+                for (const vId of vendorCandidates) {
+                    const vSnap = await db.collection("vendors").doc(vId).collection("orders").doc(spinzoOrderId).get();
+                    if (vSnap.exists) {
+                        const vData = vSnap.data();
+                        const uId = vData?.userId;
+                        if (uId) {
+                            finalUserId = uId;
+                            const uSnap = await db.collection("users").doc(uId).collection("orders").doc(spinzoOrderId).get();
+                            if (uSnap.exists) {
+                                orderDoc = uSnap;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Strategy C: collectionGroup query fallback
+            if (!orderDoc) {
+                try {
+                    const ordersQuery = await db.collectionGroup("orders")
+                        .where("id", "==", spinzoOrderId)
+                        .limit(1)
+                        .get();
+                    if (!ordersQuery.empty) {
+                        orderDoc = ordersQuery.docs[0];
+                        finalUserId = orderDoc.ref.parent.parent?.id || "";
+                    }
+                } catch (cgErr: any) {
+                    console.warn(`[Webhook] collectionGroup query error:`, cgErr?.message);
+                }
+            }
+
+            if (!orderDoc || !orderDoc.exists) {
                 console.error(`[Webhook] No order found with id: ${spinzoOrderId}`);
                 res.status(200).send("OK");
                 return;
             }
 
-            const orderDoc = ordersQuery.docs[0];
-            const orderData = orderDoc.data();
+            const orderData = orderDoc.data() || {};
 
             // 5. Idempotency — skip if already paid
             if (orderData.paymentStatus === "paid") {

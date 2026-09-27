@@ -24,6 +24,8 @@ export const ASSET_URLS = {
   services_ironing: 'https://firebasestorage.googleapis.com/v0/b/spin-it-a135a.firebasestorage.app/o/app_assets%2Fservices%2Fironing.webp?alt=media&token=03cfcf17-f75b-414b-a626-5c7f37a91b9f',
   services_blanket_wash: 'https://firebasestorage.googleapis.com/v0/b/spin-it-a135a.firebasestorage.app/o/app_assets%2Fservices%2Fblanket_wash.webp?alt=media&token=2f96a889-a050-41b2-9d31-ebf664088460',
   services_wash_iron: 'https://firebasestorage.googleapis.com/v0/b/spin-it-a135a.firebasestorage.app/o/app_assets%2Fservices%2Fwash_iron.webp?alt=media&token=0eb42828-9e6a-49e0-9d06-1ca042befa00',
+  services_premium_laundry: 'PLACEHOLDER_PREMIUM_URL',
+  services_shoe_clean: 'PLACEHOLDER_SHOE_URL',
 
   // Illustrations
   subscription_illustration: 'https://firebasestorage.googleapis.com/v0/b/spin-it-a135a.firebasestorage.app/o/app_assets%2Fsubscription_illustration.webp?alt=media&token=5d959158-651b-471e-8db5-c6cdcb05d2ec',

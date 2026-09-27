@@ -14,6 +14,8 @@ export interface ServiceAvailability {
   wash_iron: boolean;
   ironing: boolean;
   blanket_wash: boolean;
+  premium_laundry: boolean;
+  shoe_clean: boolean;
 }
 
 const DEFAULT_AVAILABILITY: ServiceAvailability = {
@@ -21,6 +23,8 @@ const DEFAULT_AVAILABILITY: ServiceAvailability = {
   wash_iron: true,
   ironing: true,
   blanket_wash: true,
+  premium_laundry: true,
+  shoe_clean: true,
 };
 
 interface ServiceAvailabilityState {
@@ -54,6 +58,8 @@ export const useServiceAvailabilityStore = create<ServiceAvailabilityState>((set
             wash_iron: data.wash_iron ?? true,
             ironing: data.ironing ?? true,
             blanket_wash: data.blanket_wash ?? true,
+            premium_laundry: data.premium_laundry ?? true,
+            shoe_clean: data.shoe_clean ?? true,
           },
           isLoading: false
         });
@@ -98,6 +104,8 @@ export const SERVICE_LABELS: Record<keyof ServiceAvailability, string> = {
   wash_iron: 'Wash & Iron',
   ironing: 'Steam Iron',
   blanket_wash: 'Blanket Wash',
+  premium_laundry: 'Premium Laundry',
+  shoe_clean: 'Shoe Cleaning',
 };
 
 // Get all service IDs (only the 4 active services)

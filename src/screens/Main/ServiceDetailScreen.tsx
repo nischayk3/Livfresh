@@ -71,6 +71,34 @@ const IRONING_FAQS = [
   { question: "How long does it take?", answer: "Ironing orders are usually delivered within 24-48 hours." },
 ];
 
+const PREMIUM_LAUNDRY_FAQS = [
+  { question: "What kind of clothes should I give to Premium Laundry?", answer: "Premium or high-value clothing, delicate garments, branded clothing, or clothes you want handled with extra care." },
+  { question: "What is the difference between Premium Laundry and Wash & Fold?", answer: "Premium Laundry includes extra pre-stain treatment, colour-wise separation, separate washing of whites and coloured clothes, professional ironing and premium packaging." },
+  { question: "Are white clothes washed separately?", answer: "Yes. White/light-coloured clothes are separated from darker and coloured garments before washing." },
+  { question: "Will my clothes be tagged individually?", answer: "Yes. Clothes are tagged during processing to help maintain proper sorting and order tracking." },
+  { question: "Does Premium Laundry include ironing?", answer: "Yes. Premium Laundry already includes professional ironing. There is no separate ironing option inside this service." },
+  { question: "Will you treat stains before washing?", answer: "Yes. Our team performs pre-stain treatment before the main wash where appropriate." },
+  { question: "How are my clothes packaged?", answer: "After washing, drying and ironing, the clothes are neatly packed and placed in premium packaging before delivery." },
+  { question: "Is Premium Laundry suitable for very delicate clothes?", answer: "It is designed for higher-care garments, but special-care instructions, fabric labels and garment condition are checked before processing." },
+  { question: "How is Premium Laundry different from regular Wash & Iron?", answer: "Premium Laundry adds an extra-care process including pre-stain treatment, colour separation, separate white washing and premium packaging." },
+  { question: "How is Premium Laundry priced?", answer: "₹200/kg with a minimum order of 5 kg." },
+];
+
+const SHOE_CLEAN_FAQS = [
+  { question: "What types of shoes can I get cleaned?", answer: "Canvas and sports shoes, crocs and sandals, and slippers. Leather shoe cleaning is coming soon." },
+  { question: "Is the ₹300 rate per pair?", answer: "Yes, each pair/item is ₹300." },
+  { question: "Is leather shoe cleaning available?", answer: "Not yet — coming soon with a leather-safe cleaning process." },
+  { question: "Is there a delivery fee?", answer: "A ₹50 pickup and delivery fee applies." },
+  { question: "Do you remove stains or restore shoes?", answer: "We provide professional cleaning and surface stain treatment. It is not a restoration service." },
+  { question: "How long does it take?", answer: "Most shoe cleaning orders are delivered within 24-48 hours." },
+];
+
+const SHOE_CATEGORIES = [
+  { id: 'canvas_sports', name: 'Canvas & Sports Shoes' },
+  { id: 'crocs_sandals', name: 'Crocs & Sandals' },
+  { id: 'slippers', name: 'Slippers' },
+];
+
 // Helper for Cross-Platform Image Compression & Resizing
 const processImage = async (uri: string): Promise<string> => {
   try {
@@ -128,6 +156,8 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       else if (serviceId === 'wash_iron') serviceName = 'Wash & Iron';
       else if (serviceId === 'ironing') serviceName = 'Steam Iron';
       else if (serviceId === 'blanket_wash') serviceName = 'Blanket Wash';
+      else if (serviceId === 'premium_laundry') serviceName = 'Premium Laundry';
+      else if (serviceId === 'shoe_clean') serviceName = 'Shoe Cleaning';
 
       tracker.logViewItem({
         item_id: serviceId,
@@ -173,9 +203,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   });
 
   // Premium Laundry state
-  const [premiumWeight, setPremiumWeight] = useState<'small' | 'large' | null>(null);
-  const [premiumIroningEnabled, setPremiumIroningEnabled] = useState(false);
-  const [premiumIroningCount, setPremiumIroningCount] = useState(0);
+  const [premiumWeight, setPremiumWeight] = useState<number>(5);
   const [premiumSpecialInstructions, setPremiumSpecialInstructions] = useState('');
 
   useEffect(() => {
@@ -222,6 +250,8 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     'wash_iron': { uri: ASSET_URLS.services_wash_iron },
     'ironing': { uri: ASSET_URLS.services_ironing },
     'blanket_wash': { uri: ASSET_URLS.services_blanket_wash },
+    'premium_laundry': { uri: ASSET_URLS.services_premium_laundry },
+    'shoe_clean': { uri: ASSET_URLS.services_shoe_clean },
     // Fallbacks or future services can use existing assets or default
     'default': require('../../../assets/laundry_illustration.png'),
   };
@@ -500,7 +530,14 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       return ironingCount * 10;
     }
 
-    // ... (Shoe/Dry Clean Logic remains same)
+    if (serviceId === 'premium_laundry') {
+      return (premiumWeight || 5) * 200;
+    }
+
+    if (serviceId === 'shoe_clean') {
+      const shoeSubtotal = SHOE_CATEGORIES.reduce((sum, c) => sum + ((shoeSelections[c.id] as number) || 0) * 300, 0);
+      return shoeSubtotal + 50;
+    }
 
     return 0;
   };
@@ -540,29 +577,9 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
       }
     }
 
-    // Premium
+    // Premium (min weight already enforced at 5kg stepper)
     if (serviceId === 'premium_laundry') {
-      const weight = premiumWeight;
-
-      if (!weight) {
-        showAlert({
-          title: 'Required',
-          message: 'Please select weight first',
-          type: 'warning'
-        });
-        return;
-      }
-
-      // Check limits
-      const maxPieces = weight === 'small' ? 25 : 50;
-      if (premiumIroningEnabled && premiumIroningCount > maxPieces) {
-        showAlert({
-          title: 'Limit Exceeded',
-          message: `Maximum ${maxPieces} ironing pieces allowed for this weight.`,
-          type: 'warning'
-        });
-        return;
-      }
+      // Weight is always >= 5 (stepper default); no separate validation needed.
     }
 
     if (serviceId === 'blanket_wash') {
@@ -582,6 +599,18 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
         showAlert({
           title: 'Minimum Required',
           message: 'Minimum 10 pieces required for Steam Ironing',
+          type: 'warning'
+        });
+        return;
+      }
+    }
+
+    if (serviceId === 'shoe_clean') {
+      const anySelected = SHOE_CATEGORIES.some((c) => ((shoeSelections[c.id] as number) || 0) > 0);
+      if (!anySelected) {
+        showAlert({
+          title: 'Selection Empty',
+          message: 'Please add at least one item',
           type: 'warning'
         });
         return;
@@ -634,10 +663,27 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     }
 
     if (serviceId === 'premium_laundry') {
-      cartItem.weight = premiumWeight === 'small' ? 7 : 14;
-      cartItem.ironingEnabled = premiumIroningEnabled;
-      cartItem.ironingCount = premiumIroningCount;
-      cartItem.ironingPrice = premiumIroningEnabled ? premiumIroningCount * 20 : 0;
+      cartItem.weight = premiumWeight || 5;
+      cartItem.clothesCount = Math.round((premiumWeight || 5) * 3.5);
+      cartItem.ironingEnabled = true;
+      cartItem.ironingCount = Math.round((premiumWeight || 5) * 3.5);
+      cartItem.ironingPrice = 0;
+      cartItem.deliveryFee = 0;
+    }
+
+    if (serviceId === 'shoe_clean') {
+      const shoeItems = SHOE_CATEGORIES
+        .filter((c) => ((shoeSelections[c.id] as number) || 0) > 0)
+        .map((c) => ({
+          type: c.id,
+          name: c.name,
+          quantity: (shoeSelections[c.id] as number) || 0,
+          price: 300,
+        }));
+      cartItem.shoeItems = shoeItems;
+      cartItem.shoeSubtotal = shoeItems.reduce((sum, s) => sum + s.quantity * 300, 0);
+      cartItem.deliveryFee = 50;
+      cartItem.description = shoeItems.map((s) => `${s.name} ×${s.quantity}`).join(', ');
     }
 
     // Guests CAN add to cart. Login is deferred to checkout (CartScreen.handlePlaceOrder)
@@ -1057,51 +1103,102 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     </View>
   );
 
-  const renderShoeCleaning = () => (
-    <View>
-      <View style={styles.section}>
-        <ServiceStats rating={4.7} reviewCount={800} />
-        <Text style={styles.sectionTitle}>Select Shoe Type</Text>
-        {[
-          { id: 'canvas_sports', name: 'Canvas / Sports', icon: 'footsteps', price: 150 },
-          { id: 'crocs_sandals', name: 'Crocs / Sandals', icon: 'footsteps', price: 100 },
-          { id: 'leather_shoes', name: 'Leather Shoes', icon: 'footsteps', price: 200 },
-          { id: 'slippers', name: 'Slippers', icon: 'footsteps', price: 80 },
-        ].map((shoe) => (
-          <View key={shoe.id} style={styles.shoeCard}>
-            <View style={styles.shoeCardContent}>
-              <Ionicons name={shoe.icon as any} size={32} color={COLORS.primary} />
-              <View style={styles.shoeInfo}>
-                <Text style={styles.shoeName}>{shoe.name}</Text>
-                <Text style={styles.shoePrice}>₹{shoe.price}</Text>
+  const renderShoeCleaning = () => {
+    const shoeSubtotal = SHOE_CATEGORIES.reduce((sum, c) => sum + ((shoeSelections[c.id] as number) || 0) * 300, 0);
+    return (
+      <View>
+        <View style={styles.section}>
+          <ServiceStats rating={4.7} reviewCount={800} />
+          <Text style={styles.sectionTitle}>Select Items</Text>
+          <Text style={styles.premiumSelectorSubtitle}>
+            Professional shoe cleaning for everyday footwear, with material-specific cleaning and care.
+          </Text>
+          {SHOE_CATEGORIES.map((shoe) => (
+            <View key={shoe.id} style={styles.blanketRow}>
+              <View style={styles.blanketInfo}>
+                <Text style={styles.blanketOptionText}>{shoe.name}</Text>
+                <Text style={styles.blanketPrice}>₹300 / item</Text>
+              </View>
+              <View style={styles.quantityControls}>
+                <TouchableOpacity
+                  style={styles.quantityButton}
+                  onPress={() => setShoeSelections({
+                    ...shoeSelections,
+                    [shoe.id]: Math.max(0, ((shoeSelections[shoe.id] as number) || 0) - 1),
+                  })}
+                >
+                  <Text style={styles.quantityButtonText}>-</Text>
+                </TouchableOpacity>
+                <Text style={styles.quantityValue}>{(shoeSelections[shoe.id] as number) || 0}</Text>
+                <TouchableOpacity
+                  style={[styles.quantityButton, styles.quantityButtonActive]}
+                  onPress={() => setShoeSelections({
+                    ...shoeSelections,
+                    [shoe.id]: ((shoeSelections[shoe.id] as number) || 0) + 1,
+                  })}
+                >
+                  <Text style={[styles.quantityButtonText, styles.quantityButtonActive]}>+</Text>
+                </TouchableOpacity>
               </View>
             </View>
-            <View style={styles.quantityControls}>
-              <TouchableOpacity
-                style={styles.quantityButton}
-                onPress={() => setShoeSelections({
-                  ...shoeSelections,
-                  [shoe.id]: Math.max(0, shoeSelections[shoe.id] - 1),
-                })}
-              >
-                <Text style={styles.quantityButtonText}>-</Text>
-              </TouchableOpacity>
-              <Text style={styles.quantityValue}>{shoeSelections[shoe.id]}</Text>
-              <TouchableOpacity
-                style={[styles.quantityButton, styles.quantityButtonActive]}
-                onPress={() => setShoeSelections({
-                  ...shoeSelections,
-                  [shoe.id]: shoeSelections[shoe.id] + 1,
-                })}
-              >
-                <Text style={[styles.quantityButtonText, styles.quantityButtonActiveText]}>+</Text>
-              </TouchableOpacity>
-            </View>
+          ))}
+          <View style={styles.divider} />
+          <View style={[styles.billRow, { marginTop: 8 }]}>
+            <Text style={styles.billLabel}>Subtotal</Text>
+            <Text style={styles.billValue}>₹{shoeSubtotal}</Text>
           </View>
-        ))}
+          <View style={styles.billRow}>
+            <Text style={styles.billLabel}>Pickup & Delivery</Text>
+            <Text style={styles.billValue}>₹50</Text>
+          </View>
+          <View style={styles.billRow}>
+            <Text style={[styles.billLabel, { fontWeight: '700' }]}>Total</Text>
+            <Text style={[styles.billValue, { color: COLORS.primary }]}>₹{shoeSubtotal + 50}</Text>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>What's Included</Text>
+          {[
+            'Material-specific cleaning', 'Surface stain treatment', 'Deep cleaning',
+            'Drying', 'Finishing & inspection',
+          ].map((line) => (
+            <View key={line} style={styles.includedRow}>
+              <Ionicons name="checkmark-circle" size={18} color={COLORS.primary} />
+              <Text style={[styles.premiumSelectorSubtitle, { flex: 1 }]}>{line}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>How It Works</Text>
+          <Text style={styles.premiumSelectorSubtitle}>
+            Pickup → Inspection → Cleaning → Drying → Finishing → Delivery
+          </Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Special Instructions (optional)</Text>
+          <TextInput
+            style={styles.instructionsInput}
+            placeholder="Add any notes..."
+            placeholderTextColor={COLORS.textLight}
+            multiline
+            numberOfLines={4}
+            value={specialInstructions}
+            onChangeText={setSpecialInstructions}
+          />
+          {renderMediaButtons()}
+          {renderPhotoGallery()}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>FAQs</Text>
+          <FaqAccordion items={SHOE_CLEAN_FAQS} />
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderDryCleaning = () => (
     <View>
@@ -1171,81 +1268,73 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
   const renderPremiumLaundry = () => (
     <View>
-      {/* Weight Selection */}
       <View style={styles.section}>
-        <ServiceStats rating={4.7} reviewCount={800} />
-        <Text style={styles.sectionTitle}>Select Estimated Weight</Text>
-        <Text style={[styles.sectionSubtitle, { marginBottom: SPACING.md, color: COLORS.primary }]}>
-          Premium care for delicate and high-end garments
+        <ServiceStats rating={4.8} reviewCount={900} />
+        <View style={styles.premiumSelectorContainer}>
+          <Text style={styles.premiumSelectorTitle}>Select Weight</Text>
+          <Text style={styles.premiumSelectorSubtitle}>Extra-care wash & iron for high-value clothes</Text>
+          <Text style={[styles.premiumSelectorSubtitle, { marginTop: -8 }]}>
+            Recommended for high-value, delicate or premium clothing that needs extra care.
+          </Text>
+
+          <View style={styles.counterWrapper}>
+            <TouchableOpacity
+              style={[styles.countBtn, (premiumWeight || 5) <= 5 && styles.countBtnDisabled]}
+              onPress={() => setPremiumWeight(Math.max(5, (premiumWeight || 5) - 1))}
+              disabled={(premiumWeight || 5) <= 5}
+              activeOpacity={0.6}
+            >
+              <MaterialCommunityIcons name="minus" size={24} color={(premiumWeight || 5) <= 5 ? '#CBD5E1' : '#7C3AED'} />
+            </TouchableOpacity>
+            <View style={styles.countDisplay}>
+              <Text style={styles.countText}>{premiumWeight || 5}</Text>
+              <Text style={styles.countLabel}>KG</Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.countBtn, (premiumWeight || 5) >= 50 && styles.countBtnDisabled]}
+              onPress={() => setPremiumWeight(Math.min(50, (premiumWeight || 5) + 1))}
+              disabled={(premiumWeight || 5) >= 50}
+              activeOpacity={0.6}
+            >
+              <MaterialCommunityIcons name="plus" size={24} color={(premiumWeight || 5) >= 50 ? '#CBD5E1' : '#7C3AED'} />
+            </TouchableOpacity>
+          </View>
+          <Text style={[styles.premiumSelectorSubtitle, { marginTop: 12 }]}>
+            ~{Math.round((premiumWeight || 5) * 3.5)} clothes • Ironing included
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>What's Included</Text>
+        {[
+          'Pre-stain treatment', 'Colour-wise separation', 'Whites washed separately',
+          'Premium wash & drying', 'Professional ironing', 'Premium packaging', 'Secure delivery',
+        ].map((line) => (
+          <View key={line} style={styles.includedRow}>
+            <Ionicons name="checkmark-circle" size={18} color={COLORS.primary} />
+            <Text style={[styles.premiumSelectorSubtitle, { flex: 1 }]}>{line}</Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>How It Works</Text>
+        <Text style={styles.premiumSelectorSubtitle}>
+          Pickup → Pre-Stain → Tagging → Colour Separation → Separate Wash → Dry → Iron → Premium Packaging → Deliver
         </Text>
-        <TouchableOpacity
-          style={[styles.weightOption, premiumWeight === 'small' && styles.weightOptionSelected]}
-          onPress={() => setPremiumWeight('small')}
-        >
-          <View style={styles.weightOptionContent}>
-            <View style={styles.radioButton}>
-              {premiumWeight === 'small' && <View style={styles.radioButtonInner} />}
-            </View>
-            <Text style={styles.weightOptionText}>~7kg • ~25 clothes</Text>
-            <Text style={styles.weightPrice}>₹399</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.weightOption, premiumWeight === 'large' && styles.weightOptionSelected]}
-          onPress={() => setPremiumWeight('large')}
-        >
-          <View style={styles.weightOptionContent}>
-            <View style={styles.radioButton}>
-              {premiumWeight === 'large' && <View style={styles.radioButtonInner} />}
-            </View>
-            <Text style={styles.weightOptionText}>~14kg • ~50 clothes</Text>
-            <Text style={styles.weightPrice}>₹699</Text>
-          </View>
-        </TouchableOpacity>
+        <View style={[styles.infoBox, { marginTop: 4 }]}>
+          <Ionicons name="information-circle-outline" size={18} color={COLORS.primary} />
+          <Text style={[styles.premiumSelectorSubtitle, { flex: 1, marginBottom: 0, color: COLORS.textSecondary }]}>
+            Have clothes that are high-value, expensive, delicate or premium? Premium Laundry gives them an extra-care washing, ironing and packaging process.
+          </Text>
+        </View>
       </View>
 
-      {/* Ironing Add-on */}
-      <View style={styles.section}>
-        <View style={styles.addonHeader}>
-          <Text style={styles.sectionTitle}>Need Ironing?</Text>
-          <Text style={styles.addonPrice}>₹20 per piece</Text>
-        </View>
-        <View style={styles.toggleContainer}>
-          <Text style={styles.toggleLabel}>Premium Ironing</Text>
-          <TouchableOpacity
-            style={[styles.toggle, premiumIroningEnabled && styles.toggleActive]}
-            onPress={() => setPremiumIroningEnabled(!premiumIroningEnabled)}
-          >
-            <View style={[styles.toggleThumb, premiumIroningEnabled && styles.toggleThumbActive]} />
-          </TouchableOpacity>
-        </View>
-        {premiumIroningEnabled && (
-          <View style={styles.quantitySelector}>
-            <Text style={styles.quantityLabel}>Number of pieces</Text>
-            <View style={styles.quantityControls}>
-              <TouchableOpacity
-                style={styles.quantityButton}
-                onPress={() => setPremiumIroningCount(Math.max(0, premiumIroningCount - 1))}
-              >
-                <Text style={styles.quantityButtonText}>-</Text>
-              </TouchableOpacity>
-              <Text style={styles.quantityValue}>{premiumIroningCount}</Text>
-              <TouchableOpacity
-                style={[styles.quantityButton, styles.quantityButtonActive]}
-                onPress={() => setPremiumIroningCount(premiumIroningCount + 1)}
-              >
-                <Text style={[styles.quantityButtonText, styles.quantityButtonActiveText]}>+</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-      </View>
-
-      {/* Special Instructions */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Special Instructions (optional)</Text>
-        <Text style={[styles.sectionSubtitle, { marginBottom: SPACING.sm }]}>
-          Add any notes for delicate fabrics, special care requirements, etc.
+        <Text style={[styles.premiumSelectorSubtitle, { marginBottom: 8 }]}>
+          Add any notes for high-value or delicate garments, fabric care, etc.
         </Text>
         <TextInput
           style={styles.instructionsInput}
@@ -1258,6 +1347,11 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
         />
         {renderMediaButtons()}
         {renderPhotoGallery()}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>FAQs</Text>
+        <FaqAccordion items={PREMIUM_LAUNDRY_FAQS} />
       </View>
     </View>
   );
@@ -1390,13 +1484,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
               {serviceId === 'ironing' && renderIroning()}
               {serviceId === 'blanket_wash' && renderBlanketWash()}
               {serviceId === 'premium_laundry' && renderPremiumLaundry()}
-              {serviceId === 'shoe_clean' && (
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Shoe Cleaning Options</Text>
-                  {/* ... add shoe cleaning content if needed ... */}
-                  <Text style={{ color: COLORS.textSecondary }}>Coming Soon</Text>
-                </View>
-              )}
+              {serviceId === 'shoe_clean' && renderShoeCleaning()}
             </Animated.ScrollView>
 
             {/* Floating Premium Footer */}
@@ -2083,6 +2171,28 @@ const styles = StyleSheet.create({
   },
   blanketInfo: {
     flex: 1,
+  },
+  includedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 6,
+  },
+  billRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  billLabel: {
+    fontSize: 14,
+    fontFamily: 'Outfit_500Medium',
+    color: '#64748B',
+  },
+  billValue: {
+    fontSize: 14,
+    fontFamily: 'Outfit_700Bold',
+    color: '#1E293B',
   },
   blanketOptionText: {
     fontSize: 16,

@@ -112,6 +112,18 @@ const SERVICES = [
     gradient: ['#FFF7ED', '#FFEDD5'] as [string, string],
   },
   {
+    id: 'premium_laundry',
+    name: 'Premium Laundry',
+    image: { uri: ASSET_URLS.services_premium_laundry },
+    gradient: ['#FDF2F8', '#FCE7F3'] as [string, string],
+  },
+  {
+    id: 'shoe_clean',
+    name: 'Shoe Cleaning',
+    image: { uri: ASSET_URLS.services_shoe_clean },
+    gradient: ['#ECFEFF', '#CFFAFE'] as [string, string],
+  },
+  {
     id: 'subscription',
     name: 'Subscribe',
     gradient: ['#F5F3FF', '#EDE9FE'] as [string, string],
@@ -536,7 +548,39 @@ export const HomeScreen: React.FC = () => {
               ))}
             </View>
 
-            {/* Row 3: Subscribe Feature Card */}
+            {/* Row 3: 50/50 split for Premium Laundry and Shoe Cleaning */}
+            <View style={styles.bentoRow}>
+              {[SERVICES[4], SERVICES[5]].map((service, index) => (
+                <MotiView
+                  key={service.id}
+                  from={{ opacity: 0, translateY: 20 }}
+                  animate={{ opacity: 1, translateY: 0 }}
+                  transition={{ delay: 600 + index * 100, type: 'spring', damping: 18 }}
+                  style={{ width: '48.5%' }}
+                >
+                  <AnimatedButton
+                    onPress={() => handleServicePress(service.id)}
+                    style={styles.serviceCard}
+                  >
+                    <LinearGradient colors={service.gradient} style={styles.serviceCardGradient}>
+                      <Image
+                        source={service.image}
+                        style={styles.serviceCardImage}
+                        contentFit="cover"
+                        transition={300}
+                      />
+                      <View style={styles.serviceCardOverlay} />
+                    </LinearGradient>
+                    <View style={styles.serviceCardFooter}>
+                      <Text style={styles.serviceCardName}>{service.name}</Text>
+                      <ChevronRight size={14} color={COLORS.primaryLight} strokeWidth={2} />
+                    </View>
+                  </AnimatedButton>
+                </MotiView>
+              ))}
+            </View>
+
+            {/* Row 4: Subscribe Feature Card */}
             <MotiView
               from={{ opacity: 0, translateY: 20 }}
               animate={{ opacity: 1, translateY: 0 }}

@@ -17,6 +17,9 @@ export interface CartItem {
   shoeQuantity?: number;
   dryCleanWeight?: 'light' | 'medium' | 'heavy'; // For dry cleaning
   dryCleanItems?: { type: string; quantity: number; price: number }[]; // For dry cleaning
+  shoeItems?: { type: string; name: string; quantity: number; price: number }[]; // For shoe cleaning
+  shoeSubtotal?: number; // Sum of shoe item prices
+  deliveryFee?: number; // Fixed delivery fee for e.g. shoe cleaning
 
   // Add-ons
   ironingEnabled?: boolean;

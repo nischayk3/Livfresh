@@ -2180,6 +2180,14 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
       return count * 10;
     }
 
+    if (item.serviceId === 'premium_laundry') {
+      return (item.weight || 5) * 200;
+    }
+
+    if (item.serviceId === 'shoe_clean') {
+      return (item.shoeSubtotal || 0) + (item.deliveryFee ?? 50);
+    }
+
     // Default fallback to existing price if logic unknown
     return item.totalPrice;
   };

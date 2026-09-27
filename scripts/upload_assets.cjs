@@ -34,6 +34,8 @@ const FILES_TO_UPLOAD = [
   'services/ironing.webp',
   'services/blanket_wash.webp',
   'services/wash_iron.webp',
+  'services/premium_laundry.webp',
+  'services/shoe_clean.webp',
   'subscription_illustration.webp',
   'location_illustration.webp',
   'process_video.mp4',

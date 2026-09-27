@@ -85,7 +85,12 @@ const getOrderProcessingSteps = (order: any): string[] => {
 
   // Anything that is washed must be dried.
   const needsDry = needsWash;
-  const needsIron = serviceTypes.some((type: string) => type === 'wash_iron' || type === 'ironing' || type === 'dry_clean');
+  const needsIron = serviceTypes.some((type: string) => 
+    type === 'wash_iron' || 
+    type === 'ironing' || 
+    type === 'dry_clean' || 
+    type === 'premium_laundry'
+  );
 
   if (needsDry) {
     steps.push('getting_dried');
@@ -1373,16 +1378,18 @@ export const AdminOrdersScreen: React.FC = () => {
                     srv.serviceType === 'blanket_wash'
                       ? (srv.description || (srv.quantity || '0') + ' Blankets')
                       : srv.serviceType === 'shoe_clean'
-                        ? `${srv.shoeQuantity || srv.quantity || 0} pairs`
-                        : srv.serviceType === 'dry_clean'
-                          ? (srv.weight ? `${srv.weight}kg` : `${srv.items?.length || srv.quantity || 0} units`)
-                          : srv.serviceType === 'ironing'
-                            ? `${srv.ironingCount || srv.clothesCount || srv.quantity || 0} Clothes`
-                            : (
-                              // Combined logic for wash_fold, wash_iron, premium, etc.
-                              (srv.weight ? `${srv.weight}kg` : `${srv.quantity || 1} units`) +
-                              ((srv.ironingCount || srv.ironingEnabled) ? ` + ${srv.ironingCount || 0} Ironing` : '')
-                            )
+                        ? (srv.description ? `${srv.shoeQuantity || srv.shoeCount || srv.quantity || 0} pairs (${srv.description})` : `${srv.shoeQuantity || srv.shoeCount || srv.quantity || 0} pairs`)
+                        : srv.serviceType === 'premium_laundry'
+                          ? `${srv.weight || 5}kg (Steam Press Included)`
+                          : srv.serviceType === 'dry_clean'
+                            ? (srv.weight ? `${srv.weight}kg` : `${srv.items?.length || srv.quantity || 0} units`)
+                            : srv.serviceType === 'ironing'
+                              ? `${srv.ironingCount || srv.clothesCount || srv.quantity || 0} Clothes`
+                              : (
+                                // Combined logic for wash_fold, wash_iron, etc.
+                                (srv.weight ? `${srv.weight}kg` : `${srv.quantity || 1} units`) +
+                                ((srv.ironingCount || srv.ironingEnabled) ? ` + ${srv.ironingCount || 0} Ironing` : '')
+                              )
                   }
                 </Text>
                 {srv.specialInstructions ? (
@@ -2134,6 +2141,12 @@ export const AdminOrdersScreen: React.FC = () => {
 
 // --- Edit Order Modal Component ---
 
+const SHOE_EDIT_CATEGORIES = [
+  { id: 'canvas_sports', name: 'Canvas & Sports Shoes', price: 300 },
+  { id: 'crocs_sandals', name: 'Crocs & Sandals', price: 150 },
+  { id: 'slippers', name: 'Slippers & Slides', price: 150 },
+];
+
 const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) => {
   const [items, setItems] = useState<any[]>([]);
   const [itemTotal, setItemTotal] = useState(0);
@@ -2185,7 +2198,10 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
     }
 
     if (item.serviceId === 'shoe_clean') {
-      return (item.shoeSubtotal || 0) + (item.deliveryFee ?? 50);
+      const sub = item.shoeSubtotal ?? (
+        item.shoeItems ? item.shoeItems.reduce((sum: number, s: any) => sum + (s.quantity || 0) * (s.price || 0), 0) : 0
+      );
+      return sub > 0 ? (sub + (item.deliveryFee ?? 50)) : 0;
     }
 
     // Default fallback to existing price if logic unknown
@@ -2245,10 +2261,9 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
     const newItems = [...items];
     const updatedItem = { ...newItems[index], ...updates };
 
-    // Update derived fields
+    // Update derived fields for blanket_wash
     if (updatedItem.serviceId === 'blanket_wash') {
       updatedItem.blanketQuantity = (updatedItem.singleBlanketCount || 0) + (updatedItem.doubleBlanketCount || 0);
-      // Update description potentially? 
       const parts = [];
       if (updatedItem.singleBlanketCount > 0) parts.push(`${updatedItem.singleBlanketCount} Single`);
       if (updatedItem.doubleBlanketCount > 0) parts.push(`${updatedItem.doubleBlanketCount} Double`);
@@ -2258,6 +2273,30 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
     // Keep ironingPrice in sync for standalone ironing service
     if (updatedItem.serviceId === 'ironing') {
       updatedItem.ironingPrice = (updatedItem.ironingCount || 0) * 10;
+    }
+
+    // Derived fields for Premium Laundry
+    if (updatedItem.serviceId === 'premium_laundry') {
+      const weight = updatedItem.weight || 5;
+      const estClothes = Math.round(weight * 3.5);
+      updatedItem.clothesCount = estClothes;
+      updatedItem.ironingCount = estClothes;
+      updatedItem.ironingEnabled = true;
+      updatedItem.ironingPrice = 0;
+      updatedItem.quantity = 1;
+    }
+
+    // Derived fields for Shoe Clean
+    if (updatedItem.serviceId === 'shoe_clean') {
+      const shoeItems = updatedItem.shoeItems || [];
+      const subtotal = shoeItems.reduce((sum: number, s: any) => sum + (s.quantity || 0) * (s.price || 0), 0);
+      const totalCount = shoeItems.reduce((sum: number, s: any) => sum + (s.quantity || 0), 0);
+      updatedItem.shoeSubtotal = subtotal;
+      updatedItem.shoeCount = totalCount;
+      updatedItem.shoeQuantity = totalCount;
+      updatedItem.quantity = totalCount;
+      updatedItem.deliveryFee = totalCount > 0 ? 50 : 0;
+      updatedItem.description = shoeItems.filter((s: any) => s.quantity > 0).map((s: any) => `${s.name} ×${s.quantity}`).join(', ');
     }
 
     // Recalculate price for this item
@@ -2272,6 +2311,34 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
 
     newItems[index] = updatedItem;
     setItems(newItems);
+  };
+
+  const updateShoeCount = (itemIndex: number, categoryId: string, delta: number) => {
+    const currentItem = items[itemIndex];
+    const existingItems: any[] = currentItem.shoeItems ? [...currentItem.shoeItems] : [];
+
+    const counts: Record<string, number> = {};
+    SHOE_EDIT_CATEGORIES.forEach((cat) => {
+      const found = existingItems.find((s: any) => s.type === cat.id);
+      counts[cat.id] = found ? (found.quantity || 0) : 0;
+    });
+
+    if (existingItems.length === 0 && (currentItem.shoeQuantity || currentItem.shoeCount || 0) > 0) {
+      counts['canvas_sports'] = currentItem.shoeQuantity || currentItem.shoeCount || 0;
+    }
+
+    counts[categoryId] = Math.max(0, (counts[categoryId] || 0) + delta);
+
+    const updatedShoeItems = SHOE_EDIT_CATEGORIES
+      .filter((cat) => (counts[cat.id] || 0) > 0)
+      .map((cat) => ({
+        type: cat.id,
+        name: cat.name,
+        quantity: counts[cat.id],
+        price: cat.price,
+      }));
+
+    updateItem(itemIndex, { shoeItems: updatedShoeItems });
   };
 
   if (!visible) return null;
@@ -2516,8 +2583,84 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
                 </View>
               )}
 
+              {/* Premium Laundry Editing */}
+              {item.serviceId === 'premium_laundry' && (
+                <View style={{ gap: 12 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={TYPOGRAPHY.caption}>Adjust Weight (₹200/kg)</Text>
+                    <View style={{ backgroundColor: '#F3E8FF', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                      <Text style={{ fontSize: 11, color: '#7C3AED', fontWeight: '700' }}>STEAM PRESS INCLUDED</Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <TouchableOpacity
+                      style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                      onPress={() => updateItem(index, { weight: Math.max(5, (item.weight || 5) - 1) })}
+                      disabled={(item.weight || 5) <= 5}
+                    >
+                      <Ionicons name="remove" size={20} color={(item.weight || 5) <= 5 ? '#CBD5E1' : COLORS.text} />
+                    </TouchableOpacity>
+                    <Text style={{ ...TYPOGRAPHY.heading, minWidth: 50, textAlign: 'center' }}>
+                      {item.weight || 5} kg
+                    </Text>
+                    <TouchableOpacity
+                      style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                      onPress={() => updateItem(index, { weight: Math.min(50, (item.weight || 5) + 1) })}
+                      disabled={(item.weight || 5) >= 50}
+                    >
+                      <Ionicons name="add" size={20} color={(item.weight || 5) >= 50 ? '#CBD5E1' : COLORS.text} />
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>
+                    ~{Math.round((item.weight || 5) * 3.5)} clothes • Min 5 kg • Free delivery
+                  </Text>
+                </View>
+              )}
+
+              {/* Shoe Cleaning Editing */}
+              {item.serviceId === 'shoe_clean' && (
+                <View style={{ gap: 14 }}>
+                  <Text style={TYPOGRAPHY.caption}>Adjust Footwear Quantities</Text>
+                  {SHOE_EDIT_CATEGORIES.map((cat) => {
+                    const currentCount = item.shoeItems?.find((s: any) => s.type === cat.id)?.quantity || 
+                      (cat.id === 'canvas_sports' && (!item.shoeItems || item.shoeItems.length === 0) ? (item.shoeQuantity || item.shoeCount || 0) : 0);
+                    return (
+                      <View key={cat.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <View style={{ flex: 1, marginRight: 8 }}>
+                          <Text style={{ ...TYPOGRAPHY.bodySmall, fontWeight: '600' }}>{cat.name}</Text>
+                          <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>₹{cat.price}/pair</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                          <TouchableOpacity
+                            style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                            onPress={() => updateShoeCount(index, cat.id, -1)}
+                            disabled={currentCount <= 0}
+                          >
+                            <Ionicons name="remove" size={18} color={currentCount <= 0 ? '#CBD5E1' : COLORS.text} />
+                          </TouchableOpacity>
+                          <Text style={{ ...TYPOGRAPHY.subheading, minWidth: 28, textAlign: 'center' }}>
+                            {currentCount}
+                          </Text>
+                          <TouchableOpacity
+                            style={{ padding: 8, backgroundColor: COLORS.backgroundLight, borderRadius: 8 }}
+                            onPress={() => updateShoeCount(index, cat.id, 1)}
+                          >
+                            <Ionicons name="add" size={18} color={COLORS.text} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  })}
+                  <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: COLORS.borderLight }}>
+                    <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>
+                      Footwear Subtotal: ₹{item.shoeSubtotal || 0} + Pickup & Delivery: ₹{(item.shoeSubtotal || 0) > 0 ? (item.deliveryFee ?? 50) : 0}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
               {/* Read Only or generic for others */}
-              {!['wash_fold', 'wash_iron', 'ironing_addon', 'blanket_wash', 'ironing'].includes(item.serviceId) && !item.serviceName?.includes('Ironing') && (
+              {!['wash_fold', 'wash_iron', 'ironing_addon', 'blanket_wash', 'ironing', 'premium_laundry', 'shoe_clean'].includes(item.serviceId) && !item.serviceName?.includes('Ironing') && (
                 <Text style={{ color: COLORS.textSecondary, fontStyle: 'italic', fontSize: 12 }}>
                   Checking/Editing specifics for this service is limited to price override.
                 </Text>

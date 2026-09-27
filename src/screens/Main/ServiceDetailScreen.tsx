@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons, Fontisto } from '@expo/vector-icons';
+import Svg, { Path, Circle } from 'react-native-svg';
 import { Mic, Camera, Image as ImageIcon } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
@@ -81,22 +82,76 @@ const PREMIUM_LAUNDRY_FAQS = [
   { question: "How are my clothes packaged?", answer: "After washing, drying and ironing, the clothes are neatly packed and placed in premium packaging before delivery." },
   { question: "Is Premium Laundry suitable for very delicate clothes?", answer: "It is designed for higher-care garments, but special-care instructions, fabric labels and garment condition are checked before processing." },
   { question: "How is Premium Laundry different from regular Wash & Iron?", answer: "Premium Laundry adds an extra-care process including pre-stain treatment, colour separation, separate white washing and premium packaging." },
-  { question: "How is Premium Laundry priced?", answer: "₹200/kg with a minimum order of 5 kg." },
+  { question: "How is Premium Laundry priced?", answer: "Special discounted rate of ₹200/kg (regular ₹250/kg) with a minimum order of 5 kg." },
 ];
 
 const SHOE_CLEAN_FAQS = [
-  { question: "What types of shoes can I get cleaned?", answer: "Canvas and sports shoes, crocs and sandals, and slippers. Leather shoe cleaning is coming soon." },
-  { question: "Is the ₹300 rate per pair?", answer: "Yes, each pair/item is ₹300." },
+  { question: "What types of shoes can I get cleaned?", answer: "Canvas & sports shoes, crocs & sandals, and slippers. Leather shoe cleaning is coming soon." },
+  { question: "What is the pricing for shoe cleaning?", answer: "Canvas & sports shoes (and leather shoes) are ₹300 per pair, while crocs/sandals and slippers are ₹150 per pair." },
   { question: "Is leather shoe cleaning available?", answer: "Not yet — coming soon with a leather-safe cleaning process." },
   { question: "Is there a delivery fee?", answer: "A ₹50 pickup and delivery fee applies." },
   { question: "Do you remove stains or restore shoes?", answer: "We provide professional cleaning and surface stain treatment. It is not a restoration service." },
   { question: "How long does it take?", answer: "Most shoe cleaning orders are delivered within 24-48 hours." },
 ];
 
-const SHOE_CATEGORIES = [
-  { id: 'canvas_sports', name: 'Canvas & Sports Shoes', icon: 'footsteps' },
-  { id: 'crocs_sandals', name: 'Crocs & Sandals', icon: 'walk' },
-  { id: 'slippers', name: 'Slippers', icon: 'footsteps' },
+interface ShoeCategoryItem {
+  id: string;
+  name: string;
+  subtitle: string;
+  iconBg: string;
+  price: number;
+  originalPrice: number;
+  renderIcon: () => React.ReactNode;
+}
+
+const SHOE_CATEGORIES: ShoeCategoryItem[] = [
+  {
+    id: 'canvas_sports',
+    name: 'Canvas & Sports Shoes',
+    subtitle: 'Sneakers, running & gym shoes',
+    iconBg: '#E0F2FE',
+    price: 300,
+    originalPrice: 400,
+    renderIcon: () => <MaterialCommunityIcons name="shoe-sneaker" size={26} color="#0284C7" />,
+  },
+  {
+    id: 'crocs_sandals',
+    name: 'Crocs & Sandals',
+    subtitle: 'Clogs, floaters & strap sandals',
+    iconBg: '#CCFBF1',
+    price: 150,
+    originalPrice: 250,
+    renderIcon: () => (
+      <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+        <Path
+          d="M3 13.5C3 13.5 3 16.5 6 16.5H18.5C20.5 16.5 21 15 21 13.8C21 11.8 19.5 10.2 16.5 9.5L14 9C12.5 7.5 10 7.5 8 8L3.5 10.5C3 11 3 13.5 3 13.5Z"
+          stroke="#0D9488"
+          strokeWidth={1.8}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path
+          d="M13.5 9.2C13.5 9.2 11 12 6.5 13"
+          stroke="#0D9488"
+          strokeWidth={1.5}
+          strokeLinecap="round"
+        />
+        <Circle cx="6.5" cy="11.5" r="0.8" fill="#0D9488" />
+        <Circle cx="9.5" cy="10.8" r="0.8" fill="#0D9488" />
+        <Circle cx="9" cy="13.2" r="0.8" fill="#0D9488" />
+        <Circle cx="12" cy="12.5" r="0.8" fill="#0D9488" />
+      </Svg>
+    ),
+  },
+  {
+    id: 'slippers',
+    name: 'Slippers & Slides',
+    subtitle: 'Sliders, flip-flops & home slippers',
+    iconBg: '#F3E8FF',
+    price: 150,
+    originalPrice: 200,
+    renderIcon: () => <Fontisto name="beach-slipper" size={22} color="#7C3AED" />,
+  },
 ];
 
 // Helper for Cross-Platform Image Compression & Resizing
@@ -535,7 +590,8 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     }
 
     if (serviceId === 'shoe_clean') {
-      const shoeSubtotal = SHOE_CATEGORIES.reduce((sum, c) => sum + ((shoeSelections[c.id] as number) || 0) * 300, 0);
+      const shoeSubtotal = SHOE_CATEGORIES.reduce((sum, c) => sum + ((shoeSelections[c.id] as number) || 0) * c.price, 0);
+      if (shoeSubtotal === 0) return 0;
       return shoeSubtotal + 50;
     }
 
@@ -678,10 +734,12 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
           type: c.id,
           name: c.name,
           quantity: (shoeSelections[c.id] as number) || 0,
-          price: 300,
+          price: c.price,
         }));
       cartItem.shoeItems = shoeItems;
-      cartItem.shoeSubtotal = shoeItems.reduce((sum, s) => sum + s.quantity * 300, 0);
+      cartItem.shoeSubtotal = shoeItems.reduce((sum, s) => sum + s.quantity * s.price, 0);
+      cartItem.shoeCount = shoeItems.reduce((sum, s) => sum + s.quantity, 0);
+      cartItem.shoeQuantity = cartItem.shoeCount;
       cartItem.deliveryFee = 50;
       cartItem.description = shoeItems.map((s) => `${s.name} ×${s.quantity}`).join(', ');
     }
@@ -1104,61 +1162,91 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   );
 
   const renderShoeCleaning = () => {
-    const shoeSubtotal = SHOE_CATEGORIES.reduce((sum, c) => sum + ((shoeSelections[c.id] as number) || 0) * 300, 0);
+    const shoeSubtotal = SHOE_CATEGORIES.reduce((sum, c) => sum + ((shoeSelections[c.id] as number) || 0) * c.price, 0);
+    const totalShoeCount = SHOE_CATEGORIES.reduce((sum, c) => sum + ((shoeSelections[c.id] as number) || 0), 0);
+    const isCartActive = shoeSubtotal > 0;
+
     return (
       <View>
         <View style={styles.section}>
           <ServiceStats rating={4.7} reviewCount={800} />
-          <Text style={styles.sectionTitle}>Select Items</Text>
-          <Text style={styles.premiumSelectorSubtitle}>
+          <Text style={styles.sectionTitle}>Select Footwear</Text>
+          <Text style={styles.sectionSubtitle}>
             Professional shoe cleaning for everyday footwear, with material-specific cleaning and care.
           </Text>
-          {SHOE_CATEGORIES.map((shoe) => (
-            <View key={shoe.id} style={styles.blanketRow}>
-              <View style={styles.shoeCategoryRow}>
-                <View style={styles.shoeCategoryIcon}>
-                  <Ionicons name={shoe.icon as any} size={22} color="#0891B2" />
+          {SHOE_CATEGORIES.map((shoe) => {
+            const count = (shoeSelections[shoe.id] as number) || 0;
+            return (
+              <View key={shoe.id} style={styles.shoeCardRow}>
+                <View style={styles.shoeCategoryRow}>
+                  <View style={[styles.shoeCategoryIcon, { backgroundColor: shoe.iconBg }]}>
+                    {shoe.renderIcon()}
+                  </View>
+                  <View style={styles.shoeCategoryText}>
+                    <Text style={styles.shoeOptionTitle}>{shoe.name}</Text>
+                    <Text style={styles.shoeCategorySubtitle}>{shoe.subtitle}</Text>
+                    <View style={styles.shoePriceRow}>
+                      <Text style={styles.shoePriceTag}>₹{shoe.price} / pair</Text>
+                      <Text style={styles.shoePriceStrike}>₹{shoe.originalPrice}</Text>
+                    </View>
+                  </View>
                 </View>
-                <View style={styles.shoeCategoryText}>
-                  <Text style={styles.blanketOptionText}>{shoe.name}</Text>
-                  <Text style={styles.blanketPrice}>₹300 / item</Text>
+                <View style={styles.quantityControls}>
+                  <TouchableOpacity
+                    style={[styles.quantityButton, count === 0 && styles.quantityButtonDisabled]}
+                    onPress={() => setShoeSelections({
+                      ...shoeSelections,
+                      [shoe.id]: Math.max(0, count - 1),
+                    })}
+                    disabled={count === 0}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="remove" size={16} color={count > 0 ? COLORS.text : '#CBD5E1'} />
+                  </TouchableOpacity>
+                  <Text style={styles.quantityValue}>{count}</Text>
+                  <TouchableOpacity
+                    style={[styles.quantityButton, styles.quantityButtonActive]}
+                    onPress={() => setShoeSelections({
+                      ...shoeSelections,
+                      [shoe.id]: count + 1,
+                    })}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="add" size={16} color="#FFFFFF" />
+                  </TouchableOpacity>
                 </View>
               </View>
-              <View style={styles.quantityControls}>
-                <TouchableOpacity
-                  style={styles.quantityButton}
-                  onPress={() => setShoeSelections({
-                    ...shoeSelections,
-                    [shoe.id]: Math.max(0, ((shoeSelections[shoe.id] as number) || 0) - 1),
-                  })}
-                >
-                  <Text style={styles.quantityButtonText}>-</Text>
-                </TouchableOpacity>
-                <Text style={styles.quantityValue}>{(shoeSelections[shoe.id] as number) || 0}</Text>
-                <TouchableOpacity
-                  style={[styles.quantityButton, styles.quantityButtonActive]}
-                  onPress={() => setShoeSelections({
-                    ...shoeSelections,
-                    [shoe.id]: ((shoeSelections[shoe.id] as number) || 0) + 1,
-                  })}
-                >
-                  <Text style={[styles.quantityButtonText, styles.quantityButtonActive]}>+</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
+            );
+          })}
           <View style={styles.divider} />
-          <View style={[styles.billRow, { marginTop: 8 }]}>
-            <Text style={styles.billLabel}>Subtotal</Text>
-            <Text style={styles.billValue}>₹{shoeSubtotal}</Text>
-          </View>
-          <View style={styles.billRow}>
-            <Text style={styles.billLabel}>Pickup & Delivery</Text>
-            <Text style={styles.billValue}>₹50</Text>
-          </View>
-          <View style={styles.billRow}>
-            <Text style={[styles.billLabel, { fontWeight: '700' }]}>Total</Text>
-            <Text style={[styles.billValue, { color: COLORS.primary }]}>₹{shoeSubtotal + 50}</Text>
+          <View style={styles.shoeBillCard}>
+            <View style={styles.billRow}>
+              <Text style={styles.billLabel}>
+                Subtotal {isCartActive ? `(${totalShoeCount} ${totalShoeCount === 1 ? 'pair' : 'pairs'})` : ''}
+              </Text>
+              <Text style={styles.billValue}>₹{shoeSubtotal}</Text>
+            </View>
+            <View style={styles.billRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.billLabel}>Pickup & Delivery</Text>
+                {!isCartActive && <Text style={styles.billSubLabel}>(₹50 on order)</Text>}
+              </View>
+              <Text style={styles.billValue}>{isCartActive ? '₹50' : '₹0'}</Text>
+            </View>
+            <View style={[styles.billRow, { marginTop: 4, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#E2E8F0' }]}>
+              <Text style={[styles.billLabel, { fontWeight: '700', fontSize: 16, color: '#1E293B' }]}>Total</Text>
+              <Text style={[styles.billValue, { color: isCartActive ? COLORS.primary : '#94A3B8', fontWeight: '800', fontSize: 18 }]}>
+                ₹{isCartActive ? shoeSubtotal + 50 : 0}
+              </Text>
+            </View>
+            {!isCartActive && (
+              <View style={styles.shoeSelectionHint}>
+                <Ionicons name="information-circle-outline" size={14} color="#0891B2" />
+                <Text style={styles.shoeSelectionHintText}>
+                  Add footwear above to calculate delivery and total.
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -1302,12 +1390,24 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     <View>
       <View style={styles.section}>
         <ServiceStats rating={4.8} reviewCount={900} />
+        {/* Premium Value Highlight Banner */}
+        <View style={styles.luxuryBanner}>
+          <View style={styles.luxuryBannerHeader}>
+            <View style={styles.luxuryBannerIconBg}>
+              <Ionicons name="sparkles" size={15} color="#7C3AED" />
+            </View>
+            <Text style={styles.luxuryBannerTag}>BESPOKE FABRIC CARE</Text>
+          </View>
+          <Text style={styles.luxuryBannerTitle}>Extra care for delicate & high-end garments</Text>
+          <Text style={styles.luxuryBannerDesc}>
+            Tailored wash, colour separation, pre-stain treatment, and hand-finished steam pressing for designer wear, silk, and precious fabrics.
+          </Text>
+        </View>
+
+        {/* Clean, Focused Weight Selector Card */}
         <View style={styles.premiumSelectorContainer}>
           <Text style={styles.premiumSelectorTitle}>Select Weight</Text>
-          <Text style={styles.premiumSelectorSubtitle}>Extra-care wash & iron for high-value clothes</Text>
-          <Text style={[styles.premiumSelectorSubtitle, { marginTop: -8 }]}>
-            Recommended for high-value, delicate or premium clothing that needs extra care.
-          </Text>
+          <Text style={styles.premiumWeightLimitSubtitle}>Min 5 kg • Max 50 kg</Text>
 
           <View style={styles.counterWrapper}>
             <TouchableOpacity
@@ -1331,9 +1431,28 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
               <MaterialCommunityIcons name="plus" size={24} color={(premiumWeight || 5) >= 50 ? '#CBD5E1' : '#7C3AED'} />
             </TouchableOpacity>
           </View>
-          <Text style={[styles.premiumSelectorSubtitle, { marginTop: 12 }]}>
-            ~{Math.round((premiumWeight || 5) * 3.5)} clothes • Ironing included
-          </Text>
+
+          <View style={styles.premiumMetaContainer}>
+            <View style={styles.premiumRatePill}>
+              <View style={styles.priceTagRow}>
+                <Text style={styles.premiumRatePillText}>₹200 per kg</Text>
+                <Text style={styles.priceTagStrike}>₹250</Text>
+                <View style={[styles.discountBadge, { backgroundColor: '#7C3AED' }]}>
+                  <Text style={styles.discountBadgeText}>20% OFF</Text>
+                </View>
+              </View>
+            </View>
+            <View style={styles.premiumEstimateRow}>
+              <MaterialCommunityIcons name="tshirt-crew-outline" size={15} color="#64748B" />
+              <Text style={styles.premiumEstimateText}>
+                ~{Math.round((premiumWeight || 5) * 3.5)} clothes • Professional steam iron included
+              </Text>
+            </View>
+            <View style={styles.premiumMinOrderBadge}>
+              <Ionicons name="checkmark-circle" size={14} color="#059669" />
+              <Text style={styles.premiumMinOrderText}>Min. order ₹1,000 (5 kg) • Free delivery</Text>
+            </View>
+          </View>
         </View>
       </View>
 
@@ -2252,6 +2371,173 @@ const styles = StyleSheet.create({
   shoeCategoryText: {
     marginLeft: 12,
     flex: 1,
+  },
+  shoeCardRow: {
+    backgroundColor: '#FFFFFF',
+    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    ...SHADOWS.sm,
+  },
+  shoeOptionTitle: {
+    fontSize: 15,
+    fontFamily: 'Outfit_700Bold',
+    color: '#1E293B',
+  },
+  shoeCategorySubtitle: {
+    fontSize: 12,
+    fontFamily: 'Outfit_400Regular',
+    color: '#64748B',
+    marginTop: 1,
+  },
+  shoePriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 3,
+  },
+  shoePriceTag: {
+    fontSize: 13,
+    fontFamily: 'Outfit_700Bold',
+    color: '#0891B2',
+  },
+  shoePriceStrike: {
+    fontSize: 12,
+    fontFamily: 'Outfit_500Medium',
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+  shoeBillCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  shoeEmptyHint: {
+    fontSize: 12,
+    fontFamily: 'Outfit_400Regular',
+    color: '#64748B',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  shoeSelectionHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  shoeSelectionHintText: {
+    fontSize: 12,
+    fontFamily: 'Outfit_400Regular',
+    color: '#0891B2',
+    flex: 1,
+  },
+  billSubLabel: {
+    fontSize: 12,
+    fontFamily: 'Outfit_400Regular',
+    color: '#94A3B8',
+  },
+  luxuryBanner: {
+    backgroundColor: '#FAF5FF',
+    borderRadius: 18,
+    padding: 16,
+    marginTop: 14,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.15)',
+  },
+  luxuryBannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  luxuryBannerIconBg: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(124, 58, 237, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  luxuryBannerTag: {
+    fontSize: 11,
+    fontFamily: 'Outfit_700Bold',
+    color: '#7C3AED',
+    letterSpacing: 0.6,
+  },
+  luxuryBannerTitle: {
+    fontSize: 15,
+    fontFamily: 'Outfit_700Bold',
+    color: '#1E1B4B',
+    marginBottom: 4,
+  },
+  luxuryBannerDesc: {
+    fontSize: 13,
+    fontFamily: 'Outfit_400Regular',
+    color: '#6B7280',
+    lineHeight: 18,
+  },
+  premiumWeightLimitSubtitle: {
+    fontSize: 13,
+    fontFamily: 'Outfit_500Medium',
+    color: '#64748B',
+    marginBottom: 16,
+  },
+  premiumMetaContainer: {
+    alignItems: 'center',
+    marginTop: 14,
+    width: '100%',
+  },
+  premiumRatePill: {
+    backgroundColor: '#F3E8FF',
+    paddingHorizontal: 18,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.2)',
+  },
+  premiumRatePillText: {
+    fontSize: 15,
+    fontFamily: 'Outfit_700Bold',
+    color: '#7C3AED',
+  },
+  premiumEstimateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+  },
+  premiumEstimateText: {
+    fontSize: 13,
+    fontFamily: 'Outfit_500Medium',
+    color: '#64748B',
+  },
+  premiumMinOrderBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 8,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  premiumMinOrderText: {
+    fontSize: 12,
+    fontFamily: 'Outfit_600SemiBold',
+    color: '#065F46',
   },
   featureCard: {
     backgroundColor: '#FFFFFF',

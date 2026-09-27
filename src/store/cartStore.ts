@@ -15,6 +15,7 @@ export interface CartItem {
   blanketQuantity?: number;
   shoeType?: string; // For shoe cleaning
   shoeQuantity?: number;
+  shoeCount?: number;
   dryCleanWeight?: 'light' | 'medium' | 'heavy'; // For dry cleaning
   dryCleanItems?: { type: string; quantity: number; price: number }[]; // For dry cleaning
   shoeItems?: { type: string; name: string; quantity: number; price: number }[]; // For shoe cleaning

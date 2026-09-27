@@ -546,7 +546,7 @@ export const OrderDetailScreen: React.FC = () => {
                     {item.serviceType === 'shoe_clean' && (
                       <View style={styles.weightBadge}>
                         <Text style={styles.weightText}>
-                          {item.shoeQuantity || item.quantity || 0} Pairs
+                          {item.shoeQuantity || item.shoeCount || item.quantity || 0} Pairs
                         </Text>
                       </View>
                     )}
@@ -567,11 +567,13 @@ export const OrderDetailScreen: React.FC = () => {
                           ? 'Wrinkle-free finishing'
                           : item.serviceType === 'blanket_wash'
                             ? (item.description || 'Deep cleaning for blankets')
-                            : item.serviceType === 'shoe_clean'
-                              ? (item.description || 'Professional shoe laundry')
-                              : item.serviceType === 'dry_clean'
-                                ? (item.description || 'Premium chemical dry cleaning')
-                                : item.description || 'Service'}
+                            : item.serviceType === 'premium_laundry'
+                              ? (item.description || 'Delicate care, conditioning & steam press')
+                              : item.serviceType === 'shoe_clean'
+                                ? (item.description || 'Professional shoe laundry')
+                                : item.serviceType === 'dry_clean'
+                                  ? (item.description || 'Premium chemical dry cleaning')
+                                  : item.description || 'Service'}
                   </Text>
                 </View>
                 <Text style={styles.itemPrice}>₹{item.totalPrice}</Text>

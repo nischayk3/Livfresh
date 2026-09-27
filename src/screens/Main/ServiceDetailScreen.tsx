@@ -94,9 +94,9 @@ const SHOE_CLEAN_FAQS = [
 ];
 
 const SHOE_CATEGORIES = [
-  { id: 'canvas_sports', name: 'Canvas & Sports Shoes' },
-  { id: 'crocs_sandals', name: 'Crocs & Sandals' },
-  { id: 'slippers', name: 'Slippers' },
+  { id: 'canvas_sports', name: 'Canvas & Sports Shoes', icon: 'footsteps' },
+  { id: 'crocs_sandals', name: 'Crocs & Sandals', icon: 'walk' },
+  { id: 'slippers', name: 'Slippers', icon: 'footsteps' },
 ];
 
 // Helper for Cross-Platform Image Compression & Resizing
@@ -1115,9 +1115,14 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
           </Text>
           {SHOE_CATEGORIES.map((shoe) => (
             <View key={shoe.id} style={styles.blanketRow}>
-              <View style={styles.blanketInfo}>
-                <Text style={styles.blanketOptionText}>{shoe.name}</Text>
-                <Text style={styles.blanketPrice}>₹300 / item</Text>
+              <View style={styles.shoeCategoryRow}>
+                <View style={styles.shoeCategoryIcon}>
+                  <Ionicons name={shoe.icon as any} size={22} color="#0891B2" />
+                </View>
+                <View style={styles.shoeCategoryText}>
+                  <Text style={styles.blanketOptionText}>{shoe.name}</Text>
+                  <Text style={styles.blanketPrice}>₹300 / item</Text>
+                </View>
               </View>
               <View style={styles.quantityControls}>
                 <TouchableOpacity
@@ -1159,22 +1164,49 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>What's Included</Text>
-          {[
-            'Material-specific cleaning', 'Surface stain treatment', 'Deep cleaning',
-            'Drying', 'Finishing & inspection',
-          ].map((line) => (
-            <View key={line} style={styles.includedRow}>
-              <Ionicons name="checkmark-circle" size={18} color={COLORS.primary} />
-              <Text style={[styles.premiumSelectorSubtitle, { flex: 1 }]}>{line}</Text>
-            </View>
-          ))}
+          <View style={styles.featureCard}>
+            {[
+              { icon: 'water-outline', label: 'Material-specific cleaning' },
+              { icon: 'sparkles-outline', label: 'Surface stain treatment' },
+              { icon: 'color-palette-outline', label: 'Deep cleaning' },
+              { icon: 'sunny-outline', label: 'Drying' },
+              { icon: 'checkmark-done-outline', label: 'Finishing & inspection' },
+            ].map((item) => (
+              <View key={item.label} style={styles.featureRow}>
+                <View style={styles.featureIconBadge}>
+                  <Ionicons name={item.icon as any} size={18} color="#0891B2" />
+                </View>
+                <Text style={styles.featureLabel}>{item.label}</Text>
+              </View>
+            ))}
+          </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>How It Works</Text>
-          <Text style={styles.premiumSelectorSubtitle}>
-            Pickup → Inspection → Cleaning → Drying → Finishing → Delivery
-          </Text>
+          <View style={styles.stepCard}>
+            {[
+              { icon: 'car-outline', label: 'Pickup' },
+              { icon: 'search-outline', label: 'Inspection' },
+              { icon: 'water-outline', label: 'Cleaning' },
+              { icon: 'sunny-outline', label: 'Drying' },
+              { icon: 'sparkles-outline', label: 'Finishing' },
+              { icon: 'checkmark-done-outline', label: 'Delivery' },
+            ].map((step, idx) => (
+              <React.Fragment key={step.label}>
+                {idx > 0 && <View style={styles.stepLine} />}
+                <View style={styles.stepItem}>
+                  <View style={styles.stepBadge}>
+                    <Text style={styles.stepBadgeNum}>{idx + 1}</Text>
+                  </View>
+                  <View style={styles.stepContent}>
+                    <Ionicons name={step.icon as any} size={17} color="#0891B2" />
+                    <Text style={styles.stepLabel}>{step.label}</Text>
+                  </View>
+                </View>
+              </React.Fragment>
+            ))}
+          </View>
         </View>
 
         <View style={styles.section}>
@@ -1307,22 +1339,54 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>What's Included</Text>
-        {[
-          'Pre-stain treatment', 'Colour-wise separation', 'Whites washed separately',
-          'Premium wash & drying', 'Professional ironing', 'Premium packaging', 'Secure delivery',
-        ].map((line) => (
-          <View key={line} style={styles.includedRow}>
-            <Ionicons name="checkmark-circle" size={18} color={COLORS.primary} />
-            <Text style={[styles.premiumSelectorSubtitle, { flex: 1 }]}>{line}</Text>
-          </View>
-        ))}
+        <View style={styles.featureCard}>
+          {[
+            { icon: 'water-outline', label: 'Pre-stain treatment' },
+            { icon: 'color-palette-outline', label: 'Colour-wise separation' },
+            { icon: 'sparkles-outline', label: 'Whites washed separately' },
+            { icon: 'water', label: 'Premium wash & drying' },
+            { icon: 'checkmark-done-outline', label: 'Professional ironing' },
+            { icon: 'gift-outline', label: 'Premium packaging' },
+            { icon: 'shield-checkmark-outline', label: 'Secure delivery' },
+          ].map((item) => (
+            <View key={item.label} style={styles.featureRow}>
+              <View style={[styles.featureIconBadge, styles.featureIconBadgePink]}>
+                <Ionicons name={item.icon as any} size={18} color="#DB2777" />
+              </View>
+              <Text style={styles.featureLabel}>{item.label}</Text>
+            </View>
+          ))}
+        </View>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>How It Works</Text>
-        <Text style={styles.premiumSelectorSubtitle}>
-          Pickup → Pre-Stain → Tagging → Colour Separation → Separate Wash → Dry → Iron → Premium Packaging → Deliver
-        </Text>
+        <View style={styles.stepCard}>
+          {[
+            { icon: 'car-outline', label: 'Pickup' },
+            { icon: 'water-outline', label: 'Pre-Stain' },
+            { icon: 'pricetag-outline', label: 'Tagging' },
+            { icon: 'color-palette-outline', label: 'Colour Separation' },
+            { icon: 'water-outline', label: 'Separate Wash' },
+            { icon: 'sunny-outline', label: 'Dry' },
+            { icon: 'sparkles-outline', label: 'Iron' },
+            { icon: 'gift-outline', label: 'Premium Packaging' },
+            { icon: 'checkmark-done-outline', label: 'Deliver' },
+          ].map((step, idx) => (
+            <React.Fragment key={step.label}>
+              {idx > 0 && <View style={styles.stepLine} />}
+              <View style={styles.stepItem}>
+                <View style={[styles.stepBadge, styles.stepBadgePink]}>
+                  <Text style={styles.stepBadgeNum}>{idx + 1}</Text>
+                </View>
+                <View style={styles.stepContent}>
+                  <Ionicons name={step.icon as any} size={17} color="#DB2777" />
+                  <Text style={styles.stepLabel}>{step.label}</Text>
+                </View>
+              </View>
+            </React.Fragment>
+          ))}
+        </View>
         <View style={[styles.infoBox, { marginTop: 4 }]}>
           <Ionicons name="information-circle-outline" size={18} color={COLORS.primary} />
           <Text style={[styles.premiumSelectorSubtitle, { flex: 1, marginBottom: 0, color: COLORS.textSecondary }]}>
@@ -2172,11 +2236,106 @@ const styles = StyleSheet.create({
   blanketInfo: {
     flex: 1,
   },
-  includedRow: {
+  shoeCategoryRow: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 6,
+  },
+  shoeCategoryIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#E0F2FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shoeCategoryText: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  featureCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 4,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+  },
+  featureIconBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#E0F2FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  featureIconBadgePink: {
+    backgroundColor: '#FDF2F8',
+  },
+  featureLabel: {
+    fontSize: 15,
+    fontFamily: 'Outfit_500Medium',
+    color: '#0F172A',
+    flex: 1,
+  },
+  stepCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginTop: 4,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  stepItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  stepLine: {
+    width: 2,
+    height: 18,
+    backgroundColor: '#E2E8F0',
+    marginLeft: 15,
+  },
+  stepBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#0891B2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  stepBadgePink: {
+    backgroundColor: '#DB2777',
+  },
+  stepBadgeNum: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontFamily: 'Outfit_700Bold',
+  },
+  stepContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  stepLabel: {
+    fontSize: 15,
+    fontFamily: 'Outfit_500Medium',
+    color: '#0F172A',
   },
   billRow: {
     flexDirection: 'row',

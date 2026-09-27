@@ -784,7 +784,55 @@ export const razorpayWebhook = functions
             }
 
             if (!spinzoOrderId) {
-                console.log(`[Webhook] No spinzoOrderId found in notes, receipt, or phone lookup, skipping order update`);
+                // Secondary fallback: Unique active unpaid order matching exact amount in vendor mirrors
+                const paymentAmountInRupees = payment?.amount ? Math.round(payment.amount / 100) : 0;
+                if (paymentAmountInRupees > 0) {
+                    console.log(`[Webhook] Attempting amount-based lookup for ₹${paymentAmountInRupees}`);
+                    const db = admin.firestore();
+                    const vendorCandidates = ["default", "vendor_1", "vendor_2"];
+                    const matchedCandidates: Array<{ orderId: string; userId: string; status: string }> = [];
+
+                    for (const vId of vendorCandidates) {
+                        try {
+                            const snap = await db.collection("vendors").doc(vId).collection("orders")
+                                .where("billDetails.total", "==", paymentAmountInRupees)
+                                .get();
+
+                            for (const doc of snap.docs) {
+                                const d = doc.data();
+                                if (d.paymentStatus !== "paid" && d.userId) {
+                                    matchedCandidates.push({
+                                        orderId: doc.id,
+                                        userId: d.userId,
+                                        status: d.status || "",
+                                    });
+                                }
+                            }
+                        } catch (vErr: any) {
+                            console.warn(`[Webhook] Error querying vendor ${vId} by amount:`, vErr?.message);
+                        }
+                    }
+
+                    if (matchedCandidates.length === 1) {
+                        spinzoOrderId = matchedCandidates[0].orderId;
+                        matchedUserId = matchedCandidates[0].userId;
+                        console.log(`[Webhook] ✅ Amount fallback uniquely matched order: ${spinzoOrderId} for user ${matchedUserId}`);
+                    } else if (matchedCandidates.length > 1) {
+                        // If multiple match the amount, prioritize active delivery states (out_for_delivery)
+                        const activeCandidates = matchedCandidates.filter(c => c.status === "out_for_delivery");
+                        if (activeCandidates.length === 1) {
+                            spinzoOrderId = activeCandidates[0].orderId;
+                            matchedUserId = activeCandidates[0].userId;
+                            console.log(`[Webhook] ✅ Amount fallback matched unique active delivery order: ${spinzoOrderId} for user ${matchedUserId}`);
+                        } else {
+                            console.warn(`[Webhook] Amount fallback ambiguous: found ${matchedCandidates.length} orders matching ₹${paymentAmountInRupees}`);
+                        }
+                    }
+                }
+            }
+
+            if (!spinzoOrderId) {
+                console.log(`[Webhook] No spinzoOrderId found in notes, receipt, phone, or amount lookup, skipping order update`);
                 res.status(200).send("OK");
                 return;
             }

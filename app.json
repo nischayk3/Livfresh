@@ -7,7 +7,7 @@
       "com.nischayk3.spinit-ios",
       "app-1-597897149776-ios-bc466d02099d18a135c055"
     ],
-    "version": "1.6.0",
+    "version": "1.6.1",
     "orientation": "portrait",
     "icon": "./assets/SpinZo.png",
     "userInterfaceStyle": "light",
@@ -21,7 +21,7 @@
       "supportsTablet": true,
       "googleServicesFile": "./GoogleService-Info.plist",
       "bundleIdentifier": "com.nischayk3.Spinit",
-      "buildNumber": "50",
+      "buildNumber": "51",
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
           "tez",
@@ -60,7 +60,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.nischayk3.Spinit",
-      "versionCode": 50,
+      "versionCode": 51,
       "googleServicesFile": "./google-services.json",
       "config": {
         "googleMaps": {

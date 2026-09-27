@@ -2178,19 +2178,20 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
     if (item.serviceId === 'wash_iron') {
       return (item.weight || 5) * 140;
     }
-    if (item.serviceId === 'ironing_addon' || item.serviceName?.toLowerCase().includes('ironing')) {
+    if (item.serviceId === 'ironing') {
+      const count = item.ironingCount || item.clothesCount || 0;
+      return count * 10;
+    }
+
+    if (item.serviceId === 'ironing_addon' || (item.serviceName?.toLowerCase().includes('ironing') && item.serviceId !== 'ironing')) {
       const count = item.clothesCount || item.ironingCount || 0;
       return count * 18;
     }
+
     if (item.serviceId === 'blanket_wash') {
       const single = item.singleBlanketCount || 0;
       const double = item.doubleBlanketCount || 0;
       return (single * 299) + (double * 399);
-    }
-
-    if (item.serviceId === 'ironing') {
-      const count = item.ironingCount || item.clothesCount || 0;
-      return count * 10;
     }
 
     if (item.serviceId === 'premium_laundry') {
@@ -2477,7 +2478,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
               )}
 
               {/* Ironing Add-on Editing */}
-              {(item.serviceId === 'ironing_addon' || item.serviceName?.toLowerCase().includes('ironing')) && (
+              {(item.serviceId === 'ironing_addon' || (item.serviceName?.toLowerCase().includes('ironing') && item.serviceId !== 'ironing')) && (
                 <View style={{ marginTop: 8 }}>
                   <Text style={TYPOGRAPHY.caption}>Number of Clothes (₹18/pc)</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 }}>

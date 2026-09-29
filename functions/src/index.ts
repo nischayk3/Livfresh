@@ -6,6 +6,7 @@ import { defineSecret } from "firebase-functions/params";
 import { sendWhatsAppMessage, aisensyApiKey } from "./whatsapp";
 
 admin.initializeApp();
+admin.firestore().settings({ ignoreUndefinedProperties: true });
 
 const razorpayKeyId = defineSecret("RAZORPAY_LIVE_KEY_ID");
 const razorpayKeySecret = defineSecret("RAZORPAY_LIVE_KEY_SECRET");
@@ -800,11 +801,13 @@ export const razorpayWebhook = functions
 
                             for (const doc of snap.docs) {
                                 const d = doc.data();
-                                if (d.paymentStatus !== "paid" && d.userId) {
+                                const status = d.status || "";
+                                const isTerminal = ["delivered", "cancelled", "rejected"].includes(status);
+                                if (d.paymentStatus !== "paid" && d.userId && !isTerminal) {
                                     matchedCandidates.push({
                                         orderId: doc.id,
                                         userId: d.userId,
-                                        status: d.status || "",
+                                        status: status,
                                     });
                                 }
                             }
@@ -928,7 +931,7 @@ export const razorpayWebhook = functions
             if (userId) {
                 const paymentRef = db.collection("users").doc(userId).collection("payments").doc(paymentId);
                 batch.set(paymentRef, {
-                    orderId: razorpayOrderId,
+                    orderId: razorpayOrderId || spinzoOrderId || "",
                     paymentId: paymentId,
                     amount: payment.amount,
                     planDetails: { type: "checkout" },

@@ -12,7 +12,7 @@ export const SLOT_CONSTANTS = {
     /** Store closes at 10:00 PM */
     OPERATIONAL_END_HOUR: 22,
     /** Maximum orders (pickup + delivery combined) per 1-hour slot */
-    MAX_ORDERS_PER_SLOT: 2,
+    MAX_ORDERS_PER_SLOT: 3,
 } as const;
 
 // ─── Slot Generator ───────────────────────────────────────────────────────────

@@ -1338,6 +1338,24 @@ export const updateOrderStatusAdmin = async (
       }
       updateData.pickupVerified = true;
       updateData.pickedUpAt = timestamp;
+
+      // Release the original pickup slot — pickup is now complete
+      if (!currentOrder.isTestOrder && !currentOrder.pickupSlotReleased) {
+        const pickupDate = currentOrder.pickupDetails?.scheduledDate;
+        const pickupTime = currentOrder.pickupDetails?.scheduledTime;
+        if (pickupDate && pickupTime) {
+          const schedRef = doc(db, 'daily_schedules', pickupDate);
+          const schedSnap = await getDoc(schedRef);
+          if (schedSnap.exists()) {
+            const sc = schedSnap.data().slot_counts || {};
+            const cur = sc[pickupTime] || 0;
+            if (cur > 0) {
+              await updateDoc(schedRef, { [`slot_counts.${pickupTime}`]: Math.max(0, cur - 1) });
+            }
+          }
+        }
+        updateData.pickupSlotReleased = true;
+      }
     }
 
     // Verify delivery OTP
@@ -1367,6 +1385,60 @@ export const updateOrderStatusAdmin = async (
 
       updateData.deliveryVerified = true;
       updateData.deliveredAt = timestamp;
+
+      // Release the delivery slot — delivery is now complete
+      if (!currentOrder.isTestOrder && !currentOrder.deliverySlotReleased) {
+        const delDate = currentOrder.deliveryDate;
+        const delTime = currentOrder.deliveryTime;
+        if (delDate && delTime) {
+          const schedRef = doc(db, 'daily_schedules', delDate);
+          const schedSnap = await getDoc(schedRef);
+          if (schedSnap.exists()) {
+            const sc = schedSnap.data().slot_counts || {};
+            const cur = sc[delTime] || 0;
+            if (cur > 0) {
+              await updateDoc(schedRef, { [`slot_counts.${delTime}`]: Math.max(0, cur - 1) });
+            }
+          }
+        }
+        updateData.deliverySlotReleased = true;
+      }
+    }
+
+    // ─── Cancellation: release ALL reserved slots ───
+    if (newStatus === 'cancelled' && !currentOrder.isTestOrder) {
+      // Release pickup slot (only if not already released by pickup verification)
+      if (!currentOrder.pickupSlotReleased) {
+        const pickupDate = currentOrder.pickupDetails?.scheduledDate;
+        const pickupTime = currentOrder.pickupDetails?.scheduledTime;
+        if (pickupDate && pickupTime) {
+          const schedRef = doc(db, 'daily_schedules', pickupDate);
+          const schedSnap = await getDoc(schedRef);
+          if (schedSnap.exists()) {
+            const sc = schedSnap.data().slot_counts || {};
+            const cur = sc[pickupTime] || 0;
+            if (cur > 0) {
+              await updateDoc(schedRef, { [`slot_counts.${pickupTime}`]: Math.max(0, cur - 1) });
+            }
+          }
+        }
+      }
+      // Release delivery slot (only if not already released by delivery verification)
+      if (!currentOrder.deliverySlotReleased) {
+        const delDate = currentOrder.deliveryDate;
+        const delTime = currentOrder.deliveryTime;
+        if (delDate && delTime) {
+          const schedRef = doc(db, 'daily_schedules', delDate);
+          const schedSnap = await getDoc(schedRef);
+          if (schedSnap.exists()) {
+            const sc = schedSnap.data().slot_counts || {};
+            const cur = sc[delTime] || 0;
+            if (cur > 0) {
+              await updateDoc(schedRef, { [`slot_counts.${delTime}`]: Math.max(0, cur - 1) });
+            }
+          }
+        }
+      }
     }
 
     // Add token number
@@ -1383,6 +1455,99 @@ export const updateOrderStatusAdmin = async (
     return true;
   } catch (error: any) {
     console.error('Error updating order status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Toggle test order flag (Admin)
+ *
+ * When marking as test:  releases all reserved pickup/delivery slots
+ * When un-marking:       re-reserves the slots (if capacity allows)
+ *
+ * This lets the team place real orders via the customer app, then
+ * flag them as test from the admin panel so they don't block slots.
+ */
+export const toggleTestOrderAdmin = async (
+  userId: string,
+  orderId: string,
+  markAsTest: boolean
+): Promise<boolean> => {
+  try {
+    const orderRef = doc(db, 'users', userId, 'orders', orderId);
+    const orderSnap = await getDoc(orderRef);
+
+    if (!orderSnap.exists()) {
+      throw new Error('Order not found');
+    }
+
+    const order = orderSnap.data();
+    const vendorId = order.vendorId || 'vendor_1';
+    const vendorOrderRef = doc(db, 'vendors', vendorId, 'orders', orderId);
+    const timestamp = Timestamp.now();
+
+    const pickupDate = order.pickupDetails?.scheduledDate;
+    const pickupTime = order.pickupDetails?.scheduledTime;
+    const deliveryDate = order.deliveryDate;
+    const deliveryTime = order.deliveryTime;
+
+    if (markAsTest) {
+      // ── Marking as test → release any reserved slots ──
+      // Only release if slots haven't already been released (e.g. by completion)
+      if (pickupDate && pickupTime && !order.pickupSlotReleased) {
+        const schedRef = doc(db, 'daily_schedules', pickupDate);
+        const schedSnap = await getDoc(schedRef);
+        if (schedSnap.exists()) {
+          const sc = schedSnap.data().slot_counts || {};
+          const cur = sc[pickupTime] || 0;
+          if (cur > 0) {
+            await updateDoc(schedRef, { [`slot_counts.${pickupTime}`]: Math.max(0, cur - 1) });
+          }
+        }
+      }
+      if (deliveryDate && deliveryTime && !order.deliverySlotReleased) {
+        const schedRef = doc(db, 'daily_schedules', deliveryDate);
+        const schedSnap = await getDoc(schedRef);
+        if (schedSnap.exists()) {
+          const sc = schedSnap.data().slot_counts || {};
+          const cur = sc[deliveryTime] || 0;
+          if (cur > 0) {
+            await updateDoc(schedRef, { [`slot_counts.${deliveryTime}`]: Math.max(0, cur - 1) });
+          }
+        }
+      }
+    } else {
+      // ── Un-marking test → re-reserve slots (if not already completed) ──
+      if (pickupDate && pickupTime && !order.pickupSlotReleased) {
+        const schedRef = doc(db, 'daily_schedules', pickupDate);
+        const schedSnap = await getDoc(schedRef);
+        const sc = schedSnap.exists() ? (schedSnap.data().slot_counts || {}) : {};
+        const cur = sc[pickupTime] || 0;
+        if (cur >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
+          throw new Error(`Cannot un-mark test: pickup slot ${pickupTime} is now full.`);
+        }
+        await updateDoc(schedRef, { [`slot_counts.${pickupTime}`]: cur + 1 });
+      }
+      if (deliveryDate && deliveryTime && !order.deliverySlotReleased) {
+        const schedRef = doc(db, 'daily_schedules', deliveryDate);
+        const schedSnap = await getDoc(schedRef);
+        const sc = schedSnap.exists() ? (schedSnap.data().slot_counts || {}) : {};
+        const cur = sc[deliveryTime] || 0;
+        if (cur >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
+          throw new Error(`Cannot un-mark test: delivery slot ${deliveryTime} is now full.`);
+        }
+        await updateDoc(schedRef, { [`slot_counts.${deliveryTime}`]: cur + 1 });
+      }
+    }
+
+    // Update both user order and vendor order
+    const updateData = { isTestOrder: markAsTest, updatedAt: timestamp };
+    await updateDoc(orderRef, updateData);
+    await updateDoc(vendorOrderRef, updateData);
+
+    return true;
+  } catch (error: any) {
+    console.error('Error toggling test order:', error);
     throw error;
   }
 };
@@ -1745,21 +1910,23 @@ export const scheduleOrderDeliveryAdmin = async (
       const newSlotCounts = scheduleSnap.exists() ? { ...(scheduleSnap.data().slot_counts || {}) } : {};
 
       // ---------- ALL WRITES AFTER ----------
-      // Release old slot
-      if (oldScheduleRef && oldScheduleSnap?.exists() && oldDeliveryTime) {
+      // Release old slot (skip for test orders — they never reserved)
+      if (oldScheduleRef && oldScheduleSnap?.exists() && oldDeliveryTime && !orderData.isTestOrder) {
         const oldSlotCounts = oldScheduleSnap.data().slot_counts || {};
         const oldCount = oldSlotCounts[oldDeliveryTime] || 0;
         const updatedOldSlotCounts = { ...oldSlotCounts, [oldDeliveryTime]: Math.max(0, oldCount - 1) };
         transaction.set(oldScheduleRef, { slot_counts: updatedOldSlotCounts }, { merge: true });
       }
 
-      // Reserve new slot
+      // Reserve new slot (skip for test orders)
       const currentCount = newSlotCounts[deliveryTime] || 0;
-      if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
-        throw new Error(`Slot ${deliveryTime} is no longer available.`);
+      if (!orderData.isTestOrder) {
+        if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
+          throw new Error(`Slot ${deliveryTime} is no longer available.`);
+        }
+        newSlotCounts[deliveryTime] = currentCount + 1;
+        transaction.set(scheduleRef, { slot_counts: newSlotCounts }, { merge: true });
       }
-      newSlotCounts[deliveryTime] = currentCount + 1;
-      transaction.set(scheduleRef, { slot_counts: newSlotCounts }, { merge: true });
 
       // Update order and vendor order
       transaction.update(userOrderRef, {
@@ -1835,22 +2002,24 @@ export const rescheduleOrderPickupAdmin = async (
       const newSlotCounts = scheduleSnap.exists() ? { ...(scheduleSnap.data().slot_counts || {}) } : {};
 
       // ---------- ALL WRITES AFTER ----------
-      // Release old slot
+      // Release old slot (skip for test orders — they never reserved)
       let updatedOldSlotCounts: Record<string, number> | null = null;
-      if (oldScheduleRef && oldScheduleSnap?.exists() && oldPickupTime) {
+      if (oldScheduleRef && oldScheduleSnap?.exists() && oldPickupTime && !orderData.isTestOrder) {
         const oldSlotCounts = oldScheduleSnap.data().slot_counts || {};
         const oldCount = oldSlotCounts[oldPickupTime] || 0;
         updatedOldSlotCounts = { ...oldSlotCounts, [oldPickupTime]: Math.max(0, oldCount - 1) };
         transaction.set(oldScheduleRef, { slot_counts: updatedOldSlotCounts }, { merge: true });
       }
 
-      // Reserve new slot
+      // Reserve new slot (skip for test orders)
       const currentCount = newSlotCounts[pickupTime] || 0;
-      if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
-        throw new Error(`Slot ${pickupTime} is no longer available.`);
+      if (!orderData.isTestOrder) {
+        if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
+          throw new Error(`Slot ${pickupTime} is no longer available.`);
+        }
+        newSlotCounts[pickupTime] = currentCount + 1;
+        transaction.set(scheduleRef, { slot_counts: newSlotCounts }, { merge: true });
       }
-      newSlotCounts[pickupTime] = currentCount + 1;
-      transaction.set(scheduleRef, { slot_counts: newSlotCounts }, { merge: true });
 
       // Update order and vendor order
       transaction.update(userOrderRef, { pickupDetails: newPickupDetails, updatedAt: timestamp });

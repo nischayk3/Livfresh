@@ -31,7 +31,8 @@ import {
   scheduleOrderDeliveryAdmin,
   rescheduleOrderPickupAdmin,
   updateOrderProcessingStepAdmin,
-  uploadOrderReadyProofAdmin
+  uploadOrderReadyProofAdmin,
+  toggleTestOrderAdmin,
 } from '../../services/adminFirestore';
 import { useAdminPermissions } from '../../store/useAdminPermissions';
 import * as ImagePicker from 'expo-image-picker';
@@ -972,6 +973,40 @@ export const AdminOrdersScreen: React.FC = () => {
     }
   };
 
+  const handleToggleTestOrder = async () => {
+    if (!selectedOrderForOptions) return;
+    const order = selectedOrderForOptions;
+    const willBeTest = !order.isTestOrder;
+
+    setOptionsModalVisible(false);
+    setProcessing(true);
+
+    // Optimistic update
+    const previousOrders = useAdminStore.getState().orders;
+    useAdminStore.setState((state) => ({
+      orders: state.orders.map((o) =>
+        o.id === order.id && o.userId === order.userId
+          ? { ...o, isTestOrder: willBeTest }
+          : o
+      ),
+    }));
+
+    try {
+      await toggleTestOrderAdmin(order.userId, order.id, willBeTest);
+      Alert.alert(
+        willBeTest ? 'Marked as Test' : 'Unmarked Test',
+        willBeTest
+          ? 'This order no longer consumes slot capacity. It will still follow the full order flow.'
+          : 'This order now consumes slot capacity again.'
+      );
+    } catch (error: any) {
+      useAdminStore.setState({ orders: previousOrders });
+      Alert.alert('Error', error.message || 'Failed to toggle test order');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   useEffect(() => {
     if (rescheduleModalVisible) {
       fetchBusySlotsForReschedule();
@@ -1171,6 +1206,12 @@ export const AdminOrdersScreen: React.FC = () => {
               <View style={[styles.tokenBadge, { backgroundColor: COLORS.primary + '11' }]}>
                 <Ionicons name="card-outline" size={12} color={COLORS.primary} />
                 <Text style={[styles.tokenText, { color: COLORS.primary }]}>Subscription Credit</Text>
+              </View>
+            )}
+            {item.isTestOrder && (
+              <View style={[styles.tokenBadge, { backgroundColor: '#F97316' + '18', borderColor: '#F97316' + '40', borderWidth: 1 }]}>
+                <Ionicons name="flask-outline" size={12} color="#F97316" />
+                <Text style={[styles.tokenText, { color: '#F97316', fontWeight: '700' }]}>TEST ORDER</Text>
               </View>
             )}
             {/* SLA Timer Badge */}
@@ -1849,6 +1890,23 @@ export const AdminOrdersScreen: React.FC = () => {
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
+
+            <TouchableOpacity style={styles.optionItem} onPress={handleToggleTestOrder}>
+              <View style={[styles.optionIcon, { backgroundColor: '#F97316' + '15' }]}>
+                <Ionicons name="flask-outline" size={20} color="#F97316" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.optionLabel}>
+                  {selectedOrderForOptions?.isTestOrder ? 'Unmark Test Order' : 'Mark as Test Order'}
+                </Text>
+                <Text style={styles.optionSub}>
+                  {selectedOrderForOptions?.isTestOrder
+                    ? 'Re-reserve slot capacity for this order'
+                    : 'Frees up slot capacity — order still flows normally'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -2279,7 +2337,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
     // Derived fields for Premium Laundry
     if (updatedItem.serviceId === 'premium_laundry') {
       const weight = updatedItem.weight || 5;
-      const estClothes = Math.round(weight * 3.5);
+      const estClothes = Math.round(weight * 3);
       updatedItem.clothesCount = estClothes;
       updatedItem.ironingCount = estClothes;
       updatedItem.ironingEnabled = true;
@@ -2306,7 +2364,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
     // Update label/description based on new weight
     if (updatedItem.serviceId === 'wash_fold' && !updatedItem.isCreditItem) {
       updatedItem.quantity = 1;
-      const maxPieces = Math.round((updatedItem.weight || 5) * 3.5);
+      const maxPieces = Math.round((updatedItem.weight || 5) * 3);
       if (updatedItem.ironingCount > maxPieces) updatedItem.ironingCount = maxPieces;
     }
 
@@ -2613,7 +2671,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
                     </TouchableOpacity>
                   </View>
                   <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>
-                    ~{Math.round((item.weight || 5) * 3.5)} clothes • Min 5 kg • Free delivery
+                    Approx. {Math.round((item.weight || 5) * 3)} clothes • Min 5 kg • Free delivery
                   </Text>
                 </View>
               )}

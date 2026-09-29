@@ -373,7 +373,8 @@ export const createOrder = async (userId: string, orderData: any) => {
       // 1. Reserve slot for ALL order types (instant AND scheduled).
       //    Both consume the same delivery-partner capacity, so both must
       //    write to daily_schedules to prevent double-booking.
-      if (scheduleDate && scheduleTime) {
+      //    Test orders skip slot reservation so they don't consume capacity.
+      if (scheduleDate && scheduleTime && !orderData.isTestOrder) {
         const scheduleRef = doc(db, 'daily_schedules', scheduleDate);
         const scheduleSnap = await transaction.get(scheduleRef);
 
@@ -534,6 +535,24 @@ export const updateOrderStatus = async (
       }
       updateData.pickupVerified = true;
       updateData.pickedUpAt = timestamp;
+
+      // Release the original pickup slot — pickup is now complete
+      if (!currentOrder.isTestOrder && !currentOrder.pickupSlotReleased) {
+        const pickupDate = currentOrder.pickupDetails?.scheduledDate;
+        const pickupTime = currentOrder.pickupDetails?.scheduledTime;
+        if (pickupDate && pickupTime) {
+          const schedRef = doc(db, 'daily_schedules', pickupDate);
+          const schedSnap = await getDoc(schedRef);
+          if (schedSnap.exists()) {
+            const sc = schedSnap.data().slot_counts || {};
+            const cur = sc[pickupTime] || 0;
+            if (cur > 0) {
+              await updateDoc(schedRef, { [`slot_counts.${pickupTime}`]: Math.max(0, cur - 1) });
+            }
+          }
+        }
+        updateData.pickupSlotReleased = true;
+      }
     }
 
     // Verify delivery OTP
@@ -543,6 +562,60 @@ export const updateOrderStatus = async (
       }
       updateData.deliveryVerified = true;
       updateData.deliveredAt = timestamp;
+
+      // Release the delivery slot — delivery is now complete
+      if (!currentOrder.isTestOrder && !currentOrder.deliverySlotReleased) {
+        const delDate = currentOrder.deliveryDate;
+        const delTime = currentOrder.deliveryTime;
+        if (delDate && delTime) {
+          const schedRef = doc(db, 'daily_schedules', delDate);
+          const schedSnap = await getDoc(schedRef);
+          if (schedSnap.exists()) {
+            const sc = schedSnap.data().slot_counts || {};
+            const cur = sc[delTime] || 0;
+            if (cur > 0) {
+              await updateDoc(schedRef, { [`slot_counts.${delTime}`]: Math.max(0, cur - 1) });
+            }
+          }
+        }
+        updateData.deliverySlotReleased = true;
+      }
+    }
+
+    // ─── Cancellation: release ALL reserved slots ───
+    if (status === 'cancelled' && !currentOrder.isTestOrder) {
+      // Release pickup slot (only if not already released by pickup verification)
+      if (!currentOrder.pickupSlotReleased) {
+        const pickupDate = currentOrder.pickupDetails?.scheduledDate;
+        const pickupTime = currentOrder.pickupDetails?.scheduledTime;
+        if (pickupDate && pickupTime) {
+          const schedRef = doc(db, 'daily_schedules', pickupDate);
+          const schedSnap = await getDoc(schedRef);
+          if (schedSnap.exists()) {
+            const sc = schedSnap.data().slot_counts || {};
+            const cur = sc[pickupTime] || 0;
+            if (cur > 0) {
+              await updateDoc(schedRef, { [`slot_counts.${pickupTime}`]: Math.max(0, cur - 1) });
+            }
+          }
+        }
+      }
+      // Release delivery slot (only if not already released by delivery verification)
+      if (!currentOrder.deliverySlotReleased) {
+        const delDate = currentOrder.deliveryDate;
+        const delTime = currentOrder.deliveryTime;
+        if (delDate && delTime) {
+          const schedRef = doc(db, 'daily_schedules', delDate);
+          const schedSnap = await getDoc(schedRef);
+          if (schedSnap.exists()) {
+            const sc = schedSnap.data().slot_counts || {};
+            const cur = sc[delTime] || 0;
+            if (cur > 0) {
+              await updateDoc(schedRef, { [`slot_counts.${delTime}`]: Math.max(0, cur - 1) });
+            }
+          }
+        }
+      }
     }
 
     // Add token number
@@ -703,20 +776,7 @@ export const scheduleOrderDelivery = async (
 ): Promise<boolean> => {
   try {
     await runTransaction(db, async (transaction) => {
-      // 1. Check & Reserve Slot in Global Schedule
-      const scheduleRef = doc(db, 'daily_schedules', deliveryDate);
-      const scheduleSnap = await transaction.get(scheduleRef);
-
-      const slotCounts: Record<string, number> = scheduleSnap.exists()
-        ? (scheduleSnap.data().slot_counts || {})
-        : {};
-      const currentCount = slotCounts[deliveryTime] || 0;
-
-      if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
-        throw new Error(`Slot ${deliveryTime} is no longer available.`);
-      }
-
-      // 2. Update Order
+      // 1. Read Order first to check test order flag
       const userOrderRef = doc(db, 'users', userId, 'orders', orderId);
       const userOrderSnap = await transaction.get(userOrderRef);
 
@@ -728,6 +788,26 @@ export const scheduleOrderDelivery = async (
       const vendorId = orderData.vendorId || 'vendor_1'; // fallback
       const timestamp = Timestamp.now();
 
+      // 2. Check & Reserve Slot in Global Schedule (skip for test orders)
+      const scheduleRef = doc(db, 'daily_schedules', deliveryDate);
+      if (!orderData.isTestOrder) {
+        const scheduleSnap = await transaction.get(scheduleRef);
+
+        const slotCounts: Record<string, number> = scheduleSnap.exists()
+          ? (scheduleSnap.data().slot_counts || {})
+          : {};
+        const currentCount = slotCounts[deliveryTime] || 0;
+
+        if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
+          throw new Error(`Slot ${deliveryTime} is no longer available.`);
+        }
+
+        // Reserve Slot (increment count)
+        transaction.set(scheduleRef, {
+          slot_counts: { ...slotCounts, [deliveryTime]: currentCount + 1 }
+        }, { merge: true });
+      }
+
       const updateData = {
         deliveryDate,
         deliveryTime,
@@ -735,13 +815,7 @@ export const scheduleOrderDelivery = async (
         updatedAt: timestamp,
       };
 
-      // 3. Perform Writes
-      // Reserve Slot (increment count)
-      transaction.set(scheduleRef, {
-        slot_counts: { ...slotCounts, [deliveryTime]: currentCount + 1 }
-      }, { merge: true });
-
-      // Update both user and vendor orders
+      // 3. Update both user and vendor orders
       transaction.update(userOrderRef, updateData);
 
       const vendorOrderRef = doc(db, 'vendors', vendorId, 'orders', orderId);

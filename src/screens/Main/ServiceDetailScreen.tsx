@@ -620,7 +620,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
     // Wash & Fold
     if (serviceId === 'wash_fold') {
-      const maxPieces = Math.round(washFoldKg * 3.5);
+      const maxPieces = Math.round(washFoldKg * 3);
       if (washFoldIroningEnabled) {
         if (washFoldIroningCount < 4) {
           showAlert({ title: 'Minimum Required', message: 'Minimum 4 clothes required for ironing', type: 'warning' });
@@ -697,7 +697,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
     if (serviceId === 'wash_iron') {
       cartItem.weight = washIronKg;
       cartItem.ironingEnabled = true;
-      cartItem.clothesCount = Math.round(washIronKg * 3.5);
+      cartItem.clothesCount = Math.round(washIronKg * 3);
     }
 
     if (serviceId === 'blanket_wash') {
@@ -720,9 +720,9 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
     if (serviceId === 'premium_laundry') {
       cartItem.weight = premiumWeight || 5;
-      cartItem.clothesCount = Math.round((premiumWeight || 5) * 3.5);
+      cartItem.clothesCount = Math.round((premiumWeight || 5) * 3);
       cartItem.ironingEnabled = true;
-      cartItem.ironingCount = Math.round((premiumWeight || 5) * 3.5);
+      cartItem.ironingCount = Math.round((premiumWeight || 5) * 3);
       cartItem.ironingPrice = 0;
       cartItem.deliveryFee = 0;
     }
@@ -771,7 +771,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   /* ----------- SEPARATE RENDER FUNCTIONS ----------- */
 
   const renderWashFold = () => {
-    const maxPieces = Math.round(washFoldKg * 3.5);
+    const maxPieces = Math.round(washFoldKg * 3);
 
     return (
       <View>
@@ -793,7 +793,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
                   const newKg = Math.max(5, washFoldKg - 1);
                   setWashFoldKg(newKg);
                   // Clamp ironing count to new max
-                  const newMax = Math.round(newKg * 3.5);
+                  const newMax = Math.round(newKg * 3);
                   if (washFoldIroningCount > newMax) setWashFoldIroningCount(newMax);
                 }}
                 disabled={washFoldKg <= 5}
@@ -827,9 +827,17 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
                   </View>
                 </View>
               </View>
-              <Text style={{ fontSize: 13, color: COLORS.textSecondary, marginTop: 8, fontWeight: '500' }}>
-                <MaterialCommunityIcons name="tshirt-crew-outline" size={14} color={COLORS.textSecondary} /> ~ {Math.round(washFoldKg * 3.5)} clothes
-              </Text>
+              <View style={styles.estimatePillContainer}>
+                <View style={styles.estimatePill}>
+                  <MaterialCommunityIcons name="tshirt-crew-outline" size={15} color="#7C3AED" style={{ marginRight: 6 }} />
+                  <Text style={styles.estimatePillText}>
+                    Approx. {Math.round(washFoldKg * 3)} clothes
+                  </Text>
+                </View>
+                <Text style={styles.estimateSubtext}>
+                  ~3 clothes/kg • Weighed on scale at pickup
+                </Text>
+              </View>
             </View>
           </View>
         </View>
@@ -955,9 +963,17 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
                   </View>
                 </View>
               </View>
-              <Text style={{ fontSize: 13, color: COLORS.textSecondary, marginTop: 8, fontWeight: '500' }}>
-                <MaterialCommunityIcons name="tshirt-crew-outline" size={14} color={COLORS.textSecondary} /> ~ {Math.round(washIronKg * 3.5)} clothes
-              </Text>
+              <View style={styles.estimatePillContainer}>
+                <View style={styles.estimatePill}>
+                  <MaterialCommunityIcons name="tshirt-crew-outline" size={15} color="#7C3AED" style={{ marginRight: 6 }} />
+                  <Text style={styles.estimatePillText}>
+                    Approx. {Math.round(washIronKg * 3)} clothes
+                  </Text>
+                </View>
+                <Text style={styles.estimateSubtext}>
+                  ~3 clothes/kg • Weighed on scale at pickup
+                </Text>
+              </View>
             </View>
           </View>
         </View>
@@ -1445,7 +1461,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
             <View style={styles.premiumEstimateRow}>
               <MaterialCommunityIcons name="tshirt-crew-outline" size={15} color="#64748B" />
               <Text style={styles.premiumEstimateText}>
-                ~{Math.round((premiumWeight || 5) * 3.5)} clothes • Professional steam iron included
+                Approx. {Math.round((premiumWeight || 5) * 3)} clothes • Professional steam iron included
               </Text>
             </View>
             <View style={styles.premiumMinOrderBadge}>
@@ -1935,6 +1951,33 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: 'Outfit_700Bold',
     color: '#FFFFFF',
+  },
+  estimatePillContainer: {
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  estimatePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F5F3FF',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#EDE9FE',
+  },
+  estimatePillText: {
+    fontSize: 13,
+    fontFamily: 'Outfit_600SemiBold',
+    color: '#6D28D9',
+  },
+  estimateSubtext: {
+    fontSize: 11,
+    fontFamily: 'Outfit_500Medium',
+    color: '#64748B',
+    marginTop: 5,
+    textAlign: 'center',
   },
   infoBox: {
     flexDirection: 'row',

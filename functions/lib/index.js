@@ -44,6 +44,7 @@ const razorpay_1 = __importDefault(require("razorpay"));
 const params_1 = require("firebase-functions/params");
 const whatsapp_1 = require("./whatsapp");
 admin.initializeApp();
+admin.firestore().settings({ ignoreUndefinedProperties: true });
 const razorpayKeyId = (0, params_1.defineSecret)("RAZORPAY_LIVE_KEY_ID");
 const razorpayKeySecret = (0, params_1.defineSecret)("RAZORPAY_LIVE_KEY_SECRET");
 const razorpayWebhookSecret = (0, params_1.defineSecret)("RAZORPAY_WEBHOOK_SECRET");
@@ -714,11 +715,13 @@ exports.razorpayWebhook = functions
                             .get();
                         for (const doc of snap.docs) {
                             const d = doc.data();
-                            if (d.paymentStatus !== "paid" && d.userId) {
+                            const status = d.status || "";
+                            const isTerminal = ["delivered", "cancelled", "rejected"].includes(status);
+                            if (d.paymentStatus !== "paid" && d.userId && !isTerminal) {
                                 matchedCandidates.push({
                                     orderId: doc.id,
                                     userId: d.userId,
-                                    status: d.status || "",
+                                    status: status,
                                 });
                             }
                         }
@@ -833,7 +836,7 @@ exports.razorpayWebhook = functions
         if (userId) {
             const paymentRef = db.collection("users").doc(userId).collection("payments").doc(paymentId);
             batch.set(paymentRef, {
-                orderId: razorpayOrderId,
+                orderId: razorpayOrderId || spinzoOrderId || "",
                 paymentId: paymentId,
                 amount: payment.amount,
                 planDetails: { type: "checkout" },

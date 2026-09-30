@@ -16,6 +16,10 @@ import {
   limit,
   startAfter,
   getCountFromServer,
+  adminDb,
+  db as userDb,
+  adminAuth,
+  auth,
 } from './firebase';
 import { adminDb as db } from './firebase';
 import { generateOTP } from '../utils/otpHelpers';
@@ -2117,3 +2121,130 @@ export const uploadOrderReadyProofAdmin = async (
     throw new Error('Failed to upload proof to storage');
   }
 };
+
+/**
+ * Update unserviceable demand request status
+ */
+export const updateDemandRequestStatus = async (
+  requestId: string,
+  status: 'new' | 'contacted' | 'converted' | 'rejected',
+  notes?: string
+) => {
+  try {
+    const activeDb = adminAuth?.currentUser ? adminDb : (auth?.currentUser ? userDb : adminDb);
+    const docRef = doc(activeDb, 'unserviceable_requests', requestId);
+    const updateData: any = {
+      status,
+      updatedAt: Timestamp.now(),
+    };
+    if (notes !== undefined) {
+      updateData.notes = notes;
+    }
+    await updateDoc(docRef, updateData);
+    return true;
+  } catch (error) {
+    console.error('Error updating demand request status in adminFirestore:', error);
+    throw error;
+  }
+};
+
+/**
+ * Fetch and enrich unserviceable demand requests for admin.
+ * Uses active adminDb (or customer auth db fallback) with userCache enrichment.
+ */
+export const fetchDemandRequestsAdmin = async (limitCount = 100): Promise<any[]> => {
+  const activeDb = adminAuth?.currentUser ? adminDb : (auth?.currentUser ? userDb : adminDb);
+
+  const q = query(
+    collection(activeDb, 'unserviceable_requests'),
+    orderBy('timestamp', 'desc'),
+    limit(limitCount)
+  );
+
+  let snapshot;
+  try {
+    snapshot = await getDocs(q);
+  } catch (err: any) {
+    // If adminDb failed due to permission and auth.currentUser exists, fallback to userDb
+    if ((err?.code === 'permission-denied' || err?.message?.includes('permission')) && auth?.currentUser) {
+      console.warn('[AdminDemand] Permission denied on primary db, retrying with client auth db instance...');
+      const fallbackQ = query(
+        collection(userDb, 'unserviceable_requests'),
+        orderBy('timestamp', 'desc'),
+        limit(limitCount)
+      );
+      snapshot = await getDocs(fallbackQ);
+    } else {
+      throw err;
+    }
+  }
+
+  const fetched = snapshot.docs.map(docSnap => ({
+    id: docSnap.id,
+    ...docSnap.data(),
+  }));
+
+  // Identify unique userIds that need enrichment
+  const missingUserIds = Array.from(new Set(
+    fetched
+      .filter((r: any) => r.userId && (!r.userName || !r.userPhone))
+      .map((r: any) => r.userId)
+  ));
+
+  // Batch fetch missing user profiles from Firestore
+  await Promise.all(
+    missingUserIds.map(async (uid: any) => {
+      if (userCache[uid]) return;
+      try {
+        const userDocSnap = await getDoc(doc(activeDb, 'users', uid));
+        if (userDocSnap.exists()) {
+          userCache[uid] = userDocSnap.data();
+        } else {
+          userCache[uid] = { name: 'Customer', phone: '' };
+        }
+      } catch {
+        // If activeDb failed, try fallback
+        try {
+          if (auth?.currentUser) {
+            const fallbackDoc = await getDoc(doc(userDb, 'users', uid));
+            if (fallbackDoc.exists()) {
+              userCache[uid] = fallbackDoc.data();
+              return;
+            }
+          }
+        } catch {}
+        userCache[uid] = { name: 'Customer', phone: '' };
+      }
+    })
+  );
+
+  return fetched.map((item: any) => {
+    const cachedUser = item.userId ? userCache[item.userId] : null;
+    const userName = item.userName || cachedUser?.name || 'Customer';
+    const userPhone = item.userPhone || cachedUser?.phone || '';
+    const userEmail = item.userEmail || cachedUser?.email || '';
+
+    let cartValue = item.cartValue || 0;
+    let itemsSummary = item.itemsSummary || '';
+    let itemsCount = item.itemsCount || 0;
+
+    if (!cartValue && cachedUser?.activeCart && Array.isArray(cachedUser.activeCart)) {
+      cartValue = cachedUser.activeCart.reduce((sum: number, c: any) => sum + (Number(c.totalPrice) || 0), 0);
+      itemsSummary = cachedUser.activeCart.map((c: any) => c.serviceName).filter(Boolean).join(', ');
+      itemsCount = cachedUser.activeCart.length;
+    }
+
+    return {
+      ...item,
+      userName,
+      userPhone,
+      userEmail,
+      cartValue,
+      itemsSummary,
+      itemsCount,
+      status: item.status || 'new',
+    };
+  });
+};
+
+

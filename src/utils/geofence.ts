@@ -157,3 +157,60 @@ export const isLocationServiceable = (location: Coordinate): boolean => {
 export const getServiceZoneName = (location: Coordinate): string | null => {
     return isLocationServiceable(location) ? 'SpinZo Service Area' : null;
 };
+
+export interface NearestZoneInfo {
+    nearestZoneName: string;
+    distanceMeters: number;
+    distanceKm: number;
+    formattedDistance: string;
+    feasibility: 'near' | 'moderate' | 'far'; // <1.5km = near, 1.5-4km = moderate, >4km = far
+}
+
+/**
+ * Calculates the shortest distance from an unserviceable location to the nearest service zone boundary.
+ */
+export const getNearestZoneInfo = (location: Coordinate): NearestZoneInfo => {
+    if (!location || typeof location.latitude !== 'number' || typeof location.longitude !== 'number') {
+        return {
+            nearestZoneName: 'Unknown',
+            distanceMeters: 0,
+            distanceKm: 0,
+            formattedDistance: 'N/A',
+            feasibility: 'far',
+        };
+    }
+
+    let minDistance = Infinity;
+    let nearestZone = SERVICE_ZONES[0];
+
+    for (const zone of SERVICE_ZONES) {
+        const centerDist = calculateDistance(location, zone.center);
+        // Distance to zone perimeter (buffer zone)
+        const edgeDist = Math.max(0, centerDist - zone.radiusMeters);
+        if (edgeDist < minDistance) {
+            minDistance = edgeDist;
+            nearestZone = zone;
+        }
+    }
+
+    const distanceKm = Number((minDistance / 1000).toFixed(1));
+    const formattedDistance = minDistance < 1000
+        ? `${Math.round(minDistance)}m`
+        : `${distanceKm} km`;
+
+    let feasibility: 'near' | 'moderate' | 'far' = 'far';
+    if (minDistance <= 1500) {
+        feasibility = 'near';
+    } else if (minDistance <= 4000) {
+        feasibility = 'moderate';
+    }
+
+    return {
+        nearestZoneName: nearestZone ? nearestZone.name : 'Service Area',
+        distanceMeters: Math.round(minDistance),
+        distanceKm,
+        formattedDistance,
+        feasibility,
+    };
+};
+

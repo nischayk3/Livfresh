@@ -831,27 +831,72 @@ export const scheduleOrderDelivery = async (
 
 // --- Geofencing / Demand Logging ---
 
+export interface UnserviceablePayload {
+  latitude: number;
+  longitude: number;
+  address?: string;
+  userName?: string;
+  userPhone?: string;
+  userEmail?: string;
+  cartValue?: number;
+  itemsCount?: number;
+  itemsSummary?: string;
+  items?: any[];
+}
+
 export const logUnserviceableRequest = async (
   userId: string,
-  location: { latitude: number; longitude: number; address?: string }
+  payload: UnserviceablePayload
 ) => {
   try {
     await addDoc(collection(db, 'unserviceable_requests'), {
       userId,
       location: {
-        latitude: location.latitude,
-        longitude: location.longitude,
+        latitude: payload.latitude,
+        longitude: payload.longitude,
       },
-      address: location.address || 'Unknown Address',
+      address: payload.address || 'Unknown Address',
+      userName: payload.userName || '',
+      userPhone: payload.userPhone || '',
+      userEmail: payload.userEmail || '',
+      cartValue: payload.cartValue || 0,
+      itemsCount: payload.itemsCount || 0,
+      itemsSummary: payload.itemsSummary || '',
+      items: payload.items || [],
       timestamp: Timestamp.now(),
-      status: 'new', // For admin to review/acknowledge
+      status: 'new', // 'new' | 'contacted' | 'converted' | 'rejected'
+      updatedAt: Timestamp.now(),
     });
-    console.log('Unserviceable request logged');
+    console.log('✅ Unserviceable request logged with customer and cart context');
   } catch (error) {
     console.error('Error logging unserviceable request:', error);
     // Don't throw, just log. We don't want to block the UI flow if logging fails.
   }
 };
+
+export const updateDemandRequestStatus = async (
+  requestId: string,
+  status: 'new' | 'contacted' | 'converted' | 'rejected',
+  notes?: string
+) => {
+  try {
+    const docRef = doc(db, 'unserviceable_requests', requestId);
+    const updateData: any = {
+      status,
+      updatedAt: Timestamp.now(),
+    };
+    if (notes !== undefined) {
+      updateData.notes = notes;
+    }
+    await updateDoc(docRef, updateData);
+    console.log(`✅ Demand request ${requestId} updated to ${status}`);
+    return true;
+  } catch (error) {
+    console.error('Error updating demand request status:', error);
+    throw error;
+  }
+};
+
 
 
 // --- Cart Management ---

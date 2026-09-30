@@ -297,10 +297,30 @@ export const CartScreen: React.FC = () => {
     if (currentLatitude && currentLongitude) {
       const serviceable = isLocationServiceable({ latitude: currentLatitude, longitude: currentLongitude });
       if (!serviceable) {
+        const itemsSummary = items
+          .map((i) => {
+            const qty = i.clothesCount ? `${i.clothesCount} clothes` : i.weight ? `${i.weight}kg` : '';
+            return `${i.serviceName}${qty ? ` (${qty})` : ''}`;
+          })
+          .join(', ');
+
         logUnserviceableRequest(latestUser.uid, {
           latitude: currentLatitude,
           longitude: currentLongitude,
           address: currentAddress,
+          userName: latestUser.name || '',
+          userPhone: latestUser.phone || '',
+          userEmail: latestUser.email || '',
+          cartValue: totalAmount || subtotal || 0,
+          itemsCount: items.length,
+          itemsSummary,
+          items: items.map((i) => ({
+            id: i.id,
+            serviceName: i.serviceName,
+            totalPrice: i.totalPrice,
+            weight: i.weight,
+            clothesCount: i.clothesCount,
+          })),
         });
         showAlert({
           title: 'Service Not Available',

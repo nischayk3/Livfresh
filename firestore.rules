@@ -83,7 +83,7 @@ service cloud.firestore {
     
     match /unserviceable_requests/{requestId} {
       allow create: if true;
-      allow read, delete: if isAdmin();
+      allow read, update, delete: if isAdmin() || isOpsStaff();
     }
 
     match /vendors/{vendorId} {

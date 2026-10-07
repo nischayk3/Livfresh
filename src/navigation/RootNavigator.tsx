@@ -6,7 +6,7 @@ import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore, useSubscriptionStore, useAdminAuthStore, useUIStore, useNotificationStore } from '../store';
-import { getCart, saveCart, getUserAddresses, getUser } from '../services/firestore';
+import { getCart, saveCart, getUserAddresses, getUser, addAddress } from '../services/firestore';
 import { registerForPushNotifications, savePushToken } from '../services/notificationService';
 import { getAdminRole, isAdminPhone } from '../services/adminFirestore';
 import { auth, adminAuth, onAuthStateChanged } from '../services/firebase';
@@ -351,44 +351,35 @@ export const RootNavigator: React.FC = () => {
     };
   }, []);
 
-  // 2. Hydrate cart on login — merges any guest pendingItem atomically
+  // 2. Hydrate cart on login — merges guest items with server items atomically
   React.useEffect(() => {
     const hydrate = async () => {
       if (user?.uid) {
         try {
-          const savedItems = await getCart(user.uid);
-          // Get pendingItem BEFORE setItems so we can merge it in
+          const savedItems = (await getCart(user.uid)) || [];
+          const currentLocalItems = useCartStore.getState().items || [];
           const { pendingItem, setPendingItem } = useCartStore.getState();
-          const baseItems = savedItems || [];
+
+          // Merge: server items + local guest items not already on server
+          const localItemsToAdd = currentLocalItems.filter(
+            (local) => !savedItems.some((server: any) => server.id === local.id)
+          );
+          let mergedItems = [...savedItems, ...localItemsToAdd];
 
           if (pendingItem) {
-            // Merge: Firestore cart + pending guest item
-            const mergedItem = {
+            const mergedPending = {
               ...pendingItem,
               id: `${pendingItem.serviceId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             };
-            setItems([...baseItems, mergedItem]);
+            mergedItems.push(mergedPending);
             setPendingItem(null);
+          }
 
-            // Show success alert with View Cart button
-            const { showAlert } = useUIStore.getState();
-            showAlert({
-              title: 'Added to Cart! 🎉',
-              message: `${pendingItem.serviceName} has been added to your cart.`,
-              type: 'success',
-              buttons: [
-                {
-                  text: 'View Cart',
-                  onPress: () => {
-                    if (navigationRef.isReady()) {
-                      navigationRef.navigate('Main', { screen: 'Cart' } as any);
-                    }
-                  }
-                }
-              ]
-            });
-          } else {
-            setItems(baseItems);
+          setItems(mergedItems);
+
+          // If there were guest items, persist merged cart to Firestore immediately
+          if (localItemsToAdd.length > 0 || pendingItem) {
+            await saveCart(user.uid, mergedItems);
           }
         } catch (error) {
           console.error('Failed to hydrate cart:', error);
@@ -396,7 +387,7 @@ export const RootNavigator: React.FC = () => {
           setIsHydrated(true);
         }
       } else {
-        setIsHydrated(true); // No user, essentially hydrated as empty
+        setIsHydrated(true); // No user, hydrated from local storage
       }
     };
     hydrate();
@@ -423,7 +414,33 @@ export const RootNavigator: React.FC = () => {
     const hydrateAddresses = async () => {
       if (user?.uid) {
         try {
-          const addresses = await getUserAddresses(user.uid);
+          const addresses = (await getUserAddresses(user.uid)) || [];
+          const { savedAddresses: localAddresses } = useAddressStore.getState();
+
+          // Sync any addresses created while user was a guest to Firestore
+          const guestAddresses = (localAddresses || []).filter(
+            (local) => !addresses.some((server: any) => server.id === local.id || server.address === local.address)
+          );
+
+          for (const guestAddr of guestAddresses) {
+            try {
+              const fullAddr = typeof guestAddr.address === 'string' ? guestAddr.address : ((guestAddr as any).formattedAddress || '');
+              if (fullAddr) {
+                const newServerAddr = await addAddress(
+                  user.uid,
+                  guestAddr.label || 'Home',
+                  fullAddr,
+                  guestAddr.latitude || 0,
+                  guestAddr.longitude || 0,
+                  guestAddr.isPrimary ?? true
+                );
+                addresses.push({ ...guestAddr, ...newServerAddr });
+              }
+            } catch (syncErr) {
+              console.error('Failed to sync guest address to Firestore:', syncErr);
+            }
+          }
+
           useAddressStore.getState().setAddresses(addresses);
 
           // If no current address is selected, select the first/primary one

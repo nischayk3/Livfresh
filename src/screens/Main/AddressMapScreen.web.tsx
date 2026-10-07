@@ -144,6 +144,7 @@ export const AddressMapScreen: React.FC = () => {
       street: selectedAddress?.street || '',
       suburb: selectedAddress?.suburb || '',
       editingAddress: params.editingAddress || null,
+      returnTo: (params as any)?.returnTo || 'Cart',
     });
   };
 

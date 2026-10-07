@@ -89,6 +89,22 @@ export const UserDetailsScreen: React.FC = () => {
         method: 'profile_details',
         user_id: currentUid,
       });
+
+      // If user had an active checkout or return destination, navigate them right back
+      const returnTo = useAuthStore.getState().returnTo;
+      if (returnTo) {
+        useAuthStore.getState().setReturnTo(null);
+        const { navigationRef } = await import('../../navigation/RootNavigator');
+        setTimeout(() => {
+          if (navigationRef.isReady()) {
+            if (returnTo === 'Cart') {
+              navigationRef.navigate('Main', { screen: 'Cart' } as any);
+            } else {
+              navigationRef.navigate('Main', { screen: 'MainTabs', params: { screen: returnTo } } as any);
+            }
+          }
+        }, 350);
+      }
     } catch (error: any) {
       console.error('Registration error:', error);
       showAlert({

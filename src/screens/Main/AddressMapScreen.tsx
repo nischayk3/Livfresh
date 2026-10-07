@@ -198,6 +198,7 @@ export const AddressMapScreen: React.FC = () => {
       street: address?.street || '',
       suburb: address?.suburb || '',
       editingAddress: params.editingAddress || null,
+      returnTo: (params as any)?.returnTo,
     });
   };
 

@@ -17,7 +17,7 @@ import { ArrowLeft, MapPin, Home, Briefcase, CheckCircle, ArrowRight, Navigation
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
 import { addAddress, updateUserAddress } from '../../services/firestore';
-import { useAuthStore, useAddressStore, useUIStore } from '../../store';
+import { useAuthStore, useAddressStore, useUIStore, useCartStore } from '../../store';
 import tracker from '../../services/tracker';
 import { reverseGeocode } from '../../utils/geocoding';
 
@@ -45,6 +45,7 @@ export const AddressFormScreen: React.FC = () => {
     street?: string;
     suburb?: string;
     editingAddress?: any;
+    returnTo?: string;
   };
 
   const [form, setForm] = useState({
@@ -88,10 +89,6 @@ export const AddressFormScreen: React.FC = () => {
       showAlert({ title: 'Details Missing', message: 'Please enter your Flat / House Number', type: 'warning' });
       return;
     }
-    if (!user?.uid) {
-      showAlert({ title: 'Error', message: 'User not logged in', type: 'error' });
-      return;
-    }
 
     setLoading(true);
     try {
@@ -104,7 +101,7 @@ export const AddressFormScreen: React.FC = () => {
       ].filter(Boolean).join(', ');
 
       const addressData = {
-        id: params?.editingAddress?.id || Date.now().toString(),
+        id: params?.editingAddress?.id || (user?.uid ? Date.now().toString() : `local_${Date.now()}`),
         label: form.tag,
         address: fullAddress,
         houseNo: form.houseNo.trim(),
@@ -117,6 +114,7 @@ export const AddressFormScreen: React.FC = () => {
         longitude: params.longitude,
         formattedAddress: params.formattedAddress,
         isPrimary: form.isDefault,
+        createdAt: new Date(),
       };
 
       tracker.logCustomEvent('add_shipping_info', {
@@ -124,20 +122,38 @@ export const AddressFormScreen: React.FC = () => {
         location_type: 'address_form_save',
       });
 
-      if (isEditing) {
-        await updateUserAddress(user.uid, addressData);
-        updateInStore(addressData as any);
-        setCurrentAddress(fullAddress, params.latitude, params.longitude);
+      if (user?.uid) {
+        if (isEditing) {
+          await updateUserAddress(user.uid, addressData);
+          updateInStore(addressData as any);
+        } else {
+          const newAddress = await addAddress(user.uid, form.tag, fullAddress, params.latitude, params.longitude, form.isDefault);
+          addToStore({ ...newAddress, ...addressData } as any);
+        }
       } else {
-        const newAddress = await addAddress(user.uid, form.tag, fullAddress, params.latitude, params.longitude, form.isDefault);
-        addToStore({ ...newAddress, ...addressData } as any);
-        setCurrentAddress(fullAddress, params.latitude, params.longitude);
+        // Guest user: save locally to addressStore
+        if (isEditing) {
+          updateInStore(addressData as any);
+        } else {
+          addToStore(addressData as any);
+        }
       }
 
-      (navigation as any).reset({
-        index: 0,
-        routes: [{ name: 'Main' }],
-      });
+      // Update active address
+      setCurrentAddress(fullAddress, params.latitude, params.longitude);
+
+      // Return smoothly to the originating screen (e.g. Cart) without resetting navigation
+      const returnTo = params?.returnTo || useAuthStore.getState().returnTo;
+      const hasCart = useCartStore.getState().items.length > 0;
+      if (returnTo === 'Cart' || hasCart) {
+        (navigation as any).navigate('Cart');
+      } else if (returnTo === 'AddressList') {
+        (navigation as any).navigate('AddressList');
+      } else if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        (navigation as any).navigate('MainTabs', { screen: 'Home' });
+      }
     } catch (error: any) {
       showAlert({ title: 'Error', message: error.message || 'Failed to save address', type: 'error' });
     } finally {

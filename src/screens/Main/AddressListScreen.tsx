@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import { ArrowLeft, Plus, Home, Briefcase, MapPin, ChevronRight, Trash2, PencilLine, Star } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
@@ -41,6 +41,7 @@ const formatAddr = (item: AddressItem): string => {
 
 export const AddressListScreen: React.FC = () => {
   const navigation = useNavigation();
+  const route = useRoute();
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const { savedAddresses, setAddresses, setCurrentAddress, removeAddress, setPrimaryAddress } = useAddressStore();
@@ -74,18 +75,20 @@ export const AddressListScreen: React.FC = () => {
   };
 
   const handleSetDefault = async (item: AddressItem) => {
-    if (!user?.uid || item.isPrimary) return;
-    setActionLoading(`default-${item.id}`);
-    try {
-      await updateUserAddress(user.uid, { ...item, isPrimary: true } as any);
-      setPrimaryAddress(item.id);
-      const formattedAddress = formatAddr(item);
-      setCurrentAddress(formattedAddress, item.latitude, item.longitude);
-    } catch {
-      showAlert({ title: 'Error', message: 'Failed to update address', type: 'error' });
-    } finally {
-      setActionLoading(null);
+    if (item.isPrimary) return;
+    if (user?.uid) {
+      setActionLoading(`default-${item.id}`);
+      try {
+        await updateUserAddress(user.uid, { ...item, isPrimary: true } as any);
+      } catch {
+        showAlert({ title: 'Error', message: 'Failed to update address', type: 'error' });
+      } finally {
+        setActionLoading(null);
+      }
     }
+    setPrimaryAddress(item.id);
+    const formattedAddress = formatAddr(item);
+    setCurrentAddress(formattedAddress, item.latitude, item.longitude);
   };
 
   const handleDelete = (item: AddressItem) => {
@@ -94,23 +97,27 @@ export const AddressListScreen: React.FC = () => {
       {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
-          if (!user?.uid) return;
-          setActionLoading(`delete-${item.id}`);
-          try {
-            await deleteAddress(user.uid, item.id);
-            removeAddress(item.id);
-          } catch {
-            showAlert({ title: 'Error', message: 'Failed to delete address', type: 'error' });
-          } finally {
-            setActionLoading(null);
+          if (user?.uid) {
+            setActionLoading(`delete-${item.id}`);
+            try {
+              await deleteAddress(user.uid, item.id);
+            } catch {
+              showAlert({ title: 'Error', message: 'Failed to delete address', type: 'error' });
+            } finally {
+              setActionLoading(null);
+            }
           }
+          removeAddress(item.id);
         },
       },
     ]);
   };
 
   const handleEdit = (item: AddressItem) => {
-    (navigation as any).navigate('AddressMap', { editingAddress: item });
+    (navigation as any).navigate('AddressMap', {
+      editingAddress: item,
+      returnTo: (route.params as any)?.returnTo || 'Cart',
+    });
   };
 
   const renderItem = ({ item, index }: { item: AddressItem; index: number }) => {
@@ -229,7 +236,9 @@ export const AddressListScreen: React.FC = () => {
         style={styles.addSection}
       >
         <TouchableOpacity
-          onPress={() => (navigation as any).navigate('AddressMap')}
+          onPress={() => (navigation as any).navigate('AddressMap', {
+            returnTo: (route.params as any)?.returnTo || 'Cart',
+          })}
           activeOpacity={0.85}
         >
           <LinearGradient

@@ -157,6 +157,22 @@ export const OTPScreen: React.FC = () => {
                     ...userData
                 });
                 console.log('✅ Existing user detected, state updated');
+
+                // If user was heading to Cart or another screen, navigate them right back
+                const returnTo = (route.params as any)?.returnTo || useAuthStore.getState().returnTo;
+                if (returnTo) {
+                    useAuthStore.getState().setReturnTo(null);
+                    const { navigationRef } = await import('../../navigation/RootNavigator');
+                    setTimeout(() => {
+                        if (navigationRef.isReady()) {
+                            if (returnTo === 'Cart') {
+                                navigationRef.navigate('Main', { screen: 'Cart' } as any);
+                            } else {
+                                navigationRef.navigate('Main', { screen: 'MainTabs', params: { screen: returnTo } } as any);
+                            }
+                        }
+                    }, 350);
+                }
             } else {
                 // NEW USER: Set minimal state (name: '') to trigger UserDetails in RootNavigator
                 console.log('🆕 New user detected, triggering UserDetails via state');

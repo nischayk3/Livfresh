@@ -37,6 +37,8 @@ interface AuthState {
   // Store OTP request data
   otpPhone: string;
   otpName: string;
+  returnTo: string | null;
+  setReturnTo: (screen: string | null) => void;
   setOTPData: (phone: string, name: string) => void;
   clearOTPData: () => void;
   setUser: (user: User) => void;
@@ -59,6 +61,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loginTimestamp: null,
   otpPhone: '',
   otpName: '',
+  returnTo: null,
+  setReturnTo: (screen) => set({ returnTo: screen }),
   setOTPData: (phone, name) => set({ otpPhone: phone, otpName: name }),
   clearOTPData: () => set({ otpPhone: '', otpName: '' }),
   setUser: (user) => set({ user, isLoggedIn: true, error: null }),

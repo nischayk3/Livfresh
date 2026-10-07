@@ -277,11 +277,22 @@ export const CartScreen: React.FC = () => {
   const handlePlaceOrder = async () => {
     const { user: latestUser } = useAuthStore.getState();
     if (!latestUser) {
+      useAuthStore.getState().setReturnTo('Cart');
       (navigation as any).navigate('PhoneLogin', { returnTo: 'Cart' });
       return;
     }
     if (!currentAddress) {
-      showAlert({ title: 'Address Required', message: 'Please select a delivery address', type: 'warning' });
+      showAlert({
+        title: 'Address Required',
+        message: 'Please select a delivery address to place your order.',
+        type: 'warning',
+        buttons: [
+          {
+            text: 'Add Address',
+            onPress: () => (navigation as any).navigate('AddressList', { returnTo: 'Cart' }),
+          },
+        ],
+      });
       return;
     }
     if (pickupType === 'scheduled' && (!selectedDate || !selectedTimeSlot)) {
@@ -800,7 +811,7 @@ export const CartScreen: React.FC = () => {
             <Text style={styles.sectionHeader}>Delivery Address</Text>
             <TouchableOpacity
               style={styles.card}
-              onPress={() => (navigation as any).navigate('AddressList')}
+              onPress={() => (navigation as any).navigate('AddressList', { returnTo: 'Cart' })}
             >
               <View style={styles.addressRow}>
                 <MapPin size={20} color="#7C3AED" strokeWidth={1.8} />

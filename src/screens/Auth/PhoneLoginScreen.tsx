@@ -87,9 +87,13 @@ export const PhoneLoginScreen: React.FC = () => {
       // Track Lead event across Firebase, AppsFlyer, and Meta
       tracker.logOtpRequested({ phone: formattedPhone });
 
-      // Store phone in store
-      const { setOTPData } = useAuthStore.getState();
+      // Store phone and returnTo in store
+      const { setOTPData, setReturnTo } = useAuthStore.getState();
       setOTPData(formattedPhone, '');
+      const returnTo = (route.params as any)?.returnTo;
+      if (returnTo) {
+        setReturnTo(returnTo);
+      }
 
       // Navigate directly to OTP. We check if user exists AFTER verification.
       (navigation as any).navigate('OTP', route.params);

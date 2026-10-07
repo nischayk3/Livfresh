@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface CartItem {
   id: string;
@@ -57,43 +59,51 @@ interface CartState {
   setItems: (items: CartItem[]) => void;
 }
 
-export const useCartStore = create<CartState>((set, get) => ({
-  items: [],
-  pendingItem: null,
+export const useCartStore = create<CartState>()(
+  persist(
+    (set, get) => ({
+      items: [],
+      pendingItem: null,
 
-  setPendingItem: (item) => set({ pendingItem: item }),
+      setPendingItem: (item) => set({ pendingItem: item }),
 
-  addItem: (item) => {
-    const newItem = {
-      ...item,
-      id: `${item.serviceId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    };
-    set((state) => ({ items: [...state.items, newItem] }));
-  },
+      addItem: (item) => {
+        const newItem = {
+          ...item,
+          id: `${item.serviceId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        };
+        set((state) => ({ items: [...state.items, newItem] }));
+      },
 
-  removeItem: (itemId) => {
-    set((state) => ({ items: state.items.filter(item => item.id !== itemId) }));
-  },
+      removeItem: (itemId) => {
+        set((state) => ({ items: state.items.filter(item => item.id !== itemId) }));
+      },
 
-  updateItem: (itemId, updates) => {
-    set((state) => ({
-      items: state.items.map(item =>
-        item.id === itemId ? { ...item, ...updates } : item
-      ),
-    }));
-  },
+      updateItem: (itemId, updates) => {
+        set((state) => ({
+          items: state.items.map(item =>
+            item.id === itemId ? { ...item, ...updates } : item
+          ),
+        }));
+      },
 
-  clearCart: () => set({ items: [] }),
+      clearCart: () => set({ items: [] }),
 
-  getTotalAmount: () => {
-    return get().items.reduce((total, item) => total + item.totalPrice, 0);
-  },
+      getTotalAmount: () => {
+        return get().items.reduce((total, item) => total + item.totalPrice, 0);
+      },
 
-  getItemCount: () => {
-    return get().items.length;
-  },
+      getItemCount: () => {
+        return get().items.length;
+      },
 
-  setItems: (items) => {
-    set({ items });
-  },
-}));
+      setItems: (items) => {
+        set({ items });
+      },
+    }),
+    {
+      name: 'livfresh-cart-storage',
+      storage: createJSONStorage(() => AsyncStorage),
+    }
+  )
+);

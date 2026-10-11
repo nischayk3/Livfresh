@@ -61,7 +61,8 @@ service cloud.firestore {
       }
       
       match /orders/{orderId} {
-        allow read, write: if isAdmin() || isOwner(userId);
+        allow read: if isAdmin() || isOpsStaff() || isOwner(userId);
+        allow write: if isAdmin() || isOwner(userId);
       }
 
       match /subscriptions/{subscriptionId} {

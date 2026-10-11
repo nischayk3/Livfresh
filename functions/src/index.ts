@@ -452,6 +452,79 @@ export const onOrderStatusChanged = functions.firestore
                     data,
                 });
             }
+
+            // 3. Catch-up: If order transitioned to out_for_delivery and is unpaid, auto-reconcile any recent matching unclaimed QR payment
+            if (afterStatus === "out_for_delivery" && afterData.paymentStatus !== "paid") {
+                const orderTotal = afterData.billDetails?.total ?? afterData.total ?? 0;
+                if (orderTotal > 0) {
+                    try {
+                        const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+                        const unclaimedSnap = await admin.firestore().collection("unclaimed_payments")
+                            .where("amountRupees", "==", orderTotal)
+                            .where("status", "==", "unclaimed")
+                            .get();
+
+                        let matchedPaymentDoc: admin.firestore.DocumentSnapshot | null = null;
+                        for (const pDoc of unclaimedSnap.docs) {
+                            const pData = pDoc.data();
+                            const rTime = pData.receivedAt?.toDate ? pData.receivedAt.toDate() : null;
+                            if (!rTime || rTime >= twoHoursAgo) {
+                                matchedPaymentDoc = pDoc;
+                                break;
+                            }
+                        }
+
+                        if (matchedPaymentDoc) {
+                            const pData = matchedPaymentDoc.data()!;
+                            const matchedPayId = matchedPaymentDoc.id;
+                            console.log(`[onOrderStatusChanged] Auto-reconciling unclaimed payment ${matchedPayId} (₹${orderTotal}) for order ${orderId}`);
+
+                            const batch = admin.firestore().batch();
+                            batch.update(change.after.ref, {
+                                paymentStatus: "paid",
+                                paymentId: matchedPayId,
+                                paymentMethod: "razorpay",
+                                paidAt: admin.firestore.FieldValue.serverTimestamp(),
+                                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            });
+
+                            const vId = afterData.vendorId || "default";
+                            const vendorRef = admin.firestore().collection("vendors").doc(vId).collection("orders").doc(orderId);
+                            batch.set(vendorRef, {
+                                paymentStatus: "paid",
+                                paymentId: matchedPayId,
+                                paymentMethod: "razorpay",
+                                paidAt: admin.firestore.FieldValue.serverTimestamp(),
+                                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            }, { merge: true });
+
+                            batch.update(matchedPaymentDoc.ref, {
+                                status: "claimed",
+                                claimedOrderId: orderId,
+                                claimedUserId: userId,
+                                claimedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            });
+
+                            const userPayRef = admin.firestore().collection("users").doc(userId).collection("payments").doc(matchedPayId);
+                            batch.set(userPayRef, {
+                                orderId: orderId,
+                                paymentId: matchedPayId,
+                                amount: pData.amountPaise || orderTotal * 100,
+                                planDetails: { type: "checkout" },
+                                spinzoOrderId: orderId,
+                                status: "success",
+                                source: "auto_reconciliation_on_dispatch",
+                                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                            }, { merge: true });
+
+                            await batch.commit();
+                            console.log(`[onOrderStatusChanged] ✅ Successfully linked ${matchedPayId} to order ${orderId}`);
+                        }
+                    } catch (reconcileErr: any) {
+                        console.warn(`[onOrderStatusChanged] Error auto-reconciling payment for ${orderId}:`, reconcileErr?.message);
+                    }
+                }
+            }
         } catch (error) {
             console.error(`Error running onOrderStatusChanged for status ${afterStatus}:`, error);
         }
@@ -786,13 +859,13 @@ export const razorpayWebhook = functions
             }
 
             if (!spinzoOrderId) {
-                // Secondary fallback: Unique active unpaid order matching exact amount in vendor mirrors
+                // Secondary fallback: Match exclusively against out_for_delivery orders (ignores hub statuses like 'ready')
                 const paymentAmountInRupees = payment?.amount ? Math.round(payment.amount / 100) : 0;
                 if (paymentAmountInRupees > 0) {
-                    console.log(`[Webhook] Attempting amount-based lookup for ₹${paymentAmountInRupees}`);
+                    console.log(`[Webhook] Attempting amount-based lookup for ₹${paymentAmountInRupees} (targeting out_for_delivery orders)`);
                     const db = admin.firestore();
                     const vendorCandidates = ["default", "vendor_1", "vendor_2"];
-                    const matchedCandidates: Array<{ orderId: string; userId: string; status: string }> = [];
+                    const matchedCandidates: Array<{ orderId: string; userId: string; status: string; outForDeliveryAt?: any }> = [];
 
                     for (const vId of vendorCandidates) {
                         try {
@@ -803,12 +876,14 @@ export const razorpayWebhook = functions
                             for (const doc of snap.docs) {
                                 const d = doc.data();
                                 const status = d.status || "";
-                                const isTerminal = ["delivered", "cancelled", "rejected"].includes(status);
-                                if (d.paymentStatus !== "paid" && d.userId && !isTerminal) {
+                                // Only match orders currently out for delivery — hub statuses like 'ready' or 'processing'
+                                // must never overlap or interfere with in-person delivery QR payments.
+                                if (d.paymentStatus !== "paid" && d.userId && status === "out_for_delivery") {
                                     matchedCandidates.push({
                                         orderId: doc.id,
                                         userId: d.userId,
                                         status: status,
+                                        outForDeliveryAt: d.outForDeliveryAt || d.updatedAt || null,
                                     });
                                 }
                             }
@@ -820,23 +895,39 @@ export const razorpayWebhook = functions
                     if (matchedCandidates.length === 1) {
                         spinzoOrderId = matchedCandidates[0].orderId;
                         matchedUserId = matchedCandidates[0].userId;
-                        console.log(`[Webhook] ✅ Amount fallback uniquely matched order: ${spinzoOrderId} for user ${matchedUserId}`);
+                        console.log(`[Webhook] ✅ Amount fallback uniquely matched out_for_delivery order: ${spinzoOrderId} for user ${matchedUserId}`);
                     } else if (matchedCandidates.length > 1) {
-                        // If multiple match the amount, prioritize active delivery states (out_for_delivery)
-                        const activeCandidates = matchedCandidates.filter(c => c.status === "out_for_delivery");
-                        if (activeCandidates.length === 1) {
-                            spinzoOrderId = activeCandidates[0].orderId;
-                            matchedUserId = activeCandidates[0].userId;
-                            console.log(`[Webhook] ✅ Amount fallback matched unique active delivery order: ${spinzoOrderId} for user ${matchedUserId}`);
-                        } else {
-                            console.warn(`[Webhook] Amount fallback ambiguous: found ${matchedCandidates.length} orders matching ₹${paymentAmountInRupees}`);
-                        }
+                        // If multiple orders are out for delivery with the same amount, pick the most recently dispatched one
+                        matchedCandidates.sort((a, b) => {
+                            const timeA = a.outForDeliveryAt?.toMillis ? a.outForDeliveryAt.toMillis() : 0;
+                            const timeB = b.outForDeliveryAt?.toMillis ? b.outForDeliveryAt.toMillis() : 0;
+                            return timeB - timeA;
+                        });
+                        spinzoOrderId = matchedCandidates[0].orderId;
+                        matchedUserId = matchedCandidates[0].userId;
+                        console.log(`[Webhook] ✅ Amount fallback matched most recent out_for_delivery order: ${spinzoOrderId} for user ${matchedUserId}`);
                     }
                 }
             }
 
             if (!spinzoOrderId) {
-                console.log(`[Webhook] No spinzoOrderId found in notes, receipt, phone, or amount lookup, skipping order update`);
+                console.log(`[Webhook] No spinzoOrderId found in notes, receipt, phone, or out_for_delivery lookup. Storing in unclaimed_payments.`);
+                try {
+                    const db = admin.firestore();
+                    const paymentAmountInRupees = payment?.amount ? Math.round(payment.amount / 100) : 0;
+                    await db.collection("unclaimed_payments").doc(paymentId).set({
+                        paymentId,
+                        amountPaise: payment?.amount || 0,
+                        amountRupees: paymentAmountInRupees,
+                        vpa: payment?.vpa || "",
+                        method: payment?.method || "",
+                        bankRrn: payment?.acquirer_data?.rrn || payment?.acquirer_data?.bank_transaction_id || "",
+                        status: "unclaimed",
+                        receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    }, { merge: true });
+                } catch (saveErr: any) {
+                    console.warn(`[Webhook] Could not save unclaimed payment ${paymentId}:`, saveErr?.message);
+                }
                 res.status(200).send("OK");
                 return;
             }
@@ -945,6 +1036,7 @@ export const razorpayWebhook = functions
 
             await batch.commit();
             console.log(`[Webhook] ✅ Order ${spinzoOrderId} marked as paid via webhook`);
+            db.collection("unclaimed_payments").doc(paymentId).delete().catch(() => {});
 
         } catch (error: any) {
             console.error(`[Webhook] Error processing payment.captured:`, error);

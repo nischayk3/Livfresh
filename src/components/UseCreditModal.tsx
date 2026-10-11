@@ -210,6 +210,10 @@ export const UseCreditModal: React.FC<UseCreditModalProps> = ({ visible, onClose
             isCreditItem: true,
             creditSubscriptionId: subscription.id,
             creditIndex: subscription.currentCreditIndex,
+            // Carried so the store can price kilos over the allowance at the
+            // rate the customer locked in, rather than the walk-in rate.
+            kgPerCredit: subscription.kgPerCredit,
+            ratePerKg: subscription.ratePerKg,
             ironingEnabled: false,
             specialInstructions,
             photoUrls: selectedImages,

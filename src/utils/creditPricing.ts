@@ -83,3 +83,21 @@ export function computePrice(
 export function serviceTypeLabel(type: ServiceType): string {
   return type === 'wash_fold' ? 'Wash & Fold' : 'Wash & Iron';
 }
+
+/**
+ * Per-kg rate for weight that falls outside a credit's allowance.
+ *
+ * The customer keeps the rate they locked in when they bought the pack, so an
+ * over-weight redemption is billed at their own subscription rate — never the
+ * walk-in rate. Crediting it at NORMAL_RATE would also overstate the value the
+ * credit covered, since the customer paid the lower rate per kg.
+ *
+ * Orders placed before `ratePerKg` was carried on the line item have no locked
+ * rate, and fall back to the normal rate.
+ */
+export function excessKgRate(
+  serviceType: ServiceType,
+  ratePerKg?: number | null,
+): number {
+  return ratePerKg && ratePerKg > 0 ? ratePerKg : NORMAL_RATE[serviceType];
+}

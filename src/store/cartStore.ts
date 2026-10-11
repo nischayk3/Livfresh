@@ -37,6 +37,9 @@ export interface CartItem {
   isCreditItem?: boolean;
   creditSubscriptionId?: string;
   creditIndex?: number;
+  /** Kg this credit covers, and the per-kg rate locked in when the pack was bought. */
+  kgPerCredit?: number;
+  ratePerKg?: number;
 
   // Other
   description?: string; // For custom descriptions (e.g. mixture of blankets)

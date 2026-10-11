@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   TextInput,
   Modal,
-  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,6 +30,8 @@ export const AdminSubscriptionDetailScreen: React.FC = () => {
   const [detail, setDetail] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [revoking, setRevoking] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [confirmationAction, setConfirmationAction] = useState<() => void>(() => {});
   const [showAddCredits, setShowAddCredits] = useState(false);
   const [addCreditsCount, setAddCreditsCount] = useState('2');
   const [addCreditsSubmitting, setAddCreditsSubmitting] = useState(false);
@@ -57,34 +58,25 @@ export const AdminSubscriptionDetailScreen: React.FC = () => {
   };
 
   const handleRevoke = () => {
-    Alert.alert(
-      'Revoke Credit Pack',
-      `Delete this pack and its ${detail?.subscription?.creditsRemaining ?? 0} remaining credits? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Revoke',
-          style: 'destructive',
-          onPress: async () => {
-            setRevoking(true);
-            try {
-              const { revokeSubscriptionAdmin } = await import('../../services/adminFirestore');
-              const result = await revokeSubscriptionAdmin(userId, subscriptionId);
-              if (result.success) {
-                showAlert({ title: 'Done', message: `Pack revoked (${result.creditsRevoked} credits removed).`, type: 'success' });
-                navigation.goBack();
-              } else {
-                showAlert({ title: 'Error', message: result.error || 'Failed to revoke', type: 'error' });
-              }
-            } catch (e: any) {
-              showAlert({ title: 'Error', message: e.message, type: 'error' });
-            } finally {
-              setRevoking(false);
-            }
-          },
-        },
-      ]
-    );
+    setConfirmationAction(() => async () => {
+      setRevoking(true);
+      setShowConfirmation(false);
+      try {
+        const { revokeSubscriptionAdmin } = await import('../../services/adminFirestore');
+        const result = await revokeSubscriptionAdmin(userId, subscriptionId);
+        if (result.success) {
+          showAlert({ title: 'Done', message: `Pack revoked (${result.creditsRevoked} credits removed).`, type: 'success' });
+          navigation.goBack();
+        } else {
+          showAlert({ title: 'Error', message: result.error || 'Failed to revoke', type: 'error' });
+        }
+      } catch (e: any) {
+        showAlert({ title: 'Error', message: e.message, type: 'error' });
+      } finally {
+        setRevoking(false);
+      }
+    });
+    setShowConfirmation(true);
   };
 
   const handleAddCredits = async () => {
@@ -413,6 +405,39 @@ export const AdminSubscriptionDetailScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Revoke Confirmation Modal (works on web — Alert.alert does not) */}
+      <Modal visible={showConfirmation} transparent animationType="fade" onRequestClose={() => setShowConfirmation(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Revoke Credit Pack</Text>
+              <TouchableOpacity onPress={() => setShowConfirmation(false)}>
+                <Ionicons name="close" size={24} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalBody}>
+              <Text style={styles.confirmText}>
+                Delete this pack and its {detail?.subscription?.creditsRemaining ?? 0} remaining credits? This cannot be undone.
+              </Text>
+              <View style={styles.confirmActions}>
+                <TouchableOpacity
+                  style={[styles.cancelBtn, styles.confirmBtn]}
+                  onPress={() => setShowConfirmation(false)}
+                >
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.submitBtn, styles.destructiveBtn]}
+                  onPress={confirmationAction}
+                >
+                  <Text style={styles.submitBtnText}>Revoke</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -493,4 +518,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', ...SHADOWS.primary,
   },
   submitBtnText: { ...TYPOGRAPHY.button, color: '#FFF' },
+  // Confirmation modal (replaces Alert.alert which doesn't work on web)
+  confirmText: { ...TYPOGRAPHY.body, color: COLORS.textSecondary, marginBottom: SPACING.lg, lineHeight: 22 },
+  confirmActions: { flexDirection: 'row', gap: SPACING.md },
+  confirmBtn: { flex: 1 },
+  cancelBtn: {
+    flex: 1, height: 52, borderRadius: RADIUS.lg, justifyContent: 'center', alignItems: 'center',
+    backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: COLORS.borderLight,
+  },
+  cancelBtnText: { ...TYPOGRAPHY.button, color: COLORS.text },
+  destructiveBtn: { flex: 1, backgroundColor: '#DC2626' },
 });

@@ -6,6 +6,7 @@ import {
   setDoc,
   addDoc,
   updateDoc,
+  deleteDoc,
   query,
   orderBy,
   Timestamp,
@@ -322,6 +323,14 @@ export const checkSlotAvailability = async (date: string): Promise<string[]> => 
   }
 };
 
+// Tagged error for credit-redemption failures so the UI can show the reason
+// instead of a generic "failed to place order".
+const creditError = (code: string, message: string) => {
+  const err: any = new Error(message);
+  err.code = code;
+  return err;
+};
+
 // Create order with slot reservation (Transaction)
 export const createOrder = async (userId: string, orderData: any) => {
   try {
@@ -351,6 +360,16 @@ export const createOrder = async (userId: string, orderData: any) => {
       }
     }
 
+    // Credit redemption is resolved here so the burn can ride along in the
+    // order transaction below. A pre-generated usage-doc ID keeps it offline-safe.
+    const creditItem = Array.isArray(items)
+      ? items.find((i: any) => i.isCreditItem && i.creditSubscriptionId)
+      : null;
+    const creditSubscriptionId: string | undefined = creditItem?.creditSubscriptionId;
+    const creditUsageId = creditSubscriptionId
+      ? doc(collection(db, 'users', userId, 'subscriptions', creditSubscriptionId, 'creditUsage')).id
+      : null;
+
     // Generate pickup OTP (4-digit)
     const pickupOTP = generateOTP();
 
@@ -370,14 +389,25 @@ export const createOrder = async (userId: string, orderData: any) => {
     const cleanOrder = cleanData(orderWithTimestamp);
 
     await runTransaction(db, async (transaction) => {
-      // 1. Reserve slot for ALL order types (instant AND scheduled).
-      //    Both consume the same delivery-partner capacity, so both must
-      //    write to daily_schedules to prevent double-booking.
-      //    Test orders skip slot reservation so they don't consume capacity.
-      if (scheduleDate && scheduleTime && !orderData.isTestOrder) {
-        const scheduleRef = doc(db, 'daily_schedules', scheduleDate);
-        const scheduleSnap = await transaction.get(scheduleRef);
+      // ── All reads must precede all writes in a Firestore transaction ──
 
+      // Slot reservation applies to ALL order types (instant AND scheduled).
+      // Both consume the same delivery-partner capacity, so both must write to
+      // daily_schedules to prevent double-booking. Test orders skip reservation
+      // so they don't consume capacity.
+      const scheduleRef = (scheduleDate && scheduleTime && !orderData.isTestOrder)
+        ? doc(db, 'daily_schedules', scheduleDate)
+        : null;
+      const scheduleSnap = scheduleRef ? await transaction.get(scheduleRef) : null;
+
+      const subscriptionRef = creditSubscriptionId
+        ? doc(db, 'users', userId, 'subscriptions', creditSubscriptionId)
+        : null;
+      const subscriptionSnap = subscriptionRef ? await transaction.get(subscriptionRef) : null;
+
+      // ── Writes ──
+
+      if (scheduleRef && scheduleSnap) {
         const slotCounts: Record<string, number> = scheduleSnap.exists()
           ? (scheduleSnap.data().slot_counts || {})
           : {};
@@ -387,21 +417,78 @@ export const createOrder = async (userId: string, orderData: any) => {
           throw new Error(`This time slot is no longer available. Please try a different time.`);
         }
 
-        // Atomically increment the slot count
         transaction.set(scheduleRef, {
           slot_counts: { ...slotCounts, [scheduleTime]: currentCount + 1 }
         }, { merge: true });
       }
 
-      // 2. Create User Order
-      const userOrderRef = doc(db, 'users', userId, 'orders', orderId);
-      transaction.set(userOrderRef, cleanOrder);
+      // Burn the credit inside the same transaction that creates the order, so
+      // an order can never exist without its credit deducted. If the pack is
+      // missing, inactive, expired or exhausted the whole transaction aborts —
+      // no order and no slot reservation are created.
+      let creditBurnInfo: { subscriptionId: string; creditIndex: number; creditUsageId: string } | null = null;
 
-      // 3. Mirror to Vendor Order
+      if (subscriptionRef && subscriptionSnap) {
+        if (!subscriptionSnap.exists()) {
+          throw creditError('CREDIT_SUBSCRIPTION_MISSING', 'Your credit pack could not be found. Please contact support.');
+        }
+
+        const sub = subscriptionSnap.data() as any;
+        const remaining = sub.creditsRemaining ?? sub.credits_remaining ?? 0;
+        const used = sub.creditsUsed ?? sub.credits_used ?? 0;
+        const creditIndex = sub.currentCreditIndex ?? sub.current_credit_index ?? 0;
+        const status = sub.status || 'active';
+
+        if (status !== 'active' || sub.isActive === false) {
+          throw creditError('CREDIT_SUBSCRIPTION_INACTIVE', 'This credit pack is no longer active.');
+        }
+        if (remaining <= 0) {
+          throw creditError('CREDIT_EXHAUSTED', 'You have no credits left in this pack. Please buy a new pack to continue.');
+        }
+
+        const newUsed = used + 1;
+        const newRemaining = remaining - 1;
+        const newIndex = newRemaining > 0 ? creditIndex + 1 : creditIndex;
+        const newStatus = newRemaining === 0 ? 'completed' : 'active';
+
+        creditBurnInfo = { subscriptionId: creditSubscriptionId!, creditIndex, creditUsageId: creditUsageId! };
+
+        transaction.set(
+          doc(db, 'users', userId, 'subscriptions', creditSubscriptionId!, 'creditUsage', creditUsageId!),
+          {
+            subscriptionId: creditSubscriptionId,
+            userId,
+            creditIndex,
+            orderId,
+            usedAt: Timestamp.now(),
+            createdAt: Timestamp.now(),
+          }
+        );
+
+        transaction.update(subscriptionRef, {
+          creditsUsed: newUsed,
+          creditsRemaining: newRemaining,
+          currentCreditIndex: newIndex,
+          status: newStatus,
+          updatedAt: Timestamp.now(),
+          // Legacy snake_case mirror
+          credits_used: newUsed,
+          credits_remaining: newRemaining,
+          current_credit_index: newIndex,
+        });
+      }
+
+      const orderPayload = creditBurnInfo
+        ? { ...cleanOrder, isCreditBurned: true, creditBurnInfo }
+        : cleanOrder;
+
+      // Create User Order
+      transaction.set(doc(db, 'users', userId, 'orders', orderId), orderPayload);
+
+      // Mirror to Vendor Order
       const vendorId = orderData.vendorId || 'default';
-      const vendorOrderRef = doc(db, 'vendors', vendorId, 'orders', orderId);
-      transaction.set(vendorOrderRef, {
-        ...cleanOrder,
+      transaction.set(doc(db, 'vendors', vendorId, 'orders', orderId), {
+        ...orderPayload,
         userId,
         userPhone: orderData.userPhone || '',
       });
@@ -1032,6 +1119,95 @@ export async function createSubscription(userId: string, data: any) {
   } catch (error: any) {
     console.error('Error creating subscription (Web):', error);
     throw error;
+  }
+}
+
+/**
+ * Revert a credit burn when a credit-paid order is cancelled.
+ *
+ * Reads the order doc inside a Firestore transaction, looks up the
+ * creditBurnInfo written by createOrder(), then atomically:
+ *  1. Deletes the creditUsage sub-document
+ *  2. Restores the subscription's creditsRemaining (+1), creditsUsed (-1),
+ *     currentCreditIndex, and status (back to 'active' if it was 'completed')
+ *  3. Sets the order's isCreditBurned → false
+ *
+ * Safe to call multiple times (idempotent) — once isCreditBurned is false
+ * the early-return guard skips further reversals.
+ */
+export async function revertCreditOnCancel(userId: string, orderId: string): Promise<boolean> {
+  try {
+    await runTransaction(db, async (transaction) => {
+      const orderRef = doc(db, 'users', userId, 'orders', orderId);
+      const orderSnap = await transaction.get(orderRef);
+
+      if (!orderSnap.exists()) {
+        console.warn('[revertCreditOnCancel] Order not found:', orderId);
+        return;
+      }
+
+      const orderData = orderSnap.data() || {};
+
+      // Guard: only revert if this order had a credit that was actually burned
+      const creditBurnInfo = orderData.creditBurnInfo;
+      if (!creditBurnInfo || orderData.isCreditBurned !== true) {
+        console.log('[revertCreditOnCancel] Order was not credit-burned, no-op:', orderId);
+        return;
+      }
+
+      const { subscriptionId, creditIndex, creditUsageId } = creditBurnInfo;
+      if (!subscriptionId || !creditUsageId) {
+        console.warn('[revertCreditOnCancel] Incomplete creditBurnInfo on order:', orderId, creditBurnInfo);
+        return;
+      }
+
+      // ── Reads must precede writes in a Firestore transaction ──
+      const subscriptionRef = doc(db, 'users', userId, 'subscriptions', subscriptionId);
+      const subSnap = await transaction.get(subscriptionRef);
+
+      // ── Writes ──
+
+      // 1. Delete the credit usage record
+      transaction.delete(
+        doc(db, 'users', userId, 'subscriptions', subscriptionId, 'creditUsage', creditUsageId)
+      );
+
+      // 2. Restore subscription counters
+      if (subSnap.exists()) {
+        const subData = subSnap.data();
+        const currentCreditsRemaining = subData.creditsRemaining ?? subData.credits_remaining ?? 0;
+        const currentCreditsUsed = subData.creditsUsed ?? subData.credits_used ?? 0;
+        const restoredRemaining = currentCreditsRemaining + 1;
+        const restoredUsed = Math.max(0, currentCreditsUsed - 1);
+
+        transaction.update(subscriptionRef, {
+          creditsRemaining: restoredRemaining,
+          creditsUsed: restoredUsed,
+          currentCreditIndex: creditIndex,
+          status: 'active',
+          updatedAt: Timestamp.now(),
+          // Legacy snake_case
+          credits_remaining: restoredRemaining,
+          credits_used: restoredUsed,
+          current_credit_index: creditIndex,
+        });
+      } else {
+        console.warn('[revertCreditOnCancel] Subscription not found to restore:', subscriptionId);
+      }
+
+      // 3. Mark order — credit is no longer burned
+      transaction.update(orderRef, {
+        isCreditBurned: false,
+        creditBurnInfo: null,
+      });
+
+      console.log(`[revertCreditOnCancel] Reversed credit for order ${orderId} on subscription ${subscriptionId}`);
+    });
+
+    return true;
+  } catch (error) {
+    console.error('[revertCreditOnCancel] Failed:', error);
+    return false;
   }
 }
 

@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { COLORS, SPACING, TYPOGRAPHY, SHADOWS, RADIUS } from '../../utils/constants';
 import { useAdminStore } from '../../store/adminStore';
 import { useUIStore } from '../../store/uiStore';
@@ -23,6 +24,7 @@ import { BrandAlert } from '../../components/BrandAlert';
 
 export const AdminSubscriptionsScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
   const {
     subscriptionStats,
     subscriptionsLoading: isLoading,
@@ -38,7 +40,7 @@ export const AdminSubscriptionsScreen: React.FC = () => {
 
   // Add Credits Modal State
   const [modalVisible, setModalVisible] = useState(false);
-  const [modalTab, setModalTab] = useState<'manual' | 'csv'>('manual');
+  const [modalTab] = useState<'manual' | 'csv'>('manual');
   const [formName, setFormName] = useState('');
   const [formPhone, setFormPhone] = useState('');
   const [formPlanType, setFormPlanType] = useState<'single' | 'couple'>('single');
@@ -104,7 +106,11 @@ export const AdminSubscriptionsScreen: React.FC = () => {
   };
 
   const renderSubscriberItem = ({ item }: { item: any }) => (
-    <View style={styles.subscriberCard}>
+    <TouchableOpacity
+      style={styles.subscriberCard}
+      activeOpacity={0.7}
+      onPress={() => navigation.navigate('AdminSubscriptionDetail', { userId: item.user_id, subscriptionId: item.id })}
+    >
       <View style={styles.subscriberHeader}>
         <View>
           <Text style={styles.subscriberName}>{item.name || 'No Name'}</Text>
@@ -142,7 +148,7 @@ export const AdminSubscriptionsScreen: React.FC = () => {
           Expires: {item.expires_at ? format(new Date(item.expires_at), 'dd MMM yyyy') : 'N/A'}
         </Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -222,7 +228,7 @@ export const AdminSubscriptionsScreen: React.FC = () => {
         <FlatList
           data={filteredSubscribers}
           renderItem={renderSubscriberItem}
-          keyExtractor={(item) => `${item.user_id}-${item.created_at}`}
+          keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           refreshing={refreshing}
           onRefresh={onRefresh}
@@ -251,31 +257,15 @@ export const AdminSubscriptionsScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.tabContainer}>
-              <TouchableOpacity
-                style={[styles.tab, modalTab === 'manual' && styles.activeTab]}
-                onPress={() => setModalTab('manual')}
-              >
-                <Text style={[styles.tabText, modalTab === 'manual' && styles.activeTabText]}>Manual</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.tab, modalTab === 'csv' && styles.activeTab]}
-                onPress={() => setModalTab('csv')}
-              >
-                <Text style={[styles.tabText, modalTab === 'csv' && styles.activeTabText]}>CSV Upload</Text>
-              </TouchableOpacity>
-            </View>
-
             <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-              {modalTab === 'manual' ? (
-                <View style={styles.form}>
-                  <Text style={styles.label}>Customer Name (Optional)</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="e.g. John Doe"
-                    value={formName}
-                    onChangeText={setFormName}
-                  />
+              <View style={styles.form}>
+                <Text style={styles.label}>Customer Name (Optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. John Doe"
+                  value={formName}
+                  onChangeText={setFormName}
+                />
 
                   <Text style={styles.label}>Phone Number *</Text>
                   <TextInput
@@ -339,27 +329,7 @@ export const AdminSubscriptionsScreen: React.FC = () => {
                       <Text style={styles.submitButtonText}>Add Credits</Text>
                     )}
                   </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.csvContainer}>
-                  <View style={styles.csvInstructions}>
-                    <Ionicons name="information-circle-outline" size={20} color={COLORS.primary} />
-                    <Text style={styles.csvInfoText}>
-                      CSV format: name, phone, plan_type, credits{"\n"}
-                      • plan_type: single / couple{"\n"}
-                      • phone: 10 digits
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.uploadBox}
-                    onPress={() => showAlert({ title: 'Web Only', message: 'CSV Upload is currently only supported on Web version as per SpinZo logic.', type: 'info' })}
-                  >
-                    <Ionicons name="cloud-upload" size={40} color={COLORS.primary} />
-                    <Text style={styles.uploadText}>Select CSV File</Text>
-                    <Text style={styles.uploadSub}>Tap to upload subscriber list</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+              </View>
             </ScrollView>
           </View>
         </View>

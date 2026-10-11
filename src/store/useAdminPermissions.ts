@@ -36,6 +36,10 @@ export const useAdminPermissions = () => {
     /** Subscriptions tab in footer */
     canViewSubscriptions: isSuperAdmin,
 
+    // ── Subscription / Credit Controls ──
+    /** Can add credits, revoke packs, extend expiry, view usage history */
+    canManageSubscriptions: isSuperAdmin,
+
     // ── Settings & Configuration ──
     /** Service Availability toggles (high demand pause) */
     canManageServiceAvailability: isSuperAdmin,

@@ -3,6 +3,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  deleteDoc,
   query,
   where,
   orderBy,
@@ -26,6 +27,7 @@ import { generateOTP } from '../utils/otpHelpers';
 import { SLOT_CONSTANTS } from '../utils/slotUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getStorage, ref, uploadBytes, uploadString, getDownloadURL } from 'firebase/storage';
+import { revertCreditOnCancel } from './firestore';
 
 // Per-kg rate table for credit packs — MUST match src/utils/creditPricing.ts.
 const CREDIT_RATE_TABLE: Record<string, Record<number, number>> = {
@@ -1409,40 +1411,80 @@ export const updateOrderStatusAdmin = async (
       }
     }
 
-    // ─── Cancellation: release ALL reserved slots ───
+    // ─── Cancellation: release ALL reserved slots + reverse credits atomically ───
     if (newStatus === 'cancelled' && !currentOrder.isTestOrder) {
-      // Release pickup slot (only if not already released by pickup verification)
-      if (!currentOrder.pickupSlotReleased) {
-        const pickupDate = currentOrder.pickupDetails?.scheduledDate;
-        const pickupTime = currentOrder.pickupDetails?.scheduledTime;
-        if (pickupDate && pickupTime) {
-          const schedRef = doc(db, 'daily_schedules', pickupDate);
-          const schedSnap = await getDoc(schedRef);
-          if (schedSnap.exists()) {
-            const sc = schedSnap.data().slot_counts || {};
-            const cur = sc[pickupTime] || 0;
-            if (cur > 0) {
-              await updateDoc(schedRef, { [`slot_counts.${pickupTime}`]: Math.max(0, cur - 1) });
-            }
+      await runTransaction(db, async (transaction) => {
+        // ── ALL reads must precede ALL writes ──
+
+        const pRef = (!currentOrder.pickupSlotReleased && currentOrder.pickupDetails?.scheduledDate && currentOrder.pickupDetails?.scheduledTime)
+          ? doc(db, 'daily_schedules', currentOrder.pickupDetails.scheduledDate)
+          : null;
+        const pSnap = pRef ? await transaction.get(pRef) : null;
+
+        const dRef = (!currentOrder.deliverySlotReleased && currentOrder.deliveryDate && currentOrder.deliveryTime)
+          ? doc(db, 'daily_schedules', currentOrder.deliveryDate)
+          : null;
+        const dSnap = dRef ? await transaction.get(dRef) : null;
+
+        // Read subscription for credit reversal inside the txn
+        const orderRef = doc(db, 'users', userId, 'orders', orderId);
+        const orderSnap = await transaction.get(orderRef);
+        let subscriptionRef: any = null;
+        let subSnap: any = null;
+        let creditBurnInfo: any = null;
+        let usageRef: any = null;
+
+        if (orderSnap.exists()) {
+          const od = orderSnap.data() || {};
+          creditBurnInfo = od.creditBurnInfo;
+          if (creditBurnInfo && od.isCreditBurned === true && creditBurnInfo.subscriptionId && creditBurnInfo.creditUsageId) {
+            subscriptionRef = doc(db, 'users', userId, 'subscriptions', creditBurnInfo.subscriptionId);
+            subSnap = await transaction.get(subscriptionRef);
+            usageRef = doc(db, 'users', userId, 'subscriptions', creditBurnInfo.subscriptionId, 'creditUsage', creditBurnInfo.creditUsageId);
           }
         }
-      }
-      // Release delivery slot (only if not already released by delivery verification)
-      if (!currentOrder.deliverySlotReleased) {
-        const delDate = currentOrder.deliveryDate;
-        const delTime = currentOrder.deliveryTime;
-        if (delDate && delTime) {
-          const schedRef = doc(db, 'daily_schedules', delDate);
-          const schedSnap = await getDoc(schedRef);
-          if (schedSnap.exists()) {
-            const sc = schedSnap.data().slot_counts || {};
-            const cur = sc[delTime] || 0;
-            if (cur > 0) {
-              await updateDoc(schedRef, { [`slot_counts.${delTime}`]: Math.max(0, cur - 1) });
-            }
-          }
+
+        // ── ALL writes ──
+
+        // Release pickup slot - decrement the counter atomically
+        if (pRef && pSnap?.exists()) {
+          const sc = { ...(pSnap.data().slot_counts || {}) };
+          const t = currentOrder.pickupDetails!.scheduledTime!;
+          if ((sc[t] || 0) > 0) sc[t] = (sc[t] || 0) - 1;
+          transaction.set(pRef, { slot_counts: sc }, { merge: true });
         }
-      }
+
+        // Release delivery slot
+        if (dRef && dSnap?.exists()) {
+          const sc2 = { ...(dSnap.data().slot_counts || {}) };
+          const dt = currentOrder.deliveryTime!;
+          if ((sc2[dt] || 0) > 0) sc2[dt] = (sc2[dt] || 0) - 1;
+          transaction.set(dRef, { slot_counts: sc2 }, { merge: true });
+        }
+
+        // Credit reversal: delete usage doc, restore subscription counters, mark order
+        if (creditBurnInfo && subscriptionRef && subSnap?.exists()) {
+          transaction.delete(usageRef);
+          const sd = subSnap.data();
+          const rem = sd.creditsRemaining ?? sd.credits_remaining ?? 0;
+          const used = sd.creditsUsed ?? sd.credits_used ?? 0;
+          transaction.update(subscriptionRef, {
+            creditsRemaining: rem + 1,
+            creditsUsed: Math.max(0, used - 1),
+            currentCreditIndex: creditBurnInfo.creditIndex,
+            status: 'active',
+            updatedAt: Timestamp.now(),
+            credits_remaining: rem + 1,
+            credits_used: Math.max(0, used - 1),
+            current_credit_index: creditBurnInfo.creditIndex,
+          });
+          transaction.update(orderRef, { isCreditBurned: false, creditBurnInfo: null });
+        }
+
+        // Mark slot release flags in the order update
+        if (!currentOrder.pickupSlotReleased) updateData.pickupSlotReleased = true;
+        if (!currentOrder.deliverySlotReleased) updateData.deliverySlotReleased = true;
+      });
     }
 
     // Add token number
@@ -1565,84 +1607,51 @@ export const getSubscriptionStats = async (): Promise<{
   subscribers: any[];
 }> => {
   try {
-    const subscribers: any[] = [];
-    const seenUserIds = new Set<string>();
+    // One unordered collection-group read for every subscription in the app.
+    //
+    // Deliberately NOT using orderBy('createdAt'): that ordering needs a
+    // COLLECTION_GROUP index on subscriptions.createdAt, which is not declared
+    // in firestore.indexes.json. When the index is missing Firestore rejects the
+    // query outright (FAILED_PRECONDITION) rather than degrading, and the old
+    // fallback for that case walked every user in the app with one sequential
+    // subcollection query each (~72s for 1.7k users — the screen never finished
+    // loading). The subscription set is small, so it is sorted client-side here.
+    const subsSnap = await getDocs(query(collectionGroup(db, 'subscriptions')));
+
+    const toMillis = (value: any): number => {
+      if (!value) return 0;
+      if (typeof value.toMillis === 'function') return value.toMillis();
+      if (typeof value.toDate === 'function') return value.toDate().getTime();
+      if (value instanceof Date) return value.getTime();
+      return new Date(value).getTime() || 0;
+    };
+
+    const subDocs = subsSnap.docs
+      .filter(subDoc => subDoc.ref.parent?.parent?.id)
+      .sort((a, b) => toMillis(b.data().createdAt) - toMillis(a.data().createdAt));
+
+    const userIds = Array.from(new Set(subDocs.map(subDoc => subDoc.ref.parent!.parent!.id)));
+
+    // Resolve subscriber profiles in parallel instead of awaiting one getDoc per
+    // user inside the loop — sequential reads here cost a full round trip each.
+    const userSnaps = await Promise.all(
+      userIds.map(userId => getDoc(doc(db, 'users', userId)).catch(() => null))
+    );
+    const userById = new Map<string, any>();
+    userSnaps.forEach(userSnap => {
+      if (userSnap?.exists()) userById.set(userSnap.id, userSnap.data());
+    });
+
     let activeSubscribers = 0;
-
-    // 1. Fetch ALL subscriptions via collectionGroup to avoid N+1 user iteration.
-    let allSubsSnap;
-    try {
-      // Try indexed collectionGroup first (fastest).
-      const allSubsQuery = query(
-        collectionGroup(db, 'subscriptions'),
-        orderBy('createdAt', 'desc')
-      );
-      allSubsSnap = await getDocs(allSubsQuery);
-    } catch (e) {
-      console.warn('[Stats] collectionGroup subscriptions query failed, falling back.', e);
-      // Fallback: iterate users (existing approach).
-      const usersRef = collection(db, 'users');
-      const usersSnap = await getDocs(usersRef);
-
-      for (const userDoc of usersSnap.docs) {
-        try {
-          const userData = userDoc.data();
-          const subscriptionsRef = collection(db, 'users', userDoc.id, 'subscriptions');
-          const subsSnap = await getDocs(subscriptionsRef);
-          const allSubs = subsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-
-          for (const sub of allSubs) {
-            const isActiveSubscription = sub.status === 'active' && sub.isActive !== false;
-            if (isActiveSubscription) activeSubscribers++;
-
-            subscribers.push({
-              user_id: userDoc.id,
-              phone: userData.phone || '',
-              name: userData.name || '',
-              plan_type: sub.planType || sub.plan_type || 'single',
-              serviceType: sub.serviceType || sub.service_type || 'wash_fold',
-              kgPerCredit: sub.kgPerCredit || sub.kg_per_credit || (sub.plan_type === 'couple' ? 14 : 7),
-              total_credits: sub.totalCredits || sub.total_credits || 0,
-              credits_remaining: sub.creditsRemaining || sub.credits_remaining || 0,
-              credits_used: sub.creditsUsed || sub.credits_used || 0,
-              status: sub.status || 'active',
-              expires_at: sub.expiresAt?.toDate ? sub.expiresAt.toDate().toISOString() : (sub.expiresAt || ''),
-              created_at: sub.createdAt?.toDate ? sub.createdAt.toDate().toISOString() : (sub.createdAt || ''),
-            });
-            seenUserIds.add(userDoc.id);
-          }
-        } catch (e) { continue; }
-      }
-
-      return {
-        totalSubscribers: seenUserIds.size,
-        activeSubscribers,
-        subscribers,
-      };
-    }
-
-    // Fast path: collectionGroup succeeded. Group by user.
-    const userSnaps = new Map<string, any>();
-
-    for (const subDoc of allSubsSnap.docs) {
-      const userId = subDoc.ref.parent.parent?.id;
-      if (!userId) continue;
-      seenUserIds.add(userId);
-
+    const subscribers = subDocs.map(subDoc => {
+      const userId = subDoc.ref.parent!.parent!.id;
       const sub = subDoc.data() as any;
-      const isActiveSubscription = sub.status === 'active' && sub.isActive !== false;
-      if (isActiveSubscription) activeSubscribers++;
 
-      // Cache user info.
-      if (!userSnaps.has(userId)) {
-        try {
-          const userSnap = await getDoc(doc(db, 'users', userId));
-          userSnaps.set(userId, userSnap.exists() ? userSnap.data() : { phone: '', name: '' });
-        } catch { userSnaps.set(userId, { phone: '', name: '' }); }
-      }
-      const userData = userSnaps.get(userId)!;
+      if (sub.status === 'active' && sub.isActive !== false) activeSubscribers++;
 
-      subscribers.push({
+      const userData = userById.get(userId) || {};
+      return {
+        id: subDoc.id,
         user_id: userId,
         phone: userData.phone || '',
         name: userData.name || '',
@@ -1655,11 +1664,11 @@ export const getSubscriptionStats = async (): Promise<{
         status: sub.status || 'active',
         expires_at: sub.expiresAt?.toDate ? sub.expiresAt.toDate().toISOString() : (sub.expiresAt || ''),
         created_at: sub.createdAt?.toDate ? sub.createdAt.toDate().toISOString() : (sub.createdAt || ''),
-      });
-    }
+      };
+    });
 
     return {
-      totalSubscribers: seenUserIds.size,
+      totalSubscribers: userIds.length,
       activeSubscribers,
       subscribers,
     };
@@ -2245,6 +2254,125 @@ export const fetchDemandRequestsAdmin = async (limitCount = 100): Promise<any[]>
       status: item.status || 'new',
     };
   });
+};
+
+// ──────────────────────────────────────────────
+// ADMIN CREDIT / SUBSCRIPTION CONTROLS
+// ──────────────────────────────────────────────
+
+export const getSubscriptionDetail = async (
+  userId: string,
+  subscriptionId: string
+): Promise<{ subscription: any; creditUsage: any[] }> => {
+  const subSnap = await getDoc(doc(db, 'users', userId, 'subscriptions', subscriptionId));
+  if (!subSnap.exists()) throw new Error('Subscription not found');
+
+  const usageSnap = await getDocs(
+    query(
+      collection(db, 'users', userId, 'subscriptions', subscriptionId, 'creditUsage'),
+      orderBy('usedAt', 'desc')
+    )
+  );
+
+  // Resolve linked order details for each usage in parallel
+  const creditUsage = await Promise.all(
+    usageSnap.docs.map(async (u) => {
+      const data = u.data();
+      let order: any = null;
+      if (data.orderId) {
+        const oSnap = await getDoc(doc(db, 'users', userId, 'orders', data.orderId));
+        if (oSnap.exists()) {
+          const od = oSnap.data();
+          order = {
+            id: oSnap.id,
+            status: od.status,
+            createdAt: od.createdAt?.toDate?.()?.toISOString() ?? null,
+            totalAmount: od.billDetails?.total ?? od.totalAmount ?? 0,
+          };
+        }
+      }
+      return {
+        id: u.id,
+        creditIndex: data.creditIndex,
+        orderId: data.orderId,
+        usedAt: data.usedAt?.toDate?.()?.toISOString() ?? null,
+        order,
+      };
+    })
+  );
+
+  return {
+    subscription: { id: subSnap.id, ...subSnap.data() },
+    creditUsage,
+  };
+};
+
+/**
+ * Revoke / delete a subscription pack atomically.
+ */
+export const revokeSubscriptionAdmin = async (
+  userId: string,
+  subscriptionId: string
+): Promise<{ success: boolean; creditsRevoked: number; error?: string }> => {
+  try {
+    const subSnap = await getDoc(doc(db, 'users', userId, 'subscriptions', subscriptionId));
+    if (!subSnap.exists()) return { success: false, creditsRevoked: 0, error: 'Subscription not found' };
+
+    const sub = subSnap.data();
+    const remaining = sub.creditsRemaining ?? sub.credits_remaining ?? 0;
+
+    const usageSnap = await getDocs(
+      collection(db, 'users', userId, 'subscriptions', subscriptionId, 'creditUsage')
+    );
+    const batch = writeBatch(db);
+    usageSnap.docs.forEach((d) => batch.delete(d.ref));
+    batch.delete(subSnap.ref);
+    await batch.commit();
+
+    return { success: true, creditsRevoked: remaining };
+  } catch (error: any) {
+    console.error('[revokeSubscriptionAdmin] Failed:', error);
+    return { success: false, creditsRevoked: 0, error: error.message };
+  }
+};
+
+/**
+ * Extend (or set) the expiry date on a subscription pack (informational only).
+ */
+export const extendSubscriptionExpiryAdmin = async (
+  userId: string,
+  subscriptionId: string,
+  newExpiryDate: Date
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const ref = doc(db, 'users', userId, 'subscriptions', subscriptionId);
+    await updateDoc(ref, {
+      expiresAt: Timestamp.fromDate(newExpiryDate),
+      updatedAt: Timestamp.now(),
+    });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Remove stale test orders created by verification scripts.
+ */
+export const cleanTestOrdersAdmin = async (userId: string): Promise<number> => {
+  const snap = await getDocs(collection(db, 'users', userId, 'orders'));
+  let cleaned = 0;
+  for (const d of snap.docs) {
+    const o = d.data();
+    const isTest = !o.address && !o.userName && !o.pickupOTP && !o.tokenNumber &&
+      Array.isArray(o.items) && o.items.length === 1 && o.items[0]?.isCreditItem;
+    if (isTest) {
+      await deleteDoc(d.ref);
+      if (o.vendorId) await deleteDoc(doc(db, 'vendors', o.vendorId, 'orders', d.id));
+      cleaned++;
+    }
+  }
+  return cleaned;
 };
 
 

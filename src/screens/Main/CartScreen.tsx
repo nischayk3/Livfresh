@@ -20,7 +20,6 @@ import {
   useAuthStore,
   useAddressStore,
   useUIStore,
-  useSubscriptionStore,
 } from '../../store';
 import {
   createOrder,
@@ -387,7 +386,8 @@ export const CartScreen: React.FC = () => {
         paymentStatus: totalAmount === 0 ? 'paid' : 'pending',
       };
 
-
+      // Any credit line item is deducted inside createOrder's transaction, so
+      // the order only exists if the credit was successfully burned.
       const orderId = await createOrder(latestUser.uid, orderData);
 
       await tracker.logPurchase({
@@ -400,25 +400,18 @@ export const CartScreen: React.FC = () => {
 
       setIsNavigating(true);
 
-      const creditItem = items.find((item) => item.isCreditItem);
-      if (creditItem && creditItem.creditSubscriptionId) {
-        try {
-          const { useCredit } = useSubscriptionStore.getState();
-          const success = await useCredit(latestUser.uid, creditItem.creditSubscriptionId, orderId);
-          if (success) console.log('[Credit] Subscription credit consumed');
-          else console.warn('[Credit] Credit utilization failed');
-        } catch (creditError) {
-          console.error('[Credit] Error:', creditError);
-        }
-      }
-
       clearCart();
       await clearCartInFirestore(latestUser.uid);
 
       (navigation as any).navigate('OrderSuccess');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Order placement failed', error);
-      showAlert({ title: 'Error', message: 'Failed to place order. Please try again.', type: 'error' });
+      const isCreditError = typeof error?.code === 'string' && error.code.startsWith('CREDIT_');
+      showAlert({
+        title: isCreditError ? 'Credit Not Available' : 'Error',
+        message: isCreditError ? error.message : 'Failed to place order. Please try again.',
+        type: 'error',
+      });
     } finally {
       setLoading(false);
     }

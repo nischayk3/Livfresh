@@ -565,6 +565,8 @@ exports.creditExpiryReminder = functions.pubsub
     catch (error) {
         console.error("Error executing creditExpiryReminder:", error);
     }
+    // ── Credits never expire (product decision) ──
+    // Expiry is shown informationally only — customers keep their credits.
     return null;
 });
 // ==========================================

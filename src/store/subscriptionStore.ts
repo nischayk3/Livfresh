@@ -3,15 +3,12 @@ import {
   db,
   collection,
   doc,
-  getDoc,
   getDocs,
   query,
   where,
   orderBy,
   Timestamp,
-  onSnapshot,
   addDoc,
-  updateDoc
 } from '../services/firebase';
 
 import { ServiceType, CreditWeight, computePrice } from '../utils/creditPricing';
@@ -66,7 +63,6 @@ interface SubscriptionState {
     serviceType?: ServiceType,
     kgPerCredit?: CreditWeight
   ) => Promise<{ success: boolean; subscriptionId?: string; error?: string }>;
-  useCredit: (userId: string, subscriptionId: string, orderId?: string) => Promise<boolean>;
   getTotalCredits: () => number;
   isCreditUnlocked: (index: number) => boolean;
   isCreditUsed: (index: number) => boolean;
@@ -231,106 +227,6 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
     } catch (error: any) {
       console.error('Error creating subscription:', error);
       return { success: false, error: error.message || 'Failed to create subscription' };
-    }
-  },
-
-  useCredit: async (userId: string, subscriptionId: string, orderId?: string) => {
-    let subscriptionData = get().activeSubscription;
-
-    // If activeSubscription is missing or doesn't match ID, fetch from DB
-    if (!subscriptionData || subscriptionData.id !== subscriptionId) {
-      console.log("[Credit] Fetching subscription from DB...");
-      try {
-        const subRef = doc(db, 'users', userId, 'subscriptions', subscriptionId);
-        const subSnap = await getDoc(subRef);
-        if (subSnap.exists()) {
-          const data = subSnap.data();
-          subscriptionData = { id: subSnap.id, ...data } as Subscription;
-        } else {
-          console.error("[Credit] Subscription document not found in DB");
-          return false;
-        }
-      } catch (error) {
-        console.error("[Credit] Failed to fetch subscription for useCredit:", error);
-        return false;
-      }
-    }
-
-    // Robust field access (handle legacy snake_case)
-    const creditsUsed = subscriptionData.creditsUsed ?? (subscriptionData as any).credits_used ?? 0;
-    const creditsRemaining = subscriptionData.creditsRemaining ?? (subscriptionData as any).credits_remaining ?? 0;
-    const currentCreditIndex = subscriptionData.currentCreditIndex ?? (subscriptionData as any).current_credit_index ?? 0;
-    const totalCredits = subscriptionData.totalCredits ?? (subscriptionData as any).total_credits ?? 0;
-    const status = subscriptionData.status || (subscriptionData as any).status || 'active';
-
-    if (creditsRemaining <= 0) {
-      set({ error: 'No credits remaining' });
-      console.warn("[Credit] No credits remaining for sub:", subscriptionId);
-      return false;
-    }
-
-    if (status !== 'active') {
-      set({ error: 'Subscription is not active' });
-      console.warn("[Credit] Subscription not active:", subscriptionId, "status:", status);
-      return false;
-    }
-
-    try {
-      const subscriptionRef = doc(db, 'users', userId, 'subscriptions', subscriptionId);
-      const creditToUse = currentCreditIndex;
-      const creditUsageRef = collection(db, 'users', userId, 'subscriptions', subscriptionId, 'creditUsage');
-
-      // Check if this credit is already used
-      const usageQuery = query(creditUsageRef, where('creditIndex', '==', creditToUse));
-      const usageSnapshot = await getDocs(usageQuery);
-
-      if (!usageSnapshot.empty) {
-        set({ error: 'Credit already used' });
-        console.warn("[Credit] Credit index", creditToUse, "already used for sub:", subscriptionId);
-        return false;
-      }
-
-      // 1. Create credit usage record
-      await addDoc(creditUsageRef, {
-        subscriptionId,
-        userId,
-        creditIndex: creditToUse,
-        orderId: orderId || null,
-        usedAt: Timestamp.now(),
-        createdAt: Timestamp.now(),
-      });
-
-      // 2. Calculate new values
-      const newCreditsUsed = creditsUsed + 1;
-      const newCreditsRemaining = creditsRemaining - 1;
-      const newCurrentCreditIndex = newCreditsRemaining > 0 ? creditToUse + 1 : creditToUse;
-      const newStatus = newCreditsRemaining === 0 ? 'completed' : 'active';
-
-      // 3. Update subscription (normalize to both formats for total safety)
-      const updatePayload: any = {
-        // CamelCase (Modern)
-        creditsUsed: newCreditsUsed,
-        creditsRemaining: newCreditsRemaining,
-        currentCreditIndex: newCurrentCreditIndex,
-        status: newStatus,
-        updatedAt: Timestamp.now(),
-        // SnakeCase (Legacy Support)
-        credits_used: newCreditsUsed,
-        credits_remaining: newCreditsRemaining,
-        current_credit_index: newCurrentCreditIndex,
-      };
-
-      await updateDoc(subscriptionRef, updatePayload);
-
-      console.log(`[Credit] Successfully used credit ${creditToUse}. Remaining: ${newCreditsRemaining}`);
-
-      // Refetch for UI sync
-      await get().fetchSubscriptions(userId);
-      return true;
-    } catch (error: any) {
-      console.error('[Credit] Critical Error in useCredit:', error);
-      set({ error: error.message || 'Failed to use credit' });
-      return false;
     }
   },
 

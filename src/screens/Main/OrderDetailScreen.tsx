@@ -44,10 +44,28 @@ const ORDER_STEPS = [
   { key: 'delivered', label: 'Delivered', icon: Home },
 ];
 
+const STATUS_TO_STEP_INDEX: Record<string, number> = {
+  placed: 1,
+  confirmed: 1,
+  pickup_assigned: 1,
+  assigned: 1,
+  driver_assigned: 1,
+  pickup_completed: 2,
+  picked_up: 2,
+  pickup_verified: 2,
+  processing: 3,
+  in_process: 3,
+  ready: 4,
+  ready_for_delivery: 4,
+  out_for_delivery: 5,
+  dispatched: 5,
+  delivered: 6,
+  completed: 6,
+};
+
 const getStepIndex = (status: string): number => {
   if (status === 'cancelled' || status === 'refund_processed') return 0;
-  const idx = ORDER_STEPS.findIndex(s => s.key === status);
-  return idx === -1 ? 0 : idx;
+  return STATUS_TO_STEP_INDEX[status] ?? 1;
 };
 
 const PulsingGlow = () => {
@@ -74,34 +92,10 @@ const getServiceIcon = (item: any, size: number, color: string) => {
   return <Shirt size={size} color={color} />;
 };
 
-const getStepTimestamp = (order: any, stepKey: string): string => {
-  // Never show timestamps on the delivered step
-  if (stepKey === 'delivered') return '';
-
-  // For placed step, always show the order creation time
-  if (stepKey === 'placed' && order.createdAt) {
-    const d = order.createdAt.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
-    return format(d, 'h:mm a');
-  }
-
-  // Check for statusTimestamps set by the system
-  const timestamps = order.statusTimestamps || {};
-  const ts = timestamps[stepKey];
-  if (ts) {
-    const d = ts.toDate ? ts.toDate() : new Date(ts);
-    return format(d, 'h:mm a');
-  }
-
-  // For the current non-delivered status step, show "Just now"
-  if (stepKey === order.status) return 'Just now';
-
-  return '';
-};
-
-const getOrderTimeString = (date: any): string => {
+const getOrderDateString = (date: any): string => {
   if (!date) return '';
   const d = date.toDate ? date.toDate() : new Date(date);
-  return format(d, 'MMM d, yyyy · h:mm a');
+  return format(d, 'MMM d, yyyy');
 };
 
 export const OrderDetailScreen: React.FC = () => {
@@ -300,7 +294,7 @@ export const OrderDetailScreen: React.FC = () => {
 
             {/* Date */}
             <Text style={styles.heroDateText}>
-              Placed on {getOrderTimeString(order.createdAt)}
+              Placed on {getOrderDateString(order.createdAt)}
             </Text>
           </View>
         </View>
@@ -479,19 +473,14 @@ export const OrderDetailScreen: React.FC = () => {
                         )}
                       </View>
                       <View style={styles.timelineContent}>
-                        <View style={styles.timelineLabelRow}>
-                          <Text
-                            style={[
-                              styles.timelineLabel,
-                              (isActive || showAsCurrent) && styles.timelineLabelActive,
-                            ]}
-                          >
-                            {step.label}
-                          </Text>
-                          <Text style={styles.timelineTime}>
-                            {getStepTimestamp(order, step.key)}
-                          </Text>
-                        </View>
+                        <Text
+                          style={[
+                            styles.timelineLabel,
+                            (isActive || showAsCurrent) && styles.timelineLabelActive,
+                          ]}
+                        >
+                          {step.label}
+                        </Text>
                       </View>
                     </View>
                   );

@@ -30,6 +30,10 @@ const AdminDemandScreen = Platform.OS === 'web'
   ? lazy(() => import('../screens/Admin/AdminDemandScreen').then(m => ({ default: m.AdminDemandScreen })))
   : require('../screens/Admin/AdminDemandScreen').AdminDemandScreen;
 
+const AdminSubscriptionDetailScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Admin/AdminSubscriptionDetailScreen').then(m => ({ default: m.AdminSubscriptionDetailScreen })))
+  : require('../screens/Admin/AdminSubscriptionDetailScreen').AdminSubscriptionDetailScreen;
+
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -155,6 +159,7 @@ export const AdminNavigator = () => {
       >
         <Stack.Screen name="AdminTabs" component={AdminTabs} />
         <Stack.Screen name="AdminDemand" component={AdminDemandScreen} />
+        <Stack.Screen name="AdminSubscriptionDetail" component={AdminSubscriptionDetailScreen} />
       </Stack.Navigator>
     </Suspense>
   );

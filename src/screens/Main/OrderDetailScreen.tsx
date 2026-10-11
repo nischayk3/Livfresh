@@ -339,8 +339,8 @@ export const OrderDetailScreen: React.FC = () => {
           )}
 
           {order.status === 'out_for_delivery' && order.paymentStatus && order.paymentStatus !== 'paid'
-            && (order.billDetails?.total || 0) > 0 && order.paymentMode !== 'credit'
-            && !order.items?.every((i: any) => i.isCreditItem) && (
+            && (order.billDetails?.total || 0) > 0
+            && (order.paymentMode !== 'credit' || (order.billDetails?.total || 0) > (order.billDetails?.coveredByCredit || 0)) && (
             <View style={paymentStyles.deliveryGate}>
               <View style={paymentStyles.gateIconRow}>
                 <View style={paymentStyles.lockCircle}>
@@ -602,6 +602,18 @@ export const OrderDetailScreen: React.FC = () => {
               <Text style={styles.billLabel}>Credits Applied</Text>
               <Text style={[styles.billValue, { color: '#94A3B8' }]}>−₹{order.billDetails?.creditsApplied || 0}</Text>
             </View>
+            {/* "Covered by Credit" shown when admin has set an excess charge on a credit order */}
+            {order.billDetails?.coveredByCredit > 0 && (() => {
+              // coveredByCredit sum already accounts for credit items — don't double-count
+              const isCreditOrder = order.items?.some((i: any) => i.isCreditItem);
+              if (!isCreditOrder) return null;
+              return (
+                <View style={styles.billRow}>
+                  <Text style={styles.billLabel}>Covered by Credit</Text>
+                  <Text style={[styles.billValue, { color: '#10B981' }]}>−₹{order.billDetails.coveredByCredit}</Text>
+                </View>
+              );
+            })()}
             {order.billDetails?.discount > 0 && (
               <View style={styles.billRow}>
                 <Text style={styles.billLabel}>Discount</Text>
@@ -629,8 +641,8 @@ export const OrderDetailScreen: React.FC = () => {
               out_for_delivery (where the prominent amber banner takes over). */}
           {order.paymentStatus && order.paymentStatus !== 'paid' && order.status !== 'cancelled' && order.status !== 'refund_processed'
             && ['pickup_completed', 'processing', 'ready'].includes(order.status)
-            && (order.billDetails?.total || 0) > 0 && order.paymentMode !== 'credit'
-            && !order.items?.every((i: any) => i.isCreditItem) && (
+            && (order.billDetails?.total || 0) > 0
+            && (order.paymentMode !== 'credit' || (order.billDetails?.total || 0) > (order.billDetails?.coveredByCredit || 0)) && (
             <PaymentStatusCard
               paymentStatus={order.paymentStatus === 'failed' ? 'failed' : 'pending'}
               amount={order.billDetails?.total || 0}

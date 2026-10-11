@@ -36,6 +36,7 @@ const FILES_TO_UPLOAD = [
   'services/wash_iron.webp',
   'services/premium_laundry.webp',
   'services/shoe_clean.webp',
+  'services/ironing_price_list.webp',
   'subscription_illustration.webp',
   'location_illustration.webp',
   'process_video.mp4',
@@ -61,15 +62,23 @@ async function uploadFile(localPath, storagePath) {
 }
 
 async function main() {
+  // Optional: pass specific files to upload only those, e.g.
+  //   node scripts/upload_assets.cjs services/ironing_price_list.webp
+  const only = process.argv.slice(2);
+  const filesToUpload = only.length
+    ? FILES_TO_UPLOAD.filter((f) => only.includes(f))
+    : FILES_TO_UPLOAD;
+
   console.log('🚀 Uploading assets to Firebase Storage...\n');
   console.log(`   Source: ${ASSETS_DIR}`);
   console.log(`   Bucket: spin-it-a135a.firebasestorage.app`);
+  console.log(`   Files:  ${filesToUpload.length}${only.length ? ' (filtered)' : ''}`);
   console.log(`   NOTE: Storage rules must allow writes to app_assets/ path\n`);
-  
+
   const results = [];
   let failed = 0;
-  
-  for (const file of FILES_TO_UPLOAD) {
+
+  for (const file of filesToUpload) {
     const localPath = path.join(ASSETS_DIR, file);
     const storagePath = `app_assets/${file}`;
     

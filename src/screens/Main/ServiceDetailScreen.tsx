@@ -38,6 +38,7 @@ import { FaqAccordion } from '../../components/FaqAccordion';
 import { TrustBanner } from '../../components/TrustBanner';
 import { ServiceStats } from '../../components/ServiceStats';
 import { ServiceInfo } from '../../components/ServiceInfo';
+import { PriceListModal } from '../../components/PriceListModal';
 import { GlassCard } from '../../components/GlassCard';
 import { AnimatedButton } from '../../components/AnimatedButton';
 import { ASSET_URLS } from '../../utils/assetUrls';
@@ -239,6 +240,7 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
 
   // Ironing state
   const [ironingCount, setIroningCount] = useState(10); // Min 10 as requested
+  const [priceListVisible, setPriceListVisible] = useState(false);
 
   // Shoe Cleaning state
   const [shoeSelections, setShoeSelections] = useState<Record<string, number>>({
@@ -1012,7 +1014,18 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
         <ServiceStats rating={4.9} reviewCount={1200} />
 
         <View style={styles.premiumSelectorContainer}>
-          <Text style={styles.premiumSelectorTitle}>Select Quantity</Text>
+          <View style={styles.selectorTitleRow}>
+            <Text style={styles.premiumSelectorTitle}>Select Quantity</Text>
+            <TouchableOpacity
+              onPress={() => setPriceListVisible(true)}
+              hitSlop={12}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="View steam ironing price list"
+            >
+              <Ionicons name="information-circle-outline" size={19} color="#7C3AED" />
+            </TouchableOpacity>
+          </View>
           <Text style={styles.premiumSelectorSubtitle}>Min 10 - Max 50 pieces</Text>
 
           <View style={styles.counterWrapper}>
@@ -1048,6 +1061,16 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
                 <Text style={styles.discountBadgeText}>50% OFF</Text>
               </View>
             </View>
+            <TouchableOpacity
+              onPress={() => setPriceListVisible(true)}
+              activeOpacity={0.7}
+              style={styles.priceListHint}
+            >
+              <Text style={styles.priceListHintText}>
+                Sarees, blazers, coats & other heavy items are priced higher
+              </Text>
+              <Ionicons name="chevron-forward" size={13} color="#7C3AED" />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -1083,6 +1106,11 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
         <Text style={styles.sectionTitle}>FAQs</Text>
         <FaqAccordion items={IRONING_FAQS} />
       </View>
+
+      <PriceListModal
+        visible={priceListVisible}
+        onClose={() => setPriceListVisible(false)}
+      />
     </View>
   );
 
@@ -1873,6 +1901,12 @@ const styles = StyleSheet.create({
     color: '#1E293B',
     marginBottom: 4,
   },
+  selectorTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
   premiumSelectorSubtitle: {
     fontSize: 14,
     fontFamily: 'Outfit_500Medium',
@@ -1929,6 +1963,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+  },
+  priceListHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    marginTop: 8,
+  },
+  priceListHintText: {
+    fontSize: 12,
+    fontFamily: 'Outfit_500Medium',
+    color: '#7C3AED',
+    textDecorationLine: 'underline',
   },
   priceTagText: {
     fontSize: 16,

@@ -279,12 +279,18 @@ export const AdminSubscriptionDetailScreen: React.FC = () => {
                   </Text>
                 </View>
                 {u.order && (
-                  <TouchableOpacity
-                    style={styles.usageLink}
-                    onPress={() => navigation.navigate('OrderDetail', { orderId: u.orderId, userId, isAdminView: true })}
-                  >
-                    <Ionicons name="chevron-forward" size={18} color={COLORS.primary} />
-                  </TouchableOpacity>
+                  <View style={styles.usageInfo}>
+                    <Text style={styles.usageOrderId}>Order ID: {u.orderId}</Text>
+                    <Text style={styles.usageOrderMeta}>
+                      ₹{u.order.totalAmount ? Math.round(u.order.totalAmount) : 0} · {u.order.status}
+                    </Text>
+                  </View>
+                )}
+                {!u.order && u.orderId && (
+                  <View style={styles.usageInfo}>
+                    <Text style={styles.usageOrderId}>Order ID: {u.orderId}</Text>
+                    <Text style={styles.usageOrderMeta}>Link not available</Text>
+                  </View>
                 )}
               </View>
             ))
@@ -458,6 +464,9 @@ const styles = StyleSheet.create({
   usageDate: { ...TYPOGRAPHY.bodySmall, fontWeight: '600', color: COLORS.text },
   usageOrder: { ...TYPOGRAPHY.tiny, color: COLORS.textLight, marginTop: 2 },
   usageLink: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+  usageInfo: { marginLeft: 'auto', alignItems: 'flex-end' },
+  usageOrderId: { ...TYPOGRAPHY.tiny, fontWeight: '600', color: COLORS.text, maxWidth: 180 },
+  usageOrderMeta: { ...TYPOGRAPHY.tiny, color: COLORS.textLight, marginTop: 1 },
   actionButton: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
     paddingVertical: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight,

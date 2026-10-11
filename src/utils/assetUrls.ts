@@ -27,6 +27,9 @@ export const ASSET_URLS = {
   services_premium_laundry: 'https://firebasestorage.googleapis.com/v0/b/spin-it-a135a.firebasestorage.app/o/app_assets%2Fservices%2Fpremium_laundry.webp?alt=media&token=126cecb6-90b5-4447-bc81-aad4ea7dd9c5',
   services_shoe_clean: 'https://firebasestorage.googleapis.com/v0/b/spin-it-a135a.firebasestorage.app/o/app_assets%2Fservices%2Fshoe_clean.webp?alt=media&token=cab11605-5685-4a17-a4c0-4356c5b81354',
 
+  // Service reference cards
+  services_ironing_price_list: 'https://firebasestorage.googleapis.com/v0/b/spin-it-a135a.firebasestorage.app/o/app_assets%2Fservices%2Fironing_price_list.webp?alt=media&token=eef66502-90ac-4db5-a269-a84494f83362',
+
   // Illustrations
   subscription_illustration: 'https://firebasestorage.googleapis.com/v0/b/spin-it-a135a.firebasestorage.app/o/app_assets%2Fsubscription_illustration.webp?alt=media&token=5d959158-651b-471e-8db5-c6cdcb05d2ec',
   location_illustration: 'https://firebasestorage.googleapis.com/v0/b/spin-it-a135a.firebasestorage.app/o/app_assets%2Flocation_illustration.webp?alt=media&token=258b17a0-54ca-463a-8cb3-d04f4994c4f2',

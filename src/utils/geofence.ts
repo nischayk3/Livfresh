@@ -17,6 +17,23 @@ interface ServiceZone {
     radiusMeters: number;
 }
 
+/** A closed fence. The ring is checked as-is; the closing point is optional. */
+interface ServiceArea {
+    id: string;
+    name: string;
+    ring: Coordinate[];
+}
+
+/**
+ * Converts a GeoJSON ring into app coordinates.
+ *
+ * Fences are drawn in My Maps / geojson.io, which export a closed ring (first
+ * point repeated) tagged `"LineString"` — the ring shape is what matters here.
+ * GeoJSON orders pairs [longitude, latitude], the reverse of this module.
+ */
+export const ringFromGeoJson = (coordinates: number[][]): Coordinate[] =>
+    coordinates.map(([longitude, latitude]) => ({ latitude, longitude }));
+
 // Service Zones updated based on user map:
 // Added 100m buffer to each radius for better edge coverage
 export const SERVICE_ZONES: ServiceZone[] = [
@@ -102,6 +119,27 @@ export const NEW_MAP_POLYGON: Coordinate[] = [
 ];
 
 /**
+ * Standalone pockets we serve that sit outside NEW_MAP_POLYGON — typically one
+ * building or plot too far from the main fence to be part of it. Each ring is
+ * tested on its own, so a pocket can be added or removed without disturbing the
+ * main boundary.
+ */
+export const EXTRA_SERVICE_AREAS: ServiceArea[] = [
+    {
+        id: 'nischay_home',
+        name: 'Nischay Home',
+        // ~862 m south of the main fence. 93 m x 65 m.
+        ring: ringFromGeoJson([
+            [77.614182565, 12.883565086],
+            [77.614012245, 12.883206874],
+            [77.614751193, 12.882980703],
+            [77.614874575, 12.883406897],
+            [77.614182565, 12.883565086],
+        ]),
+    },
+];
+
+/**
  * Calculates the distance between two coordinates in meters using the Haversine formula.
  */
 export const calculateDistance = (coord1: Coordinate, coord2: Coordinate): number => {
@@ -120,6 +158,36 @@ export const calculateDistance = (coord1: Coordinate, coord2: Coordinate): numbe
 
     return R * c;
 };
+
+const METERS_PER_DEGREE_LAT = 111320;
+
+/** Length of one degree of longitude, in metres, at the given latitude. */
+const metersPerDegreeLng = (latitude: number): number =>
+    METERS_PER_DEGREE_LAT * Math.cos((latitude * Math.PI) / 180);
+
+/**
+ * Shortest distance from `point` to the segment a→b, in metres. Longitude is
+ * scaled to the point's own parallel so the projection is locally square.
+ */
+const distanceToSegmentMeters = (point: Coordinate, a: Coordinate, b: Coordinate): number => {
+    const lngScale = metersPerDegreeLng(point.latitude);
+    const px = (point.longitude - a.longitude) * lngScale;
+    const py = (point.latitude - a.latitude) * METERS_PER_DEGREE_LAT;
+    const bx = (b.longitude - a.longitude) * lngScale;
+    const by = (b.latitude - a.latitude) * METERS_PER_DEGREE_LAT;
+
+    const lengthSq = bx * bx + by * by;
+    const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, (px * bx + py * by) / lengthSq));
+
+    return Math.hypot(px - bx * t, py - by * t);
+};
+
+/**
+ * Address pins land on fence edges all the time, and a point exactly on a
+ * boundary is a coin-flip for ray casting (a vertex can test either way). The
+ * rider can walk this far, so treat it as inside.
+ */
+export const SERVICE_EDGE_TOLERANCE_METERS = 15;
 
 /**
  * Checks if a coordinate is inside a polygon using the Ray-Casting algorithm.
@@ -140,22 +208,35 @@ export const isPointInPolygon = (point: Coordinate, polygon: Coordinate[]): bool
         if (intersect) inside = !inside;
     }
 
-    return inside;
+    if (inside) return true;
+
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        if (distanceToSegmentMeters(point, polygon[j], polygon[i]) <= SERVICE_EDGE_TOLERANCE_METERS) {
+            return true;
+        }
+    }
+
+    return false;
 };
 
 /**
- * Checks if a location is inside the defined polygon service zone.
+ * Checks if a location is inside any area we serve — the main fence or one of
+ * the standalone pockets.
  * @returns {boolean} True if serviceable, False otherwise.
  */
 export const isLocationServiceable = (location: Coordinate): boolean => {
-    return isPointInPolygon(location, NEW_MAP_POLYGON);
+    if (isPointInPolygon(location, NEW_MAP_POLYGON)) return true;
+    return EXTRA_SERVICE_AREAS.some((area) => isPointInPolygon(location, area.ring));
 };
 
 /**
  * Returns the name of the service zone the location belongs to, or null if unserviceable.
  */
 export const getServiceZoneName = (location: Coordinate): string | null => {
-    return isLocationServiceable(location) ? 'SpinZo Service Area' : null;
+    if (isPointInPolygon(location, NEW_MAP_POLYGON)) return 'SpinZo Service Area';
+
+    const pocket = EXTRA_SERVICE_AREAS.find((area) => isPointInPolygon(location, area.ring));
+    return pocket ? pocket.name : null;
 };
 
 export interface NearestZoneInfo {

@@ -39,6 +39,35 @@ const NEW_MAP_POLYGON = [
   { latitude: 12.894226891, longitude: 77.599241985 }
 ];
 
+// Standalone pockets served outside the main polygon, from src/utils/geofence.ts
+const EXTRA_SERVICE_AREAS = [
+  {
+    id: 'nischay_home',
+    name: 'Nischay Home',
+    ring: [
+      { latitude: 12.883565086, longitude: 77.614182565 },
+      { latitude: 12.883206874, longitude: 77.614012245 },
+      { latitude: 12.882980703, longitude: 77.614751193 },
+      { latitude: 12.883406897, longitude: 77.614874575 },
+      { latitude: 12.883565086, longitude: 77.614182565 }
+    ]
+  }
+];
+
+const SERVICE_EDGE_TOLERANCE_METERS = 15;
+const METERS_PER_DEGREE_LAT = 111320;
+
+function distanceToSegmentMeters(point, a, b) {
+  const lngScale = METERS_PER_DEGREE_LAT * Math.cos((point.latitude * Math.PI) / 180);
+  const px = (point.longitude - a.longitude) * lngScale;
+  const py = (point.latitude - a.latitude) * METERS_PER_DEGREE_LAT;
+  const bx = (b.longitude - a.longitude) * lngScale;
+  const by = (b.latitude - a.latitude) * METERS_PER_DEGREE_LAT;
+  const lengthSq = bx * bx + by * by;
+  const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, (px * bx + py * by) / lengthSq));
+  return Math.hypot(px - bx * t, py - by * t);
+}
+
 function isPointInPolygon(point, polygon) {
   if (!point || typeof point.latitude !== 'number' || typeof point.longitude !== 'number') return false;
   const x = point.longitude;
@@ -52,7 +81,16 @@ function isPointInPolygon(point, polygon) {
     const intersect = ((yi > y) !== (yj > y)) && (x < ((xj - xi) * (y - yi)) / (yj - yi) + xi);
     if (intersect) inside = !inside;
   }
-  return inside;
+  if (inside) return true;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    if (distanceToSegmentMeters(point, polygon[j], polygon[i]) <= SERVICE_EDGE_TOLERANCE_METERS) return true;
+  }
+  return false;
+}
+
+function isLocationServiceable(location) {
+  if (isPointInPolygon(location, NEW_MAP_POLYGON)) return true;
+  return EXTRA_SERVICE_AREAS.some((area) => isPointInPolygon(location, area.ring));
 }
 
 function escapeCsv(val) {
@@ -122,7 +160,7 @@ async function runExport() {
 
       let isServiceable = false;
       if (addrLat && addrLng) {
-        isServiceable = isPointInPolygon({ latitude: addrLat, longitude: addrLng }, NEW_MAP_POLYGON);
+        isServiceable = isLocationServiceable({ latitude: addrLat, longitude: addrLng });
       }
 
       // Format cart details

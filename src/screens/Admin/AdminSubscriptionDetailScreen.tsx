@@ -9,7 +9,6 @@ import {
   TextInput,
   Modal,
   Alert,
-  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,8 +17,8 @@ import { format } from 'date-fns';
 import { COLORS, SPACING, TYPOGRAPHY, SHADOWS, RADIUS } from '../../utils/constants';
 import { useAdminStore } from '../../store/adminStore';
 import { useUIStore } from '../../store/uiStore';
+import { db } from '../../services/firebase';
 import { BrandLoader } from '../../components/BrandLoader';
-import { Timestamp } from '../../services/firebase';
 
 export const AdminSubscriptionDetailScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -96,11 +95,10 @@ export const AdminSubscriptionDetailScreen: React.FC = () => {
     }
     setAddCreditsSubmitting(true);
     try {
-      // Get user phone from the subscription data
       const { getDoc, doc } = await import('../../services/firebase');
-      const userSnap = await getDoc(doc(await (await import('../../services/firebase')).db, 'users', userId));
-      const phone = userSnap.exists() ? (userSnap.data().phone || '') : '';
-      const name = userSnap.exists() ? (userSnap.data().name || '') : '';
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      const phone = userDoc.exists() ? (userDoc.data().phone || '') : '';
+      const name = userDoc.exists() ? (userDoc.data().name || '') : '';
 
       const result = await addCredits(
         name, phone,
@@ -283,7 +281,7 @@ export const AdminSubscriptionDetailScreen: React.FC = () => {
                 {u.order && (
                   <TouchableOpacity
                     style={styles.usageLink}
-                    onPress={() => navigation.navigate('OrderDetail', { orderId: u.orderId, userId })}
+                    onPress={() => navigation.navigate('OrderDetail', { orderId: u.orderId, userId, isAdminView: true })}
                   >
                     <Ionicons name="chevron-forward" size={18} color={COLORS.primary} />
                   </TouchableOpacity>

@@ -103,7 +103,7 @@ export const OrderDetailScreen: React.FC = () => {
   const route = useRoute();
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
-  const { orderId: paramOrderId, id: fallbackId } = (route.params || {}) as { orderId?: string; id?: string };
+  const { orderId: paramOrderId, id: fallbackId, isAdminView, userId: adminUserId } = (route.params || {}) as { orderId?: string; id?: string; isAdminView?: boolean; userId?: string };
   const orderId = (paramOrderId || fallbackId) as string;
 
   const [order, setOrder] = useState<any>(null);
@@ -129,6 +129,16 @@ export const OrderDetailScreen: React.FC = () => {
       return;
     }
     if (!user) {
+      if (isAdminView && adminUserId) {
+        // Admin peek mode — read order directly without redirecting to PhoneLogin
+        setIsLoading(true);
+        const { subscribeToOrder } = require('../../services/firestore');
+        const unsub = subscribeToOrder(adminUserId, orderId, (data: any) => {
+          setOrder(data);
+          setIsLoading(false);
+        });
+        return () => unsub();
+      }
       (navigation as any).navigate('PhoneLogin', {
         returnTo: 'OrderDetail',
         orderId: orderId,

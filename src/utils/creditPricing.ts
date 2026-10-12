@@ -9,7 +9,7 @@
 // Savings vs normal is the volume discount spread on every kg.
 
 export type ServiceType = 'wash_fold' | 'wash_iron';
-export type CreditWeight = 7 | 14;
+export type CreditWeight = 7;
 
 /** Per-kg rate for a given service and credit bundle size. */
 export const RATE_TABLE: Record<ServiceType, Record<number, number>> = {
@@ -37,7 +37,7 @@ export const CREDIT_OPTIONS = [2, 3, 4] as const;
 export interface PriceBreakdown {
   /** Rate per kg for this bundle (e.g. 75 for 3-pack W&F). */
   ratePerKg: number;
-  /** Kg per credit (7 or 14). */
+  /** Kg per credit (standardized to 7kg). */
   kgPerCredit: CreditWeight;
   /** Number of credits. */
   creditCount: number;
@@ -53,24 +53,23 @@ export interface PriceBreakdown {
 
 /**
  * Compute full price breakdown for a given service, weight, and credits.
- * Every consumer (BuyCreditsScreen, admin panel, store) must call this
- * to ensure consistent pricing.
+ * Standardized to 7kg per credit.
  */
 export function computePrice(
   serviceType: ServiceType,
-  kgPerCredit: CreditWeight,
-  creditCount: number,
+  kgPerCredit: CreditWeight = 7,
+  creditCount: number = 2,
 ): PriceBreakdown {
-  const ratePerKg = RATE_TABLE[serviceType][creditCount];
-  const pricePerCredit = ratePerKg * kgPerCredit;
+  const ratePerKg = RATE_TABLE[serviceType][creditCount] ?? (serviceType === 'wash_iron' ? 130 : 80);
+  const pricePerCredit = ratePerKg * 7;
   const totalAmount = pricePerCredit * creditCount;
-  const normalTotal = NORMAL_RATE[serviceType] * kgPerCredit * creditCount;
+  const normalTotal = NORMAL_RATE[serviceType] * 7 * creditCount;
   const savingsVsNormal = normalTotal - totalAmount;
   const savingsPercent = Math.round((savingsVsNormal / normalTotal) * 100);
 
   return {
     ratePerKg,
-    kgPerCredit,
+    kgPerCredit: 7,
     creditCount,
     pricePerCredit,
     totalAmount,
@@ -87,17 +86,17 @@ export function serviceTypeLabel(type: ServiceType): string {
 /**
  * Per-kg rate for weight that falls outside a credit's allowance.
  *
- * The customer keeps the rate they locked in when they bought the pack, so an
- * over-weight redemption is billed at their own subscription rate — never the
- * walk-in rate. Crediting it at NORMAL_RATE would also overstate the value the
- * credit covered, since the customer paid the lower rate per kg.
- *
- * Orders placed before `ratePerKg` was carried on the line item have no locked
- * rate, and fall back to the normal rate.
+ * The customer keeps the rate they locked in when they bought the pack (e.g. ₹80/kg, ₹75/kg, ₹70/kg
+ * for Wash & Fold, or ₹135/kg, ₹130/kg, ₹125/kg for Wash & Iron).
+ * If ratePerKg is missing on legacy orders, we fall back to the subscription baseline rate
+ * (₹80 for Wash & Fold, ₹130 for Wash & Iron) — NEVER the walk-in rate (₹85/₹140).
  */
 export function excessKgRate(
   serviceType: ServiceType,
   ratePerKg?: number | null,
 ): number {
-  return ratePerKg && ratePerKg > 0 ? ratePerKg : NORMAL_RATE[serviceType];
+  if (ratePerKg && ratePerKg > 0) {
+    return ratePerKg;
+  }
+  return serviceType === 'wash_iron' ? 130 : 80;
 }

@@ -145,14 +145,14 @@ export const SubscriptionsScreen: React.FC = () => {
             <View style={styles.planInfo}>
               <View style={styles.planBadge}>
                 <Text style={styles.planBadgeText}>
-                  {(activeSubscription.serviceType === 'wash_iron' ? 'WASH & IRON' : 'WASH & FOLD')} • {activeSubscription.kgPerCredit || (activeSubscription.planType === 'couple' ? 14 : 7)} KG
+                  {(activeSubscription.serviceType === 'wash_iron' ? 'WASH & IRON' : 'WASH & FOLD')} • 7 KG
                 </Text>
               </View>
               <Text style={styles.planTitle}>
                 {activeSubscription.totalCredits} Credits Pack
               </Text>
               <Text style={styles.planSubtitle}>
-                {activeSubscription.kgPerCredit || (activeSubscription.planType === 'couple' ? 14 : 7)} kg per credit
+                7 kg per credit
               </Text>
             </View>
             <View style={styles.planMeta}>
@@ -219,7 +219,7 @@ export const SubscriptionsScreen: React.FC = () => {
                   <Ionicons name="checkmark" size={12} color={COLORS.success} />
                 </View>
                 <Text style={styles.includedItem}>
-                  {activeSubscription.serviceType === 'wash_iron' ? 'Wash & Iron' : 'Wash & Fold'} up to {activeSubscription.kgPerCredit || (activeSubscription.planType === 'couple' ? 14 : 7)} kg
+                  {activeSubscription.serviceType === 'wash_iron' ? 'Wash & Iron' : 'Wash & Fold'} up to 7 kg
                 </Text>
               </View>
               <View style={styles.includedRow}>

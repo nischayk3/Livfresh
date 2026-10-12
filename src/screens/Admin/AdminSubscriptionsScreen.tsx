@@ -88,7 +88,7 @@ export const AdminSubscriptionsScreen: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const result = await addCredits(formName, formPhone, formPlanType, creditsNum, formServiceType, formPlanType === 'single' ? 7 : 14);
+      const result = await addCredits(formName, formPhone, 'single', creditsNum, formServiceType, 7);
       if (result.success) {
         showAlert({ title: 'Success', message: `Successfully added ${creditsNum} credits to ${formPhone}`, type: 'success' });
         setModalVisible(false);
@@ -134,7 +134,7 @@ export const AdminSubscriptionsScreen: React.FC = () => {
         </View>
         <View style={styles.detailItem}>
           <Text style={styles.detailLabel}>Weight</Text>
-          <Text style={styles.detailValue}>{item.kgPerCredit || item.kg_per_credit || (item.plan_type === 'couple' ? 14 : 7)}kg</Text>
+          <Text style={styles.detailValue}>7kg</Text>
         </View>
         <View style={styles.detailItem}>
           <Text style={styles.detailLabel}>Credits Used</Text>
@@ -277,21 +277,11 @@ export const AdminSubscriptionsScreen: React.FC = () => {
                     maxLength={10}
                   />
 
-                  <Text style={styles.label}>Plan Type *</Text>
-                  <View style={styles.planSelector}>
-                    <TouchableOpacity
-                      style={[styles.planOption, formPlanType === 'single' && styles.activePlan]}
-                      onPress={() => setFormPlanType('single')}
-                    >
-                      <Text style={[styles.planText, formPlanType === 'single' && styles.activePlanText]}>7kg</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.planOption, formPlanType === 'couple' && styles.activePlan]}
-                      onPress={() => setFormPlanType('couple')}
-                    >
-                      <Text style={[styles.planText, formPlanType === 'couple' && styles.activePlanText]}>14kg</Text>
-                    </TouchableOpacity>
-                  </View>
+                   <Text style={styles.label}>Weight Allowance</Text>
+                   <View style={{ backgroundColor: '#EFF6FF', paddingVertical: 10, paddingHorizontal: 14, borderRadius: RADIUS.md, borderWidth: 1, borderColor: '#DBEAFE', marginBottom: 12 }}>
+                     <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.primary }}>7kg per credit (Standardized)</Text>
+                     <Text style={{ fontSize: 11, color: COLORS.textSecondary, marginTop: 2 }}>All credit packs now use 7kg allowance per pickup.</Text>
+                   </View>
 
                   <Text style={styles.label}>Service *</Text>
                   <View style={styles.planSelector}>

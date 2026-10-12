@@ -159,9 +159,9 @@ export const verifyRazorpayPayment = functions.runWith({ secrets: [razorpayKeyId
 
             // Lookup pricing from the server-side rate table (never trust client prices).
             const svc = planDetails.serviceType || 'wash_fold';
-            const kg = planDetails.kgPerCredit || 7;
+            const kg = 7;
             const cnt = planDetails.credits;
-            const ratePerKg = CREDIT_RATE_TABLE[svc]?.[cnt] ?? 80;
+            const ratePerKg = CREDIT_RATE_TABLE[svc]?.[cnt] ?? (svc === 'wash_iron' ? 130 : 80);
             const pricePerCredit = ratePerKg * kg;
             const totalAmount = pricePerCredit * cnt;
 
@@ -171,7 +171,7 @@ export const verifyRazorpayPayment = functions.runWith({ secrets: [razorpayKeyId
                 planType: 'credits',
                 serviceType: svc,
                 ratePerKg: ratePerKg,
-                kgPerCredit: kg,
+                kgPerCredit: 7,
                 pricePerCredit: pricePerCredit,
                 totalAmount: totalAmount,
                 totalCredits: planDetails.credits,

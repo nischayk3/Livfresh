@@ -197,6 +197,9 @@ export const UseCreditModal: React.FC<UseCreditModalProps> = ({ visible, onClose
     const handleAddToCart = () => {
         clearCart();
 
+        const effectiveKg = 7;
+        const effectiveRate = subscription.ratePerKg || (serviceType === 'wash_iron' ? 130 : 80);
+
         // Add Wash & Fold item (Credit based)
         addItem({
             vendorId: 'vendor_1',
@@ -204,7 +207,7 @@ export const UseCreditModal: React.FC<UseCreditModalProps> = ({ visible, onClose
             serviceId: serviceType === 'wash_iron' ? 'wash_iron' : 'wash_fold',
             serviceName: serviceType === 'wash_iron' ? 'Wash & Iron' : 'Wash & Fold (Subscription)',
             serviceType: serviceType,
-            weight: subscription.kgPerCredit,
+            weight: effectiveKg,
             basePrice: 0,
             totalPrice: 0,
             isCreditItem: true,
@@ -212,8 +215,8 @@ export const UseCreditModal: React.FC<UseCreditModalProps> = ({ visible, onClose
             creditIndex: subscription.currentCreditIndex,
             // Carried so the store can price kilos over the allowance at the
             // rate the customer locked in, rather than the walk-in rate.
-            kgPerCredit: subscription.kgPerCredit,
-            ratePerKg: subscription.ratePerKg,
+            kgPerCredit: effectiveKg,
+            ratePerKg: effectiveRate,
             ironingEnabled: false,
             specialInstructions,
             photoUrls: selectedImages,
@@ -263,20 +266,8 @@ export const UseCreditModal: React.FC<UseCreditModalProps> = ({ visible, onClose
             type: 'success'
         });
 
-        // Use CommonActions to reset and navigate to Home properly
-        navigation.dispatch(
-            CommonActions.reset({
-                index: 0,
-                routes: [
-                    {
-                        name: 'Main',
-                        state: {
-                            routes: [{ name: 'Home' }],
-                        },
-                    },
-                ],
-            })
-        );
+        // Navigate to Cart to immediately view the credit item
+        (navigation as any).navigate('Cart');
     };
 
     if (!visible) return null;
@@ -331,7 +322,7 @@ export const UseCreditModal: React.FC<UseCreditModalProps> = ({ visible, onClose
 
                             <View style={styles.serviceTitleContainer}>
                                 <Text style={styles.serviceTitle}>{serviceType === 'wash_iron' ? 'Wash & Iron' : 'Wash & Fold'}</Text>
-                                <Text style={styles.serviceSubtitle}>Up to {subscription.kgPerCredit}kg included in your credit</Text>
+                                <Text style={styles.serviceSubtitle}>Up to 7kg included in your credit</Text>
                             </View>
 
                             {/* Ironing is already included for Wash & Iron packs — only show as add-on for Wash & Fold */}

@@ -58,25 +58,27 @@ export const AdminSubscriptionDetailScreen: React.FC = () => {
   };
 
   const handleRevoke = () => {
-    setConfirmationAction(() => async () => {
-      setRevoking(true);
-      setShowConfirmation(false);
-      try {
-        const { revokeSubscriptionAdmin } = await import('../../services/adminFirestore');
-        const result = await revokeSubscriptionAdmin(userId, subscriptionId);
-        if (result.success) {
-          showAlert({ title: 'Done', message: `Pack revoked (${result.creditsRevoked} credits removed).`, type: 'success' });
-          navigation.goBack();
-        } else {
-          showAlert({ title: 'Error', message: result.error || 'Failed to revoke', type: 'error' });
-        }
-      } catch (e: any) {
-        showAlert({ title: 'Error', message: e.message, type: 'error' });
-      } finally {
-        setRevoking(false);
-      }
-    });
     setShowConfirmation(true);
+  };
+
+  const executeRevoke = async () => {
+    setRevoking(true);
+    setShowConfirmation(false);
+    try {
+      const { revokeSubscriptionAdmin } = await import('../../services/adminFirestore');
+      const result = await revokeSubscriptionAdmin(userId, subscriptionId);
+      if (result.success) {
+        showAlert({ title: 'Done', message: `Pack revoked (${result.creditsRevoked} credits removed).`, type: 'success' });
+        useAdminStore.getState().fetchSubscriptionStats(true);
+        navigation.goBack();
+      } else {
+        showAlert({ title: 'Error', message: result.error || 'Failed to revoke', type: 'error' });
+      }
+    } catch (e: any) {
+      showAlert({ title: 'Error', message: e.message, type: 'error' });
+    } finally {
+      setRevoking(false);
+    }
   };
 
   const handleAddCredits = async () => {
@@ -94,13 +96,15 @@ export const AdminSubscriptionDetailScreen: React.FC = () => {
 
       const result = await addCredits(
         name, phone,
-        detail.subscription.planType || 'single',
+        'single',
         count,
-        detail.subscription.serviceType || 'wash_fold'
+        detail?.subscription?.serviceType || 'wash_fold',
+        7
       );
       if (result.success) {
         showAlert({ title: 'Success', message: `Added ${count} credits`, type: 'success' });
         setShowAddCredits(false);
+        setAddCreditsCount('2');
         loadDetail();
       } else {
         showAlert({ title: 'Failed', message: result.error || 'Failed to add credits', type: 'error' });
@@ -429,9 +433,14 @@ export const AdminSubscriptionDetailScreen: React.FC = () => {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.submitBtn, styles.destructiveBtn]}
-                  onPress={confirmationAction}
+                  onPress={executeRevoke}
+                  disabled={revoking}
                 >
-                  <Text style={styles.submitBtnText}>Revoke</Text>
+                  {revoking ? (
+                    <ActivityIndicator color="#FFF" size="small" />
+                  ) : (
+                    <Text style={styles.submitBtnText}>Revoke</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>

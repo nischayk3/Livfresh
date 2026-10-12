@@ -1751,8 +1751,8 @@ export const addCreditsAdmin = async (
     );
     const activeSubSnap = await getDocs(activeSubQuery);
 
-    const effectiveKg = (kgPerCredit as 7 | 14) || (planType === 'single' ? 7 : 14);
-    const ratePerKg = CREDIT_RATE_TABLE[serviceType]?.[credits] ?? CREDIT_RATE_TABLE[serviceType]?.[3] ?? 80;
+    const effectiveKg = 7;
+    const ratePerKg = CREDIT_RATE_TABLE[serviceType]?.[credits] ?? CREDIT_RATE_TABLE[serviceType]?.[3] ?? (serviceType === 'wash_iron' ? 130 : 80);
     const pricePerCredit = ratePerKg * effectiveKg;
     const totalAmount = pricePerCredit * credits;
     const expiresAt = Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)); // 30 days
@@ -1765,10 +1765,12 @@ export const addCreditsAdmin = async (
       await updateDoc(existingSub.ref, {
         serviceType,
         ratePerKg: existingData.ratePerKg || ratePerKg,
-        kgPerCredit: effectiveKg,
+        kgPerCredit: 7,
         totalCredits: (existingData.totalCredits || 0) + credits,
         creditsRemaining: (existingData.creditsRemaining || 0) + credits,
         totalAmount: (existingData.totalAmount || 0) + totalAmount,
+        status: 'active',
+        isActive: true,
         updatedAt: Timestamp.now(),
       });
     } else {
@@ -1776,10 +1778,10 @@ export const addCreditsAdmin = async (
       const subRef = doc(subscriptionsRef);
       await setDoc(subRef, {
         userId,
-        planType,
+        planType: 'single',
         serviceType,
         ratePerKg,
-        kgPerCredit: effectiveKg,
+        kgPerCredit: 7,
         totalCredits: credits,
         creditsUsed: 0,
         creditsRemaining: credits,
@@ -1794,6 +1796,14 @@ export const addCreditsAdmin = async (
         updatedAt: Timestamp.now(),
       });
     }
+
+    // Keep user document credits in sync
+    const currentCredits = userData.credits || 0;
+    await updateDoc(doc(db, 'users', userId), {
+      credits: currentCredits + credits,
+      subscriptionStatus: 'active',
+      updatedAt: Timestamp.now(),
+    });
 
     return { success: true };
   } catch (error: any) {
@@ -2315,19 +2325,34 @@ export const revokeSubscriptionAdmin = async (
   subscriptionId: string
 ): Promise<{ success: boolean; creditsRevoked: number; error?: string }> => {
   try {
-    const subSnap = await getDoc(doc(db, 'users', userId, 'subscriptions', subscriptionId));
+    const subRef = doc(db, 'users', userId, 'subscriptions', subscriptionId);
+    const subSnap = await getDoc(subRef);
     if (!subSnap.exists()) return { success: false, creditsRevoked: 0, error: 'Subscription not found' };
 
     const sub = subSnap.data();
     const remaining = sub.creditsRemaining ?? sub.credits_remaining ?? 0;
 
-    const usageSnap = await getDocs(
-      collection(db, 'users', userId, 'subscriptions', subscriptionId, 'creditUsage')
-    );
-    const batch = writeBatch(db);
-    usageSnap.docs.forEach((d) => batch.delete(d.ref));
-    batch.delete(subSnap.ref);
-    await batch.commit();
+    // 1. Mark subscription as revoked and inactive
+    await updateDoc(subRef, {
+      status: 'revoked',
+      isActive: false,
+      creditsRemaining: 0,
+      revokedAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+
+    // 2. Decrement user document credits to remove revoked credits
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+      const currentCredits = userSnap.data()?.credits || 0;
+      const newCredits = Math.max(0, currentCredits - remaining);
+      await updateDoc(userRef, {
+        credits: newCredits,
+        subscriptionStatus: newCredits > 0 ? 'active' : 'inactive',
+        updatedAt: Timestamp.now(),
+      });
+    }
 
     return { success: true, creditsRevoked: remaining };
   } catch (error: any) {

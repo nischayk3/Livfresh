@@ -11,7 +11,7 @@ import {
   addDoc,
 } from '../services/firebase';
 
-import { ServiceType, CreditWeight, computePrice } from '../utils/creditPricing';
+import { ServiceType, CreditWeight, computePrice, RATE_TABLE } from '../utils/creditPricing';
 
 export interface Subscription {
   id: string;
@@ -113,9 +113,27 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
         }
       }
 
+      const normalizeSubscription = (data: any, id: string): Subscription => {
+        const serviceType = (data.serviceType || data.service_type || 'wash_fold') as ServiceType;
+        const totalCredits = data.totalCredits ?? data.total_credits ?? 2;
+        const ratePerKg = data.ratePerKg || (
+          RATE_TABLE[serviceType]?.[totalCredits] ?? (serviceType === 'wash_iron' ? 130 : 80)
+        );
+        return {
+          ...data,
+          id,
+          serviceType,
+          kgPerCredit: 7,
+          ratePerKg,
+          totalCredits,
+          creditsRemaining: data.creditsRemaining ?? data.credits_remaining ?? 0,
+          creditsUsed: data.creditsUsed ?? data.credits_used ?? 0,
+        };
+      };
+
       if (activeSub && activeSubId) {
-        activeSub.id = activeSubId;
-        set({ activeSubscription: activeSub });
+        const normalized = normalizeSubscription(activeSub, activeSubId);
+        set({ activeSubscription: normalized });
 
         // Fetch credit usage for active subscription
         const usageRef = collection(
@@ -123,7 +141,7 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
           'users',
           userId,
           'subscriptions',
-          activeSub.id,
+          normalized.id,
           'creditUsage'
         );
         const usageSnapshot = await getDocs(usageRef);

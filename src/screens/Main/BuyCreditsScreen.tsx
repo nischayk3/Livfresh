@@ -69,7 +69,7 @@ export const BuyCreditsScreen: React.FC = () => {
   const { showAlert } = useUIStore();
 
   const [serviceType, setServiceType] = useState<ServiceType>('wash_fold');
-  const [kgPerCredit, setKgPerCredit] = useState<CreditWeight>(7);
+  const kgPerCredit: CreditWeight = 7;
   const [creditCount, setCreditCount] = useState(3);
   const [purchasing, setPurchasing] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -77,8 +77,7 @@ export const BuyCreditsScreen: React.FC = () => {
   // Derived pricing from the shared helper.
   const pricing = computePrice(serviceType, kgPerCredit, creditCount);
   const { ratePerKg, pricePerCredit, totalAmount, savingsVsNormal, savingsPercent } = pricing;
-  // Legacy planType still feeds the subscription doc ('single' = 7kg, 'couple' = 14kg).
-  const planType = kgPerCredit === 7 ? 'single' as const : 'couple' as const;
+  const planType = 'single' as const;
 
   // Helper to load Razorpay script for Web
   const loadRazorpayScript = () => {
@@ -346,37 +345,13 @@ export const BuyCreditsScreen: React.FC = () => {
           })}
         </View>
 
-        {/* ── WEIGHT SELECTOR ── */}
-        <Text style={styles.sectionLabel}>Weight per Credit</Text>
-        <View style={styles.weightRow}>
-          <TouchableOpacity
-            style={[styles.weightOption, kgPerCredit === 7 && styles.weightOptionActive]}
-            onPress={() => setKgPerCredit(7)}
-            activeOpacity={0.85}
-          >
-            <Ionicons
-              name="barbell-outline"
-              size={18}
-              color={kgPerCredit === 7 ? '#FFF' : COLORS.textSecondary}
-            />
-            <Text style={[styles.weightText, kgPerCredit === 7 && styles.weightTextActive]}>
-              7 kg
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.weightOption, kgPerCredit === 14 && styles.weightOptionActive]}
-            onPress={() => setKgPerCredit(14)}
-            activeOpacity={0.85}
-          >
-            <Ionicons
-              name="barbell-outline"
-              size={18}
-              color={kgPerCredit === 14 ? '#FFF' : COLORS.textSecondary}
-            />
-            <Text style={[styles.weightText, kgPerCredit === 14 && styles.weightTextActive]}>
-              14 kg
-            </Text>
-          </TouchableOpacity>
+        {/* ── WEIGHT PER CREDIT (STANDARDIZED 7KG) ── */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, marginBottom: 16, gap: 10, borderWidth: 1, borderColor: '#DBEAFE' }}>
+          <Ionicons name="barbell-outline" size={20} color={COLORS.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.text }}>7 kg Standard per Credit</Text>
+            <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>Each credit covers up to 7 kg. Any extra weight is billed at your locked pack rate.</Text>
+          </View>
         </View>
 
         {/* ── CREDIT COUNT + SAVINGS ── */}

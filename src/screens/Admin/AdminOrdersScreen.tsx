@@ -924,7 +924,7 @@ export const AdminOrdersScreen: React.FC = () => {
       let coveredByCredit = selectedOrder.billDetails?.coveredByCredit || 0;
       for (const item of updatedItems) {
         if (item.isCreditItem) {
-          const coveredKg = item.kgPerCredit || 7;
+          const coveredKg = 7;
           const serviceType = item.serviceId === 'wash_iron' ? 'wash_iron' : 'wash_fold';
           coveredByCredit = coveredKg * excessKgRate(serviceType, item.ratePerKg);
           break;
@@ -2304,7 +2304,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
     // over the allowance are billed, at the rate locked in with the pack.
     if (item.isCreditItem && (item.serviceId === 'wash_fold' || item.serviceId === 'wash_iron')) {
       const serviceType = item.serviceId === 'wash_iron' ? 'wash_iron' : 'wash_fold';
-      const coveredKg = item.kgPerCredit || 7;
+      const coveredKg = 7;
       const excessKg = Math.max(0, (item.weight || coveredKg) - coveredKg);
       const excessPrice = excessKg * excessKgRate(serviceType, item.ratePerKg);
       // The ironing add-on applies to Wash & Fold only, and is always paid extra
@@ -2566,7 +2566,7 @@ const EditOrderModal = ({ visible, onClose, order, onSave, processing }: any) =>
 
               {(item.serviceId === 'wash_fold' || item.serviceId === 'wash_iron') && item.isCreditItem && (() => {
                 const serviceType = item.serviceId === 'wash_iron' ? 'wash_iron' : 'wash_fold';
-                const coveredKg = item.kgPerCredit || 7;
+                const coveredKg = 7;
                 const currentWeight = item.weight || coveredKg;
                 const excessKg = Math.max(0, currentWeight - coveredKg);
                 const rate = excessKgRate(serviceType, item.ratePerKg);

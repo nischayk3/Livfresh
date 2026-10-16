@@ -817,74 +817,72 @@ export const CartScreen: React.FC = () => {
                   </View>
 
                   {/* Available Public Offers */}
-                  {availableCoupons.length > 0 && (
-                    <View style={styles.availableOffersList}>
-                      {availableCoupons.map((coupon) => {
-                        const meetsMin = subtotal >= coupon.minOrderValue;
-                        const diff = coupon.minOrderValue - subtotal;
-                        const isFirstOrderRestriction = coupon.isFirstOrderOnly && orderCount > 0;
-                        const isMaxOrderRestriction = coupon.maxOrderCount ? orderCount >= coupon.maxOrderCount : false;
-                        const isEligible = meetsMin && !isFirstOrderRestriction && !isMaxOrderRestriction && !onlyIroningInCart;
+                  {(() => {
+                    const eligibleCoupons = availableCoupons.filter((c) => {
+                      if (c.isFirstOrderOnly && orderCount > 0) return false;
+                      if (c.maxOrderCount && orderCount >= c.maxOrderCount) return false;
+                      return true;
+                    });
 
-                        return (
-                          <View key={coupon.code} style={styles.offerItemCard}>
-                            <View style={styles.offerItemHeader}>
-                              <View style={styles.offerCodeBadge}>
-                                <Text style={styles.offerCodeText}>{coupon.code}</Text>
-                              </View>
-                              <TouchableOpacity
-                                style={[
-                                  styles.offerItemApplyButton,
-                                  !isEligible && styles.offerItemApplyButtonDisabled,
-                                ]}
-                                onPress={() => handleApplyCoupon(coupon.code)}
-                                disabled={!isEligible || isCheckingCoupon}
-                                activeOpacity={0.7}
-                              >
-                                <Text
+                    if (eligibleCoupons.length === 0) return null;
+
+                    return (
+                      <View style={styles.availableOffersList}>
+                        {eligibleCoupons.map((coupon) => {
+                          const meetsMin = subtotal >= coupon.minOrderValue;
+                          const diff = coupon.minOrderValue - subtotal;
+                          const isEligible = meetsMin && !onlyIroningInCart;
+
+                          return (
+                            <View key={coupon.code} style={styles.offerItemCard}>
+                              <View style={styles.offerItemHeader}>
+                                <View style={styles.offerCodeBadge}>
+                                  <Text style={styles.offerCodeText}>{coupon.code}</Text>
+                                </View>
+                                <TouchableOpacity
                                   style={[
-                                    styles.offerItemApplyText,
-                                    !isEligible && styles.offerItemApplyTextDisabled,
+                                    styles.offerItemApplyButton,
+                                    !isEligible && styles.offerItemApplyButtonDisabled,
                                   ]}
+                                  onPress={() => handleApplyCoupon(coupon.code)}
+                                  disabled={!isEligible || isCheckingCoupon}
+                                  activeOpacity={0.7}
                                 >
-                                  APPLY
+                                  <Text
+                                    style={[
+                                      styles.offerItemApplyText,
+                                      !isEligible && styles.offerItemApplyTextDisabled,
+                                    ]}
+                                  >
+                                    APPLY
+                                  </Text>
+                                </TouchableOpacity>
+                              </View>
+
+                              <Text style={styles.offerItemTitle}>{coupon.title}</Text>
+                              <Text style={styles.offerItemDesc}>{coupon.description}</Text>
+
+                              {!meetsMin && (
+                                <Text style={styles.offerItemHelper}>
+                                  • Add items worth ₹{diff} more to unlock
                                 </Text>
-                              </TouchableOpacity>
+                              )}
+                              {coupon.maxOrderCount && orderCount < coupon.maxOrderCount && (
+                                <Text style={[styles.offerItemHelper, { color: '#059669', fontWeight: '600' }]}>
+                                  • Valid on your first {coupon.maxOrderCount} orders (Order {orderCount + 1} of {coupon.maxOrderCount})
+                                </Text>
+                              )}
+                              {onlyIroningInCart && coupon.excludeIroningOnly !== false && (
+                                <Text style={styles.offerItemHelper}>
+                                  • Not valid for standalone ironing
+                                </Text>
+                              )}
                             </View>
-
-                            <Text style={styles.offerItemTitle}>{coupon.title}</Text>
-                            <Text style={styles.offerItemDesc}>{coupon.description}</Text>
-
-                            {!meetsMin && (
-                              <Text style={styles.offerItemHelper}>
-                                • Add items worth ₹{diff} more to unlock
-                              </Text>
-                            )}
-                            {isFirstOrderRestriction && (
-                              <Text style={styles.offerItemHelper}>
-                                • Valid on first order only
-                              </Text>
-                            )}
-                            {coupon.maxOrderCount && orderCount < coupon.maxOrderCount && (
-                              <Text style={[styles.offerItemHelper, { color: '#059669', fontWeight: '600' }]}>
-                                • Valid on your first {coupon.maxOrderCount} orders (Order {orderCount + 1} of {coupon.maxOrderCount})
-                              </Text>
-                            )}
-                            {isMaxOrderRestriction && (
-                              <Text style={styles.offerItemHelper}>
-                                • Valid on first {coupon.maxOrderCount} orders only
-                              </Text>
-                            )}
-                            {onlyIroningInCart && coupon.excludeIroningOnly !== false && (
-                              <Text style={styles.offerItemHelper}>
-                                • Not valid for standalone ironing
-                              </Text>
-                            )}
-                          </View>
-                        );
-                      })}
-                    </View>
-                  )}
+                          );
+                        })}
+                      </View>
+                    );
+                  })()}
                 </View>
               )}
             </MotiView>

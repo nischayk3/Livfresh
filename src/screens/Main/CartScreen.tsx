@@ -211,6 +211,7 @@ export const CartScreen: React.FC = () => {
       const result = await validateCouponForCart({
         code,
         userId: user?.uid,
+        userPhone: user?.phone || (user as any)?.phoneNumber || '',
         subtotal,
         items,
         orderCount,

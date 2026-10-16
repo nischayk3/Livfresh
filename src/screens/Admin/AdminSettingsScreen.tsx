@@ -40,6 +40,7 @@ export const AdminSettingsScreen: React.FC = () => {
   const [newCouponMinOrder, setNewCouponMinOrder] = useState('700');
   const [newCouponFirstOrderOnly, setNewCouponFirstOrderOnly] = useState(false);
   const [newCouponIsPublic, setNewCouponIsPublic] = useState(true);
+  const [newCouponAllowedPhones, setNewCouponAllowedPhones] = useState('');
 
   const loadCoupons = async () => {
     setIsLoadingCoupons(true);
@@ -59,13 +60,19 @@ export const AdminSettingsScreen: React.FC = () => {
   }, []);
 
   const handleToggleCoupon = async (code: string, currentActive: boolean) => {
+    const nextActive = !currentActive;
+    // Optimistic UI update
+    setCoupons((prev) =>
+      prev.map((c) => (c.code === code ? { ...c, isActive: nextActive } : c))
+    );
     try {
-      await toggleCouponStatusAdmin(code, !currentActive);
+      await toggleCouponStatusAdmin(code, nextActive);
+    } catch (error: any) {
+      // Revert on error
       setCoupons((prev) =>
-        prev.map((c) => (c.code === code ? { ...c, isActive: !currentActive } : c))
+        prev.map((c) => (c.code === code ? { ...c, isActive: currentActive } : c))
       );
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update coupon status');
+      Alert.alert('Error', error?.message || 'Failed to update coupon status');
     }
   };
 
@@ -105,6 +112,13 @@ export const AdminSettingsScreen: React.FC = () => {
     }
     const minOrderNum = parseFloat(newCouponMinOrder) || 0;
 
+    const parsedAllowedPhones = newCouponAllowedPhones
+      .split(',')
+      .map((p) => p.trim().replace(/\D/g, '').slice(-10))
+      .filter((p) => p.length === 10);
+
+    const isPublicFinal = parsedAllowedPhones.length > 0 ? false : newCouponIsPublic;
+
     setIsSavingCoupon(true);
     try {
       await saveCouponAdmin({
@@ -116,7 +130,8 @@ export const AdminSettingsScreen: React.FC = () => {
         discountPercent: newCouponType === 'percentage' ? amountNum : undefined,
         minOrderValue: minOrderNum,
         isFirstOrderOnly: newCouponFirstOrderOnly,
-        isPublic: newCouponIsPublic,
+        isPublic: isPublicFinal,
+        allowedPhoneNumbers: parsedAllowedPhones.length > 0 ? parsedAllowedPhones : undefined,
         isActive: true,
         perUserLimit: 1,
         usedCount: 0,
@@ -128,6 +143,7 @@ export const AdminSettingsScreen: React.FC = () => {
       setNewCouponDesc('');
       setNewCouponAmount('200');
       setNewCouponMinOrder('700');
+      setNewCouponAllowedPhones('');
       await loadCoupons();
       Alert.alert('Success', `Coupon ${cleanCode} created successfully!`);
     } catch (e: any) {
@@ -477,6 +493,24 @@ export const AdminSettingsScreen: React.FC = () => {
                           </Text>
                         </View>
                       )}
+                      {coupon.allowedPhoneNumbers && coupon.allowedPhoneNumbers.length > 0 ? (
+                        <View style={[styles.couponMetaTag, { backgroundColor: '#F3E8FF' }]}>
+                          <Ionicons name="lock-closed" size={12} color="#7E22CE" />
+                          <Text style={[styles.couponMetaText, { color: '#7E22CE', fontWeight: '600' }]}>
+                            Exclusive ({coupon.allowedPhoneNumbers.length} phone{coupon.allowedPhoneNumbers.length > 1 ? 's' : ''})
+                          </Text>
+                        </View>
+                      ) : coupon.isPublic === false ? (
+                        <View style={[styles.couponMetaTag, { backgroundColor: '#F1F5F9' }]}>
+                          <Ionicons name="eye-off-outline" size={12} color="#64748B" />
+                          <Text style={styles.couponMetaText}>Hidden Code</Text>
+                        </View>
+                      ) : (
+                        <View style={[styles.couponMetaTag, { backgroundColor: '#ECFDF5' }]}>
+                          <Ionicons name="globe-outline" size={12} color="#047857" />
+                          <Text style={[styles.couponMetaText, { color: '#047857' }]}>Public in Cart</Text>
+                        </View>
+                      )}
                     </View>
                   </View>
                 ))}
@@ -572,6 +606,25 @@ export const AdminSettingsScreen: React.FC = () => {
                 value={newCouponMinOrder}
                 onChangeText={setNewCouponMinOrder}
               />
+
+              <Text style={styles.inputLabel}>Restricted Phone Numbers (Optional)</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="e.g. 9876543210, 9988776655"
+                value={newCouponAllowedPhones}
+                onChangeText={(text) => {
+                  setNewCouponAllowedPhones(text);
+                  if (text.trim().length > 0) {
+                    setNewCouponIsPublic(false);
+                  }
+                }}
+                autoCapitalize="none"
+              />
+              <Text style={{ fontSize: 11, color: '#64748B', marginTop: -6, marginBottom: SPACING.md }}>
+                {newCouponAllowedPhones.trim()
+                  ? '🔒 Exclusive: Only these phone numbers can redeem this coupon. Auto-hidden from Cart.'
+                  : 'Leave empty for all customers, or enter comma-separated numbers for private WhatsApp promos.'}
+              </Text>
 
               <View style={styles.toggleRow}>
                 <View style={{ flex: 1 }}>

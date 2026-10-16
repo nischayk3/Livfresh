@@ -13,8 +13,6 @@ import {
 } from './firebase';
 import { db, adminDb, adminAuth, auth } from './firebase';
 
-const getActiveAdminDb = () => (adminAuth?.currentUser ? adminDb : (auth?.currentUser ? db : adminDb));
-
 export interface Coupon {
   id: string; // uppercase code
   code: string;
@@ -34,11 +32,33 @@ export interface Coupon {
   validTill?: string; // ISO date string
   isActive: boolean;
   isPublic: boolean; // true = shown in Cart offers list; false = secret/marketing-only
+  allowedPhoneNumbers?: string[]; // whitelist of 10-digit phone numbers allowed to apply
   excludeIroningOnly?: boolean; // default true
   createdAt?: any;
   updatedAt?: any;
   createdBy?: string;
 }
+
+/**
+ * Execute an admin operation with automatic DB fallback between adminDb and db
+ * in case of permission or auth instance mismatch.
+ */
+export const runAdminFirestoreOp = async <T>(op: (targetDb: any) => Promise<T>): Promise<T> => {
+  const primaryDb = adminAuth?.currentUser ? adminDb : (auth?.currentUser ? db : adminDb);
+  try {
+    return await op(primaryDb);
+  } catch (err: any) {
+    const isPermErr =
+      err?.code === 'permission-denied' ||
+      (err?.message && err.message.toLowerCase().includes('permission'));
+    if (isPermErr) {
+      const fallbackDb = primaryDb === adminDb ? db : adminDb;
+      console.warn('[couponService] Permission issue on primary DB, retrying with fallback DB instance...');
+      return await op(fallbackDb);
+    }
+    throw err;
+  }
+};
 
 export interface CouponValidationResult {
   valid: boolean;
@@ -184,11 +204,12 @@ export const hasUserRedeemedCoupon = async (
 export const validateCouponForCart = async (params: {
   code: string;
   userId?: string;
+  userPhone?: string;
   subtotal: number;
   items: CartItemLike[];
   orderCount?: number;
 }): Promise<CouponValidationResult> => {
-  const { code, userId, subtotal, items, orderCount = 0 } = params;
+  const { code, userId, userPhone, subtotal, items, orderCount = 0 } = params;
   const cleanCode = code.trim().toUpperCase();
 
   if (!cleanCode) {
@@ -279,6 +300,21 @@ export const validateCouponForCart = async (params: {
     };
   }
 
+  // 8b. Restricted Phone Numbers check (Customer-Restricted / Private Coupon)
+  if (coupon.allowedPhoneNumbers && coupon.allowedPhoneNumbers.length > 0) {
+    const rawUserPhone = (userPhone || '').replace(/\D/g, '').slice(-10);
+    const isWhitelisted = coupon.allowedPhoneNumbers.some(
+      (p) => p.replace(/\D/g, '').slice(-10) === rawUserPhone
+    );
+    if (!isWhitelisted) {
+      return {
+        valid: false,
+        discount: 0,
+        reason: 'This coupon is exclusive to selected accounts.',
+      };
+    }
+  }
+
   // 9. Per-user redemption check (Crucial Anti-Misuse Check)
   if (userId) {
     const limit = coupon.perUserLimit || 1;
@@ -321,8 +357,7 @@ export const validateCouponForCart = async (params: {
  * Fetch all coupons for the Admin management panel
  */
 export const getAllCouponsAdmin = async (): Promise<Coupon[]> => {
-  try {
-    const activeDb = getActiveAdminDb();
+  return await runAdminFirestoreOp(async (activeDb) => {
     const couponsRef = collection(activeDb, 'coupons');
     const snap = await getDocs(couponsRef);
     const list: Coupon[] = [];
@@ -344,10 +379,10 @@ export const getAllCouponsAdmin = async (): Promise<Coupon[]> => {
     }
 
     return list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-  } catch (error) {
+  }).catch((error) => {
     console.error('[couponService] Error fetching all coupons (admin):', error);
     return DEFAULT_COUPONS.map((c) => ({ id: c.code, ...c }));
-  }
+  });
 };
 
 /**
@@ -359,21 +394,21 @@ export const saveCouponAdmin = async (
   const cleanCode = couponData.code.trim().toUpperCase();
   if (!cleanCode) throw new Error('Coupon code is required.');
 
-  const activeDb = getActiveAdminDb();
-  const docRef = doc(activeDb, 'coupons', cleanCode);
+  await runAdminFirestoreOp(async (activeDb) => {
+    const docRef = doc(activeDb, 'coupons', cleanCode);
+    const payload: any = {
+      ...couponData,
+      code: cleanCode,
+      updatedAt: Timestamp.now(),
+      createdBy: adminAuth.currentUser?.phoneNumber || auth.currentUser?.phoneNumber || couponData.createdBy || 'admin',
+    };
 
-  const payload: any = {
-    ...couponData,
-    code: cleanCode,
-    updatedAt: Timestamp.now(),
-    createdBy: adminAuth.currentUser?.phoneNumber || couponData.createdBy || 'admin',
-  };
+    if (!couponData.createdAt) {
+      payload.createdAt = Timestamp.now();
+    }
 
-  if (!couponData.createdAt) {
-    payload.createdAt = Timestamp.now();
-  }
-
-  await setDoc(docRef, payload, { merge: true });
+    await setDoc(docRef, payload, { merge: true });
+  });
 };
 
 /**
@@ -384,11 +419,12 @@ export const toggleCouponStatusAdmin = async (
   isActive: boolean
 ): Promise<void> => {
   const cleanCode = code.trim().toUpperCase();
-  const activeDb = getActiveAdminDb();
-  const docRef = doc(activeDb, 'coupons', cleanCode);
-  await updateDoc(docRef, {
-    isActive,
-    updatedAt: Timestamp.now(),
+  await runAdminFirestoreOp(async (activeDb) => {
+    const docRef = doc(activeDb, 'coupons', cleanCode);
+    await updateDoc(docRef, {
+      isActive,
+      updatedAt: Timestamp.now(),
+    });
   });
 };
 
@@ -397,9 +433,10 @@ export const toggleCouponStatusAdmin = async (
  */
 export const deleteCouponAdmin = async (code: string): Promise<void> => {
   const cleanCode = code.trim().toUpperCase();
-  const activeDb = getActiveAdminDb();
-  const docRef = doc(activeDb, 'coupons', cleanCode);
-  await deleteDoc(docRef);
+  await runAdminFirestoreOp(async (activeDb) => {
+    const docRef = doc(activeDb, 'coupons', cleanCode);
+    await deleteDoc(docRef);
+  });
 };
 
 /**
@@ -407,30 +444,31 @@ export const deleteCouponAdmin = async (code: string): Promise<void> => {
  */
 export const seedDefaultCoupons = async (): Promise<void> => {
   try {
-    const activeDb = getActiveAdminDb();
-    for (const c of DEFAULT_COUPONS) {
-      const docRef = doc(activeDb, 'coupons', c.code);
-      const snap = await getDoc(docRef);
-      if (!snap.exists()) {
-        await setDoc(docRef, {
-          ...c,
-          createdAt: Timestamp.now(),
-          updatedAt: Timestamp.now(),
-        });
-      } else {
-        // Upgrade FIRST100 if it was saved with old isFirstOrderOnly rule
-        const data = snap.data();
-        if (c.code === 'FIRST100' && (data.isFirstOrderOnly || !data.maxOrderCount || data.perUserLimit === 1)) {
-          await updateDoc(docRef, {
-            description: c.description,
-            isFirstOrderOnly: false,
-            maxOrderCount: 3,
-            perUserLimit: 3,
+    await runAdminFirestoreOp(async (activeDb) => {
+      for (const c of DEFAULT_COUPONS) {
+        const docRef = doc(activeDb, 'coupons', c.code);
+        const snap = await getDoc(docRef);
+        if (!snap.exists()) {
+          await setDoc(docRef, {
+            ...c,
+            createdAt: Timestamp.now(),
             updatedAt: Timestamp.now(),
           });
+        } else {
+          // Upgrade FIRST100 if it was saved with old isFirstOrderOnly rule
+          const data = snap.data();
+          if (c.code === 'FIRST100' && (data.isFirstOrderOnly || !data.maxOrderCount || data.perUserLimit === 1)) {
+            await updateDoc(docRef, {
+              description: c.description,
+              isFirstOrderOnly: false,
+              maxOrderCount: 3,
+              perUserLimit: 3,
+              updatedAt: Timestamp.now(),
+            });
+          }
         }
       }
-    }
+    });
   } catch (err) {
     console.warn('[couponService] Could not auto-seed default coupons:', err);
   }

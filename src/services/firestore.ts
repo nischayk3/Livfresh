@@ -571,6 +571,19 @@ export const createOrder = async (userId: string, orderData: any) => {
           throw new Error(`Coupon "${rawCouponCode}" is only valid on your first ${cData.maxOrderCount} orders.`);
         }
 
+        // Check restricted phone numbers (VIP / targeted coupons)
+        if (cData.allowedPhoneNumbers && Array.isArray(cData.allowedPhoneNumbers) && cData.allowedPhoneNumbers.length > 0) {
+          const rawOrderPhone = (cleanOrder.customerPhone || cleanOrder.userPhone || userDocSnap?.data()?.phoneNumber || userDocSnap?.data()?.phone || '')
+            .replace(/\D/g, '')
+            .slice(-10);
+          const isWhitelisted = cData.allowedPhoneNumbers.some(
+            (p: string) => p.replace(/\D/g, '').slice(-10) === rawOrderPhone
+          );
+          if (!isWhitelisted) {
+            throw new Error('This coupon is exclusive to selected accounts.');
+          }
+        }
+
         if (cData.totalLimit && (cData.usedCount || 0) >= cData.totalLimit) {
           throw new Error(`Coupon "${rawCouponCode}" has reached its maximum redemption limit.`);
         }

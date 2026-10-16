@@ -16,9 +16,14 @@ service cloud.firestore {
       return isAuthenticated() && 
         'phone_number' in request.auth.token && 
         request.auth.token.phone_number != null && (
-          request.auth.token.phone_number.matches('.*(9661802634|9852030638|9108558715|8888888888)$') ||
+          request.auth.token.phone_number.matches('.*(9661802634|9852030638|9108558715|8888888888|7483207003|9353162033|6666888800)$') ||
           (exists(/databases/$(database)/documents/config/adminPhones) && 
-           request.auth.token.phone_number.replace('\\+91', '') in get(/databases/$(database)/documents/config/adminPhones).data.adminPhones)
+           (
+             request.auth.token.phone_number in get(/databases/$(database)/documents/config/adminPhones).data.adminPhones ||
+             request.auth.token.phone_number.replace('\\+91', '') in get(/databases/$(database)/documents/config/adminPhones).data.adminPhones ||
+             (request.auth.token.phone_number.matches('^\\+91.*') && request.auth.token.phone_number[3:] in get(/databases/$(database)/documents/config/adminPhones).data.adminPhones)
+           )
+          )
         );
     }
 
@@ -53,7 +58,7 @@ service cloud.firestore {
 
     match /coupons/{couponId} {
       allow read: if true;
-      allow create, delete: if isAdmin();
+      allow write: if isAdmin();
       allow update: if isAdmin() || (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedCount', 'updatedAt']));
     }
 

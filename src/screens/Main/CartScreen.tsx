@@ -238,7 +238,7 @@ export const CartScreen: React.FC = () => {
           setDiscountAmount(refResult.discount);
           setAppliedCoupon({
             code: refResult.code,
-            title: 'Referral Discount — ₹200 OFF',
+            title: 'Referral Discount — ₹100 OFF',
             description: 'Special first-order discount from your friend!',
             discountType: 'flat',
             discountAmount: refResult.discount,

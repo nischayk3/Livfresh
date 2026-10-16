@@ -227,7 +227,7 @@ export const ProfileScreen: React.FC = () => {
                 </View>
                 <View style={styles.referralBannerTextContainer}>
                   <View style={styles.referralBannerBadgeRow}>
-                    <Text style={styles.referralBannerBadge}>GIVE ₹200, GET ₹200</Text>
+                    <Text style={styles.referralBannerBadge}>GIVE ₹100, GET ₹200</Text>
                   </View>
                   <Text style={styles.referralBannerTitle}>Refer Friends & Earn</Text>
                   <Text style={styles.referralBannerSub}>

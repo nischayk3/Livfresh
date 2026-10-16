@@ -208,7 +208,7 @@ export const ReferEarnScreen: React.FC = () => {
               </View>
             </View>
 
-            <Text style={styles.heroTitle}>Give ₹200, Get ₹200</Text>
+            <Text style={styles.heroTitle}>Give ₹100, Get ₹200</Text>
             <Text style={styles.heroSubtitle}>
               Invite friends & neighbors to SpinZo. They get ₹{REFERRAL_CONSTANTS.DISCOUNT_AMOUNT} OFF on their first order, and you get ₹{REFERRAL_CONSTANTS.REFERRER_REWARD} when their order is delivered!
             </Text>
@@ -341,9 +341,9 @@ export const ReferEarnScreen: React.FC = () => {
               <Text style={styles.stepNumberText}>2</Text>
             </View>
             <View style={styles.stepInfo}>
-              <Text style={styles.stepTitle}>Friend gets ₹200 OFF</Text>
+              <Text style={styles.stepTitle}>Friend gets ₹100 OFF</Text>
               <Text style={styles.stepDesc}>
-                They apply your code and instantly save ₹200 on orders above ₹700.
+                They apply your code and instantly save ₹100 on orders above ₹700.
               </Text>
             </View>
           </View>

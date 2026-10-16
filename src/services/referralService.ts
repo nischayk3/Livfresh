@@ -52,7 +52,7 @@ export interface ReferralStats {
 }
 
 export const REFERRAL_CONSTANTS = {
-  DISCOUNT_AMOUNT: 200,      // ₹200 off for referee
+  DISCOUNT_AMOUNT: 100,      // ₹100 off for referee (Give 100, Get 200)
   MIN_ORDER_VALUE: 700,      // Minimum ₹700 cart
   REFERRER_REWARD: 200,      // ₹200 voucher for referrer
   REWARD_MIN_ORDER: 500,     // Minimum ₹500 for the referrer's reward voucher

@@ -659,11 +659,11 @@ export const createOrder = async (userId: string, orderData: any) => {
           throw new Error(`Minimum order value of ₹700 required to apply referral offer.`);
         }
 
-        verifiedDiscount = Math.min(subtotal, 200);
+        verifiedDiscount = Math.min(subtotal, 100);
 
         appliedCouponPayload = {
           code: referralCodeCandidate,
-          title: 'Referral Discount — ₹200 OFF',
+          title: 'Referral Discount — ₹100 OFF',
           discount: verifiedDiscount,
           isReferral: true,
           referrerUid: refOwnerUid,

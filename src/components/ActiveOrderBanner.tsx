@@ -16,6 +16,7 @@ import {
   Package,
   ShoppingBag,
   ChevronRight,
+  Tag,
 } from 'lucide-react-native';
 import { COLORS, SHADOWS } from '../utils/constants';
 import { ActiveOrder } from '../store/activeOrderStore';
@@ -210,6 +211,12 @@ export const ActiveOrderBanner: React.FC<ActiveOrderBannerProps> = ({
             <Text style={styles.statusTitle} numberOfLines={1}>
               {title}
             </Text>
+            {order.tokenNumber && (
+              <View style={styles.tokenBadge}>
+                <Tag size={9} color="#7C3AED" strokeWidth={2.4} />
+                <Text style={styles.tokenBadgeText}>Token #{order.tokenNumber}</Text>
+              </View>
+            )}
             {activeOrdersCount > 1 && (
               <View style={styles.multiBadge}>
                 <Text style={styles.multiBadgeText}>+{activeOrdersCount - 1} more</Text>
@@ -303,6 +310,23 @@ const styles = StyleSheet.create({
     fontFamily: 'Outfit_600SemiBold',
     fontSize: 10,
     color: '#7C3AED',
+  },
+  tokenBadge: {
+    backgroundColor: '#F5F3FF',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 8,
+    marginLeft: 6,
+    borderWidth: 0.8,
+    borderColor: '#DDD6FE',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  tokenBadgeText: {
+    fontFamily: 'Outfit_700Bold',
+    fontSize: 10,
+    color: '#6D28D9',
   },
   subtext: {
     fontFamily: 'Outfit_500Medium',

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch, ScrollView, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, ScrollView, ActivityIndicator, Alert, Modal, TextInput, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,7 +15,7 @@ import {
   deleteCouponAdmin,
   seedDefaultCoupons,
 } from '../../services/couponService';
-import { COLORS, SPACING, TYPOGRAPHY, RADIUS } from '../../utils/constants';
+import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 
 export const AdminSettingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -32,6 +32,8 @@ export const AdminSettingsScreen: React.FC = () => {
   const [isLoadingCoupons, setIsLoadingCoupons] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isSavingCoupon, setIsSavingCoupon] = useState(false);
+  const [couponToDelete, setCouponToDelete] = useState<string | null>(null);
+  const [isDeletingCoupon, setIsDeletingCoupon] = useState(false);
   const [newCouponCode, setNewCouponCode] = useState('');
   const [newCouponTitle, setNewCouponTitle] = useState('');
   const [newCouponDesc, setNewCouponDesc] = useState('');
@@ -59,6 +61,14 @@ export const AdminSettingsScreen: React.FC = () => {
     loadCoupons();
   }, []);
 
+  const notifyAdmin = (title: string, message: string) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title ? `${title}: ` : ''}${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
   const handleToggleCoupon = async (code: string, currentActive: boolean) => {
     const nextActive = !currentActive;
     // Optimistic UI update
@@ -72,42 +82,41 @@ export const AdminSettingsScreen: React.FC = () => {
       setCoupons((prev) =>
         prev.map((c) => (c.code === code ? { ...c, isActive: currentActive } : c))
       );
-      Alert.alert('Error', error?.message || 'Failed to update coupon status');
+      notifyAdmin('Error', error?.message || 'Failed to update coupon status');
     }
   };
 
   const handleDeleteCoupon = (code: string) => {
-    Alert.alert(
-      'Delete Coupon',
-      `Are you sure you want to delete coupon ${code}? Customers will no longer be able to use it.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteCouponAdmin(code);
-              setCoupons((prev) => prev.filter((c) => c.code !== code));
-              Alert.alert('Deleted', `Coupon ${code} has been deleted.`);
-            } catch (e) {
-              Alert.alert('Error', 'Failed to delete coupon.');
-            }
-          },
-        },
-      ]
-    );
+    setCouponToDelete(code);
+  };
+
+  const confirmDeleteCoupon = async () => {
+    if (!couponToDelete) return;
+    const code = couponToDelete;
+    setIsDeletingCoupon(true);
+    try {
+      console.log('[AdminSettings] Deleting coupon:', code);
+      await deleteCouponAdmin(code);
+      setCoupons((prev) => prev.filter((c) => c.code !== code));
+      setCouponToDelete(null);
+      notifyAdmin('Deleted', `Coupon ${code} has been deleted.`);
+    } catch (e: any) {
+      console.error('[AdminSettings] Error deleting coupon:', e);
+      notifyAdmin('Error', e?.message || 'Failed to delete coupon.');
+    } finally {
+      setIsDeletingCoupon(false);
+    }
   };
 
   const handleSaveNewCoupon = async () => {
     const cleanCode = newCouponCode.trim().toUpperCase();
     if (!cleanCode) {
-      Alert.alert('Validation Error', 'Please enter a coupon code.');
+      notifyAdmin('Validation Error', 'Please enter a coupon code.');
       return;
     }
     const amountNum = parseFloat(newCouponAmount);
     if (isNaN(amountNum) || amountNum <= 0) {
-      Alert.alert('Validation Error', 'Please enter a valid discount amount.');
+      notifyAdmin('Validation Error', 'Please enter a valid discount amount.');
       return;
     }
     const minOrderNum = parseFloat(newCouponMinOrder) || 0;
@@ -121,17 +130,25 @@ export const AdminSettingsScreen: React.FC = () => {
 
     setIsSavingCoupon(true);
     try {
+      console.log('[AdminSettings] Saving new coupon:', cleanCode, {
+        newCouponType,
+        amountNum,
+        minOrderNum,
+        parsedAllowedPhones,
+        isPublicFinal,
+      });
+
       await saveCouponAdmin({
         code: cleanCode,
-        title: newCouponTitle.trim() || `${newCouponType === 'flat' ? `Flat ₹${amountNum} OFF` : `${amountNum}% OFF`}`,
+        title: newCouponTitle.trim() || (newCouponType === 'flat' ? `Flat ₹${amountNum} OFF` : `${amountNum}% OFF`),
         description: newCouponDesc.trim() || `Valid on orders above ₹${minOrderNum}`,
         discountType: newCouponType,
         discountAmount: newCouponType === 'flat' ? amountNum : 0,
-        discountPercent: newCouponType === 'percentage' ? amountNum : undefined,
+        discountPercent: newCouponType === 'percentage' ? amountNum : 0,
         minOrderValue: minOrderNum,
         isFirstOrderOnly: newCouponFirstOrderOnly,
         isPublic: isPublicFinal,
-        allowedPhoneNumbers: parsedAllowedPhones.length > 0 ? parsedAllowedPhones : undefined,
+        allowedPhoneNumbers: parsedAllowedPhones.length > 0 ? parsedAllowedPhones : [],
         isActive: true,
         perUserLimit: 1,
         usedCount: 0,
@@ -145,9 +162,10 @@ export const AdminSettingsScreen: React.FC = () => {
       setNewCouponMinOrder('700');
       setNewCouponAllowedPhones('');
       await loadCoupons();
-      Alert.alert('Success', `Coupon ${cleanCode} created successfully!`);
+      notifyAdmin('Success', `Coupon ${cleanCode} created successfully!`);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to create coupon.');
+      console.error('[AdminSettings] Failed to create coupon:', e);
+      notifyAdmin('Error', e?.message || 'Failed to create coupon.');
     } finally {
       setIsSavingCoupon(false);
     }
@@ -497,7 +515,7 @@ export const AdminSettingsScreen: React.FC = () => {
                         <View style={[styles.couponMetaTag, { backgroundColor: '#F3E8FF' }]}>
                           <Ionicons name="lock-closed" size={12} color="#7E22CE" />
                           <Text style={[styles.couponMetaText, { color: '#7E22CE', fontWeight: '600' }]}>
-                            Exclusive ({coupon.allowedPhoneNumbers.length} phone{coupon.allowedPhoneNumbers.length > 1 ? 's' : ''})
+                            Exclusive: {coupon.allowedPhoneNumbers.join(', ')}
                           </Text>
                         </View>
                       ) : coupon.isPublic === false ? (
@@ -665,6 +683,52 @@ export const AdminSettingsScreen: React.FC = () => {
                 <Text style={styles.submitButtonText}>Create Coupon</Text>
               )}
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Delete Coupon Confirmation Modal (100% Web + Mobile compatible) */}
+      <Modal
+        visible={!!couponToDelete}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !isDeletingCoupon && setCouponToDelete(null)}
+      >
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmModalCard}>
+            <View style={styles.confirmModalIcon}>
+              <Ionicons name="trash-outline" size={28} color="#EF4444" />
+            </View>
+            <Text style={styles.confirmModalTitle}>Delete Coupon</Text>
+            <Text style={styles.confirmModalDesc}>
+              Are you sure you want to delete coupon{' '}
+              <Text style={{ fontWeight: '700', color: '#1E1B4B' }}>{couponToDelete}</Text>?
+              {'\n'}Customers will no longer be able to use it.
+            </Text>
+
+            <View style={styles.confirmModalActions}>
+              <TouchableOpacity
+                style={styles.confirmCancelBtn}
+                onPress={() => setCouponToDelete(null)}
+                disabled={isDeletingCoupon}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.confirmDeleteBtn}
+                onPress={confirmDeleteCoupon}
+                disabled={isDeletingCoupon}
+                activeOpacity={0.7}
+              >
+                {isDeletingCoupon ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.confirmDeleteText}>Delete</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1144,6 +1208,77 @@ const styles = StyleSheet.create({
   seedCouponsBtnText: {
     fontSize: 13,
     fontFamily: 'Outfit_700Bold',
+    color: '#FFFFFF',
+  },
+  confirmOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  confirmModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    ...SHADOWS.lg,
+  },
+  confirmModalIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  confirmModalTitle: {
+    fontSize: 18,
+    fontFamily: 'Outfit_700Bold',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  confirmModalDesc: {
+    fontSize: 14,
+    fontFamily: 'Outfit_400Regular',
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  confirmModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  confirmCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+  },
+  confirmCancelText: {
+    fontSize: 14,
+    fontFamily: 'Outfit_600SemiBold',
+    color: '#64748B',
+  },
+  confirmDeleteBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmDeleteText: {
+    fontSize: 14,
+    fontFamily: 'Outfit_600SemiBold',
     color: '#FFFFFF',
   },
 });

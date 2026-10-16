@@ -396,7 +396,7 @@ export const saveCouponAdmin = async (
 
   await runAdminFirestoreOp(async (activeDb) => {
     const docRef = doc(activeDb, 'coupons', cleanCode);
-    const payload: any = {
+    const rawPayload: any = {
       ...couponData,
       code: cleanCode,
       updatedAt: Timestamp.now(),
@@ -404,10 +404,20 @@ export const saveCouponAdmin = async (
     };
 
     if (!couponData.createdAt) {
-      payload.createdAt = Timestamp.now();
+      rawPayload.createdAt = Timestamp.now();
     }
 
+    // Critical: Firestore throws if any property is undefined. Strip all undefined keys.
+    const payload: Record<string, any> = {};
+    for (const [key, val] of Object.entries(rawPayload)) {
+      if (val !== undefined) {
+        payload[key] = val;
+      }
+    }
+
+    console.log('[couponService] Saving coupon payload to Firestore:', cleanCode, payload);
     await setDoc(docRef, payload, { merge: true });
+    console.log('[couponService] Coupon saved successfully:', cleanCode);
   });
 };
 
@@ -433,9 +443,11 @@ export const toggleCouponStatusAdmin = async (
  */
 export const deleteCouponAdmin = async (code: string): Promise<void> => {
   const cleanCode = code.trim().toUpperCase();
+  console.log('[couponService] Deleting coupon from Firestore:', cleanCode);
   await runAdminFirestoreOp(async (activeDb) => {
     const docRef = doc(activeDb, 'coupons', cleanCode);
     await deleteDoc(docRef);
+    console.log('[couponService] Coupon deleted successfully:', cleanCode);
   });
 };
 

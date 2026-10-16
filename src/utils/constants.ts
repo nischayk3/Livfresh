@@ -241,3 +241,6 @@ export const ORDER_STATUS = {
   DELIVERED: 'delivered',
   CANCELLED: 'cancelled',
 } as const;
+
+export const SUPPORT_PHONE = '+91 7676878832';
+

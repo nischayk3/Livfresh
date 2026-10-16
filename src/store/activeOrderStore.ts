@@ -5,6 +5,7 @@ export interface ActiveOrder {
   id: string;
   status: string;
   createdAt: any;
+  tokenNumber?: string;
   items?: any[];
   billDetails?: {
     total: number;

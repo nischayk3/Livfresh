@@ -17,6 +17,7 @@ import {
   Footprints,
   WashingMachine,
   BedDouble,
+  Tag,
 } from 'lucide-react-native';
 
 // 5 key order steps aligned with OrderDetailScreen's flow
@@ -183,7 +184,7 @@ export const MyOrdersScreen: React.FC = () => {
         onPress={() => (navigation as any).navigate('OrderDetail', { orderId: order.id })}
         activeOpacity={0.85}
       >
-        {/* Top row: Order ID + ACTIVE pill */}
+        {/* Top row: Order ID + Token + ACTIVE pill */}
         <View style={styles.liveCardTop}>
           <View style={styles.orderIdRow}>
             <View style={styles.orderIdIcon}>
@@ -194,9 +195,17 @@ export const MyOrdersScreen: React.FC = () => {
               <Text style={styles.orderIdValue}>#{order.id.slice(-6).toUpperCase()}</Text>
             </View>
           </View>
-          <View style={styles.activePill}>
-            <PulsingDot />
-            <Text style={styles.activePillText}>ACTIVE</Text>
+          <View style={styles.liveRightPills}>
+            {order.tokenNumber && (
+              <View style={styles.liveTokenPill}>
+                <Tag size={10} color="#7C3AED" strokeWidth={2.4} />
+                <Text style={styles.liveTokenPillText}>Token #{order.tokenNumber}</Text>
+              </View>
+            )}
+            <View style={styles.activePill}>
+              <PulsingDot />
+              <Text style={styles.activePillText}>ACTIVE</Text>
+            </View>
           </View>
         </View>
 
@@ -318,9 +327,17 @@ export const MyOrdersScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Row 2: Order ID + Chevron */}
+        {/* Row 2: Order ID + Token + Chevron */}
         <View style={styles.cardIdRow}>
-          <Text style={styles.cardIdText}>Order #{order.id.slice(-6).toUpperCase()}</Text>
+          <View style={styles.cardIdWithToken}>
+            <Text style={styles.cardIdText}>Order #{order.id.slice(-6).toUpperCase()}</Text>
+            {order.tokenNumber && (
+              <View style={styles.pastTokenPill}>
+                <Tag size={9} color="#6D28D9" strokeWidth={2.2} />
+                <Text style={styles.pastTokenPillText}>Token #{order.tokenNumber}</Text>
+              </View>
+            )}
+          </View>
           <ChevronRight size={14} color="#CBD5E1" />
         </View>
 
@@ -645,6 +662,28 @@ const styles = StyleSheet.create({
     fontFamily: 'Outfit_800ExtraBold',
     color: '#1E1B4B',
   },
+  liveRightPills: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  liveTokenPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FAF5FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+  },
+  liveTokenPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    fontFamily: 'Outfit_700Bold',
+    color: '#7C3AED',
+  },
   activePill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -857,10 +896,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 4,
   },
+  cardIdWithToken: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   cardIdText: {
     fontSize: 12,
     fontFamily: 'Outfit_500Medium',
     color: '#94A3B8',
+  },
+  pastTokenPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#FAF5FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 0.8,
+    borderColor: '#E9D5FF',
+  },
+  pastTokenPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    fontFamily: 'Outfit_700Bold',
+    color: '#6D28D9',
   },
   cardServiceRow: {
     flexDirection: 'row',

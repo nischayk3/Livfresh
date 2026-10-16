@@ -26,6 +26,9 @@ interface User {
     weeklyReminders?: boolean;
     promotions?: boolean;
   };
+  referralCode?: string;
+  referredBy?: string;
+  referredByCode?: string;
 }
 
 interface AuthState {

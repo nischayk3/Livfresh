@@ -114,6 +114,10 @@ const SubscriptionSuccessScreen = Platform.OS === 'web'
   ? lazy(() => import('../screens/Main/SubscriptionSuccessScreen').then(m => ({ default: m.SubscriptionSuccessScreen })))
   : require('../screens/Main/SubscriptionSuccessScreen').SubscriptionSuccessScreen;
 
+const ReferEarnScreen = Platform.OS === 'web'
+  ? lazy(() => import('../screens/Main/ReferEarnScreen').then(m => ({ default: m.ReferEarnScreen })))
+  : require('../screens/Main/ReferEarnScreen').ReferEarnScreen;
+
 // --- Admin Screens ---
 const AdminLoginScreen = Platform.OS === 'web'
   ? lazy(() => import('../screens/Admin/AdminLoginScreen').then(m => ({ default: m.AdminLoginScreen })))
@@ -220,6 +224,7 @@ const MainStack = () => (
     <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
     <Stack.Screen name="BuyCredits" component={BuyCreditsScreen} />
     <Stack.Screen name="SubscriptionSuccess" component={SubscriptionSuccessScreen} />
+    <Stack.Screen name="ReferEarn" component={ReferEarnScreen} />
   </Stack.Navigator>
 );
 
@@ -581,6 +586,7 @@ export const RootNavigator: React.FC = () => {
                 HelpSupport: 'support',
                 BuyCredits: 'buy-credits',
                 SubscriptionSuccess: 'subscription-success',
+                ReferEarn: 'refer-earn',
               },
             },
 

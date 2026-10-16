@@ -47,8 +47,33 @@ service cloud.firestore {
     // --- Regular Collection Rules ---
     
     match /config/{configId} {
-      allow read: if configId == 'adminPhones' || configId == 'serviceAvailability' || configId == 'opsStaff' || configId == 'opsStores' || isAdmin() || isAuthenticated();
+      allow read: if configId == 'adminPhones' || configId == 'serviceAvailability' || configId == 'slotSettings' || configId == 'opsStaff' || configId == 'opsStores' || isAdmin() || isAuthenticated();
       allow write: if isAdmin();
+    }
+
+    match /coupons/{couponId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedCount', 'updatedAt']));
+    }
+
+    match /coupon_redemptions/{redemptionId} {
+      allow read: if isAdmin() || (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid));
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    match /referral_codes/{code} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    match /referrals/{refereeId} {
+      allow read: if isAdmin() || (isAuthenticated() && (request.auth.uid == refereeId || (resource != null && resource.data.referrerUid == request.auth.uid)));
+      allow create: if isAuthenticated() && request.auth.uid == refereeId;
+      allow update: if isAdmin() || (isAuthenticated() && request.auth.uid == refereeId);
+      allow delete: if isAdmin();
     }
     
     match /users/{userId} {

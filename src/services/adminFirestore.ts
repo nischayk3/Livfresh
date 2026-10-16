@@ -25,6 +25,12 @@ import {
 import { adminDb as db } from './firebase';
 import { generateOTP } from '../utils/otpHelpers';
 import { SLOT_CONSTANTS } from '../utils/slotUtils';
+import { useSlotSettingsStore } from '../store/slotSettingsStore';
+import { rewardReferrerOnDelivered } from './referralService';
+
+const getMaxOrdersPerSlot = (): number => {
+  return useSlotSettingsStore.getState().maxOrdersPerSlot || SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT;
+};
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getStorage, ref, uploadBytes, uploadString, getDownloadURL } from 'firebase/storage';
 import { revertCreditOnCancel } from './firestore';
@@ -1498,6 +1504,13 @@ export const updateOrderStatusAdmin = async (
     // Update vendor order
     await updateDoc(doc(db, 'vendors', vendorId, 'orders', orderId), updateData);
 
+    // If order was delivered, reward referrer if referee was referred!
+    if (newStatus === 'delivered') {
+      rewardReferrerOnDelivered(userId, orderId, currentOrder.billDetails?.total || 0).catch((err) => {
+        console.warn('Could not reward referrer on admin order delivery:', err);
+      });
+    }
+
     return true;
   } catch (error: any) {
     console.error('Error updating order status:', error);
@@ -1569,7 +1582,8 @@ export const toggleTestOrderAdmin = async (
         const schedSnap = await getDoc(schedRef);
         const sc = schedSnap.exists() ? (schedSnap.data().slot_counts || {}) : {};
         const cur = sc[pickupTime] || 0;
-        if (cur >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
+        const limit = getMaxOrdersPerSlot();
+        if (cur >= limit) {
           throw new Error(`Cannot un-mark test: pickup slot ${pickupTime} is now full.`);
         }
         await updateDoc(schedRef, { [`slot_counts.${pickupTime}`]: cur + 1 });
@@ -1579,7 +1593,8 @@ export const toggleTestOrderAdmin = async (
         const schedSnap = await getDoc(schedRef);
         const sc = schedSnap.exists() ? (schedSnap.data().slot_counts || {}) : {};
         const cur = sc[deliveryTime] || 0;
-        if (cur >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
+        const limit = getMaxOrdersPerSlot();
+        if (cur >= limit) {
           throw new Error(`Cannot un-mark test: delivery slot ${deliveryTime} is now full.`);
         }
         await updateDoc(schedRef, { [`slot_counts.${deliveryTime}`]: cur + 1 });
@@ -1867,8 +1882,9 @@ export const bulkAddCreditsAdmin = async (
 /**
  * Check slot availability (Admin)
  */
-export const checkSlotAvailabilityAdmin = async (date: string): Promise<string[]> => {
+export const checkSlotAvailabilityAdmin = async (date: string, customLimit?: number): Promise<string[]> => {
   try {
+    const limit = customLimit ?? getMaxOrdersPerSlot();
     const scheduleRef = doc(db, 'daily_schedules', date);
     const scheduleSnap = await getDoc(scheduleRef);
     if (scheduleSnap.exists()) {
@@ -1876,7 +1892,7 @@ export const checkSlotAvailabilityAdmin = async (date: string): Promise<string[]
       // New format: slot_counts map
       if (data.slot_counts) {
         return Object.entries(data.slot_counts)
-          .filter(([_, count]) => (count as number) >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT)
+          .filter(([_, count]) => (count as number) >= limit)
           .map(([slot]) => slot);
       }
       // Legacy fallback
@@ -1943,8 +1959,9 @@ export const scheduleOrderDeliveryAdmin = async (
 
       // Reserve new slot (skip for test orders)
       const currentCount = newSlotCounts[deliveryTime] || 0;
+      const maxCapacity = getMaxOrdersPerSlot();
       if (!orderData.isTestOrder) {
-        if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
+        if (currentCount >= maxCapacity) {
           throw new Error(`Slot ${deliveryTime} is no longer available.`);
         }
         newSlotCounts[deliveryTime] = currentCount + 1;
@@ -2036,8 +2053,9 @@ export const rescheduleOrderPickupAdmin = async (
 
       // Reserve new slot (skip for test orders)
       const currentCount = newSlotCounts[pickupTime] || 0;
+      const maxCapacity = getMaxOrdersPerSlot();
       if (!orderData.isTestOrder) {
-        if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
+        if (currentCount >= maxCapacity) {
           throw new Error(`Slot ${pickupTime} is no longer available.`);
         }
         newSlotCounts[pickupTime] = currentCount + 1;

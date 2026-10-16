@@ -481,6 +481,99 @@ exports.onOrderStatusChanged = functions.firestore
                 }
             }
         }
+        // 4. Referral Reward: If order is delivered, check if referee was referred and reward referrer!
+        if (afterStatus === "delivered") {
+            try {
+                const refereeUid = userId;
+                const referralDocRef = admin.firestore().collection("referrals").doc(refereeUid);
+                const referralSnap = await referralDocRef.get();
+                if (referralSnap.exists) {
+                    const refData = referralSnap.data();
+                    if (refData.status === "ordered" || refData.status === "claimed") {
+                        const referrerUid = refData.referrerUid;
+                        if (referrerUid && referrerUid !== refereeUid) {
+                            const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+                            const rewardCode = `REF200-${randomSuffix}`;
+                            const validTill = new Date();
+                            validTill.setDate(validTill.getDate() + 60);
+                            const batch = admin.firestore().batch();
+                            // 1. Create single-use voucher for referrer
+                            const couponRef = admin.firestore().collection("coupons").doc(rewardCode);
+                            batch.set(couponRef, {
+                                code: rewardCode,
+                                title: "Referral Reward — ₹200 OFF",
+                                description: "Reward for referring a friend to SpinZo! Enjoy ₹200 off your next order.",
+                                type: "flat",
+                                value: 200,
+                                maxDiscount: 200,
+                                minOrderValue: 500,
+                                perUserLimit: 1,
+                                totalLimit: 1,
+                                usedCount: 0,
+                                audience: "targeted",
+                                allowedUids: [referrerUid],
+                                excludedServices: [],
+                                isPublic: false,
+                                isActive: true,
+                                kind: "referral_reward",
+                                validFrom: admin.firestore.Timestamp.now(),
+                                validTill: admin.firestore.Timestamp.fromDate(validTill),
+                                createdAt: admin.firestore.Timestamp.now(),
+                                updatedAt: admin.firestore.Timestamp.now(),
+                                createdBy: "referral_trigger",
+                            });
+                            // 2. Update referral record to rewarded
+                            batch.update(referralDocRef, {
+                                status: "rewarded",
+                                rewardCouponCode: rewardCode,
+                                rewardedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            });
+                            // 3. Update referrer metrics
+                            const referrerUserRef = admin.firestore().collection("users").doc(referrerUid);
+                            batch.set(referrerUserRef, {
+                                referralStats: {
+                                    ordersCompleted: admin.firestore.FieldValue.increment(1),
+                                    totalEarned: admin.firestore.FieldValue.increment(200),
+                                },
+                                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            }, { merge: true });
+                            await batch.commit();
+                            console.log(`[Referral] ✅ Successfully rewarded referrer ${referrerUid} with voucher ${rewardCode}`);
+                            // 4. Notify referrer
+                            const referrerUserDoc = await referrerUserRef.get();
+                            const referrerData = referrerUserDoc.data();
+                            const referrerPushToken = referrerData === null || referrerData === void 0 ? void 0 : referrerData.expoPushToken;
+                            const friendName = (userData === null || userData === void 0 ? void 0 : userData.name) || "Your friend";
+                            const refTitle = "🎉 You Earned ₹200 Referral Reward!";
+                            const refBody = `${friendName}'s first order was delivered! We've credited a ₹200 voucher (${rewardCode}) to your account.`;
+                            await (0, pushNotification_1.createInAppNotification)(referrerUid, {
+                                type: "referral_reward",
+                                title: refTitle,
+                                body: refBody,
+                                data: {
+                                    couponCode: rewardCode,
+                                    screen: "Cart",
+                                },
+                            });
+                            if (referrerPushToken) {
+                                await (0, pushNotification_1.sendPushNotification)(referrerPushToken, {
+                                    title: refTitle,
+                                    body: refBody,
+                                    data: {
+                                        couponCode: rewardCode,
+                                        screen: "Cart",
+                                    },
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            catch (referralRewardErr) {
+                console.warn(`[Referral] Error rewarding referrer for order ${orderId}:`, referralRewardErr === null || referralRewardErr === void 0 ? void 0 : referralRewardErr.message);
+            }
+        }
     }
     catch (error) {
         console.error(`Error running onOrderStatusChanged for status ${afterStatus}:`, error);

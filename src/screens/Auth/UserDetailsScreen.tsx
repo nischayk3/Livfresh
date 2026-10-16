@@ -72,7 +72,7 @@ export const UserDetailsScreen: React.FC = () => {
 
       // 1. Create user in Firestore
       const { createUser } = await import('../../services/firestore');
-      await createUser(currentUid, currentPhone, name, email || undefined, gender || undefined, referralCode.trim());
+      const assignedReferralCode = await createUser(currentUid, currentPhone, name, email || undefined, gender || undefined, referralCode.trim());
 
       // 2. Update local store - this will trigger RootNavigator to show Main
       useAuthStore.getState().setUser({
@@ -80,7 +80,8 @@ export const UserDetailsScreen: React.FC = () => {
         phone: currentPhone,
         name,
         email: email || '',
-        referralCode: referralCode.trim(),
+        referralCode: assignedReferralCode || '',
+        referredByCode: referralCode.trim() || undefined,
         subscriptionStatus: 'inactive',
       } as any);
 
@@ -253,7 +254,7 @@ export const UserDetailsScreen: React.FC = () => {
                 />
               </View>
               <Text style={[TYPOGRAPHY.caption, { color: COLORS.textSecondary, marginTop: 4, marginLeft: 2 }]}>
-                Have a code from our pamphlets? Enter it here.
+                Have a friend's referral code? Enter it to get ₹200 OFF your first order.
               </Text>
             </View>
           </View>

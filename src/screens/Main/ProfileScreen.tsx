@@ -27,6 +27,7 @@ import {
   Pencil,
   Globe,
   Trash2,
+  Gift,
 } from 'lucide-react-native';
 import { MotiView } from 'moti';
 import { useAuthStore, useUIStore } from '../../store';
@@ -204,6 +205,40 @@ export const ProfileScreen: React.FC = () => {
             </View>
           </MotiView>
 
+          {/* ─── Refer & Earn Hero Card ─── */}
+          <MotiView
+            from={{ opacity: 0, translateY: 18 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ delay: 180, type: 'timing', duration: 300 }}
+          >
+            <TouchableOpacity
+              style={styles.referralBannerCard}
+              onPress={() => (navigation as any).navigate('ReferEarn')}
+              activeOpacity={0.88}
+            >
+              <LinearGradient
+                colors={['#7C3AED', '#5B21B6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.referralBannerGradient}
+              >
+                <View style={styles.referralBannerIconCircle}>
+                  <Gift size={22} color="#FFFFFF" strokeWidth={2.2} />
+                </View>
+                <View style={styles.referralBannerTextContainer}>
+                  <View style={styles.referralBannerBadgeRow}>
+                    <Text style={styles.referralBannerBadge}>GIVE ₹200, GET ₹200</Text>
+                  </View>
+                  <Text style={styles.referralBannerTitle}>Refer Friends & Earn</Text>
+                  <Text style={styles.referralBannerSub}>
+                    Invite friends to SpinZo. Unlock ₹200 for each completed delivery!
+                  </Text>
+                </View>
+                <ChevronRight size={20} color="#DDD6FE" strokeWidth={2.2} />
+              </LinearGradient>
+            </TouchableOpacity>
+          </MotiView>
+
           {/* Orders & Credits */}
           <MotiView
             from={{ opacity: 0, translateY: 20 }}
@@ -216,6 +251,19 @@ export const ProfileScreen: React.FC = () => {
                 icon={ShoppingBag}
                 label="My Orders"
                 onPress={() => (navigation as any).navigate('MyOrders')}
+              />
+              <View style={styles.menuDivider} />
+              <MenuRow
+                icon={Gift}
+                label="Refer & Earn"
+                iconBg="rgba(124,58,237,0.08)"
+                iconColor="#7C3AED"
+                onPress={() => (navigation as any).navigate('ReferEarn')}
+                rightElement={
+                  <View style={styles.referralPill}>
+                    <Text style={styles.referralPillText}>Get ₹200</Text>
+                  </View>
+                }
               />
               <View style={styles.menuDivider} />
               <MenuRow
@@ -623,5 +671,68 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: 'Outfit_600SemiBold',
     color: '#FFFFFF',
+  },
+  // ─── Refer & Earn Banner ───
+  referralBannerCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginTop: 18,
+    marginBottom: 8,
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  referralBannerGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  referralBannerIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  referralBannerTextContainer: {
+    flex: 1,
+  },
+  referralBannerBadgeRow: {
+    flexDirection: 'row',
+    marginBottom: 2,
+  },
+  referralBannerBadge: {
+    fontSize: 10,
+    fontFamily: 'Outfit_700Bold',
+    color: '#FDE047',
+    letterSpacing: 0.6,
+  },
+  referralBannerTitle: {
+    fontSize: 16,
+    fontFamily: 'Outfit_700Bold',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  referralBannerSub: {
+    fontSize: 12,
+    fontFamily: 'Outfit_400Regular',
+    color: 'rgba(255, 255, 255, 0.85)',
+    lineHeight: 16,
+  },
+  referralPill: {
+    backgroundColor: 'rgba(124, 58, 237, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  referralPillText: {
+    fontSize: 12,
+    fontFamily: 'Outfit_700Bold',
+    color: '#7C3AED',
   },
 });

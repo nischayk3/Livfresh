@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -50,7 +51,14 @@ import {
   Shirt,
   Bike,
   Package,
+  Tag,
 } from 'lucide-react-native';
+import {
+  Coupon,
+  getActivePublicCoupons,
+  validateCouponForCart,
+} from '../../services/couponService';
+import { validateReferralCodeForCart } from '../../services/referralService';
 
 export const CartScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -71,7 +79,10 @@ export const CartScreen: React.FC = () => {
   const [orderCount, setOrderCount] = useState<number>(0);
   const [isDiscountApplied, setIsDiscountApplied] = useState(false);
   const [discountAmount, setDiscountAmount] = useState(0);
-
+  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+  const [couponInput, setCouponInput] = useState('');
+  const [isCheckingCoupon, setIsCheckingCoupon] = useState(false);
+  const [availableCoupons, setAvailableCoupons] = useState<Coupon[]>([]);
 
   // Constants
   const PLATFORM_FEE = 0;
@@ -114,14 +125,7 @@ export const CartScreen: React.FC = () => {
   const DELIVERY_FEE = getDeliveryFee();
   const gstAmount = Math.round(subtotal * GST_PERCENTAGE);
 
-  const getPotentialDiscount = () => {
-    if (subtotal >= MIN_CART_VALUE) {
-      if (isFirstOrder || isNextTwoOrders) return STANDARD_DISCOUNT;
-    }
-    return 0;
-  };
-
-  const actualDiscount = isDiscountApplied ? getPotentialDiscount() : 0;
+  const actualDiscount = isDiscountApplied ? discountAmount : 0;
   const totalAmount = Math.max(
     0,
     subtotal + PLATFORM_FEE + DELIVERY_FEE + gstAmount - actualDiscount,
@@ -159,29 +163,127 @@ export const CartScreen: React.FC = () => {
       if (isDiscountApplied) {
         setIsDiscountApplied(false);
         setDiscountAmount(0);
+        setAppliedCoupon(null);
       }
       return;
     }
     const isCreditApplied = items.some((item) => item.isCreditItem);
-    if (isDiscountApplied) {
-      if (onlyIroningInCart) {
+    if (isDiscountApplied && appliedCoupon) {
+      if (onlyIroningInCart && appliedCoupon.excludeIroningOnly !== false) {
         setIsDiscountApplied(false);
         setDiscountAmount(0);
-        showAlert({ title: 'Coupon Removed', message: 'The discount is not applicable for standalone ironing orders.', type: 'info' });
+        setAppliedCoupon(null);
+        showAlert({ title: 'Coupon Removed', message: 'This coupon is not applicable for standalone ironing orders.', type: 'info' });
       } else if (isCreditApplied) {
         setIsDiscountApplied(false);
         setDiscountAmount(0);
+        setAppliedCoupon(null);
         showAlert({ title: 'Coupon Removed', message: 'Offers cannot be combined with Subscription Credits.', type: 'info' });
-      } else if ((isFirstOrder || isNextTwoOrders) && subtotal < MIN_CART_VALUE) {
+      } else if (subtotal < appliedCoupon.minOrderValue) {
         setIsDiscountApplied(false);
         setDiscountAmount(0);
-        showAlert({ title: 'Coupon Removed', message: `Discount removed because cart value is less than ₹${MIN_CART_VALUE}.`, type: 'info' });
+        setAppliedCoupon(null);
+        showAlert({ title: 'Coupon Removed', message: `Coupon removed because cart subtotal is less than ₹${appliedCoupon.minOrderValue}.`, type: 'info' });
       } else {
-        const newDiscount = getPotentialDiscount();
-        if (discountAmount !== newDiscount) setDiscountAmount(newDiscount);
+        let newDiscount = appliedCoupon.discountAmount;
+        if (appliedCoupon.discountType === 'percentage') {
+          const pct = appliedCoupon.discountPercent || 0;
+          const maxCap = appliedCoupon.maxDiscount || Infinity;
+          newDiscount = Math.min(maxCap, Math.round((subtotal * pct) / 100));
+        }
+        newDiscount = Math.min(subtotal, Math.max(0, newDiscount));
+        if (discountAmount !== newDiscount) {
+          setDiscountAmount(newDiscount);
+        }
       }
     }
-  }, [items, onlyIroningInCart, isDiscountApplied, subtotal, orderCount, isNavigating]);
+  }, [items, onlyIroningInCart, isDiscountApplied, appliedCoupon, subtotal, isNavigating]);
+
+  const handleApplyCoupon = async (codeToApply?: string) => {
+    const code = (codeToApply || couponInput).trim().toUpperCase();
+    if (!code) {
+      showAlert({ title: 'Enter Code', message: 'Please enter a coupon or referral code.', type: 'warning' });
+      return;
+    }
+    setIsCheckingCoupon(true);
+    try {
+      // 1. Check promotional coupon engine first
+      const result = await validateCouponForCart({
+        code,
+        userId: user?.uid,
+        subtotal,
+        items,
+        orderCount,
+      });
+
+      if (result.valid) {
+        setIsDiscountApplied(true);
+        setDiscountAmount(result.discount);
+        setAppliedCoupon(result.coupon || null);
+        setCouponInput('');
+        showAlert({
+          title: 'Coupon Applied!',
+          message: `₹${result.discount} discount has been applied to your order.`,
+          type: 'success',
+        });
+        return;
+      }
+
+      // 2. If not a promotional coupon, check if it's a friend's referral code
+      if (user?.uid) {
+        const refResult = await validateReferralCodeForCart(code, user.uid, subtotal);
+        if (refResult.valid) {
+          setIsDiscountApplied(true);
+          setDiscountAmount(refResult.discount);
+          setAppliedCoupon({
+            code: refResult.code,
+            title: 'Referral Discount — ₹200 OFF',
+            description: 'Special first-order discount from your friend!',
+            discountType: 'flat',
+            discountAmount: refResult.discount,
+            minOrderValue: refResult.minOrderValue,
+            isReferral: true,
+            referrerUid: refResult.referrerUid,
+          } as any);
+          setCouponInput('');
+          showAlert({
+            title: 'Referral Code Applied!',
+            message: `₹${refResult.discount} discount has been applied to your first order 🎉`,
+            type: 'success',
+          });
+          return;
+        } else if (refResult.error && refResult.error !== 'Invalid coupon or referral code.') {
+          showAlert({
+            title: 'Referral Code',
+            message: refResult.error,
+            type: 'warning',
+          });
+          return;
+        }
+      }
+
+      showAlert({
+        title: 'Coupon Not Applied',
+        message: result.reason || 'Invalid coupon or referral code.',
+        type: 'warning',
+      });
+    } catch (err: any) {
+      showAlert({
+        title: 'Error',
+        message: err.message || 'Failed to apply offer.',
+        type: 'error',
+      });
+    } finally {
+      setIsCheckingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setIsDiscountApplied(false);
+    setDiscountAmount(0);
+    setAppliedCoupon(null);
+    setCouponInput('');
+  };
 
   useFocusEffect(
     React.useCallback(() => {
@@ -197,6 +299,9 @@ export const CartScreen: React.FC = () => {
         }
       };
       checkInstantBlock();
+
+      // Fetch active public coupons
+      getActivePublicCoupons().then(setAvailableCoupons).catch(console.warn);
     }, []),
   );
 
@@ -370,6 +475,17 @@ export const CartScreen: React.FC = () => {
           discount: discountAmount,
           total: totalAmount,
         },
+        coupon: appliedCoupon
+          ? {
+              code: appliedCoupon.code,
+              title: appliedCoupon.title,
+              discount: discountAmount,
+              isReferral: Boolean((appliedCoupon as any).isReferral),
+              referrerUid: (appliedCoupon as any).referrerUid || undefined,
+            }
+          : null,
+        appliedReferralCode: (appliedCoupon as any)?.isReferral ? (appliedCoupon as any)?.code : undefined,
+        referrerUid: (appliedCoupon as any)?.referrerUid || undefined,
         pickupDetails: {
           type: pickupType,
           scheduledDate: pickupType === 'scheduled' ? selectedDate : format(new Date(), 'yyyy-MM-dd'),
@@ -513,7 +629,9 @@ export const CartScreen: React.FC = () => {
       )}
       {discountAmount > 0 && (
         <View style={styles.billRow}>
-          <Text style={[styles.billLabel, { color: '#059669' }]}>First Order Discount</Text>
+          <Text style={[styles.billLabel, { color: '#059669' }]}>
+            {appliedCoupon ? `Coupon (${appliedCoupon.code})` : 'Offer Discount'}
+          </Text>
           <Text style={[styles.billValue, { color: '#059669' }]}>-₹{discountAmount}</Text>
         </View>
       )}
@@ -631,56 +749,143 @@ export const CartScreen: React.FC = () => {
           </MotiView>
 
           {/* ─── Offers & Coupons ─── */}
-          {orderCount < 3 && !items.some((item) => item.isCreditItem) && (
+          {!items.some((item) => item.isCreditItem) && (
             <MotiView
               from={{ opacity: 0, translateY: 20 }}
               animate={{ opacity: 1, translateY: 0 }}
               transition={{ delay: 150, type: 'timing', duration: 300 }}
+              style={styles.offersSection}
             >
-              <Text style={styles.sectionHeader}>Offers & Benefits</Text>
-              <TouchableOpacity
-                style={[styles.couponCard, isDiscountApplied && styles.couponCardApplied]}
-                onPress={() => {
-                  if (isDiscountApplied) {
-                    setIsDiscountApplied(false);
-                    setDiscountAmount(0);
-                  } else {
-                    if (onlyIroningInCart) {
-                      showAlert({ title: 'Coupon Not Applicable', message: 'The FIRST100 discount is not available for standalone ironing orders.', type: 'info' });
-                      return;
-                    }
-                    if ((isFirstOrder || isNextTwoOrders) && subtotal < MIN_CART_VALUE) {
-                      showAlert({ title: 'Cart Value Too Low', message: `Add items worth ₹${MIN_CART_VALUE - subtotal} more to apply this coupon!`, type: 'warning' });
-                      return;
-                    }
-                    const discount = getPotentialDiscount();
-                    setIsDiscountApplied(true);
-                    setDiscountAmount(discount);
-                    showAlert({ title: 'Coupon Applied!', message: `₹${discount} discount has been added to your order.`, type: 'success' });
-                  }
-                }}
-              >
-                <View style={[styles.couponIconCircle, isDiscountApplied && { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-                  <Gift size={22} color={isDiscountApplied ? '#FFFFFF' : '#7C3AED'} strokeWidth={1.8} />
+              <View style={styles.sectionHeaderRow}>
+                <Tag size={18} color="#7C3AED" strokeWidth={2} />
+                <Text style={styles.sectionHeaderTitle}>Offers & Benefits</Text>
+              </View>
+
+              {isDiscountApplied && appliedCoupon ? (
+                /* Applied State */
+                <View style={styles.couponCardApplied}>
+                  <View style={styles.appliedIconCircle}>
+                    <Gift size={20} color="#FFFFFF" strokeWidth={2} />
+                  </View>
+                  <View style={styles.couponInfo}>
+                    <Text style={styles.appliedCouponTitle}>
+                      {appliedCoupon.code} Applied
+                    </Text>
+                    <Text style={styles.appliedCouponSub}>
+                      Saved ₹{discountAmount} on this order
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.removeCouponBadge}
+                    onPress={handleRemoveCoupon}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.removeCouponText}>REMOVE</Text>
+                  </TouchableOpacity>
                 </View>
-                <View style={styles.couponInfo}>
-                  <Text style={[styles.couponTitle, isDiscountApplied && { color: '#FFFFFF' }]}>
-                    {isDiscountApplied ? 'FIRST100 Applied' : 'Apply FIRST100'}
-                  </Text>
-                  <Text style={[styles.couponSub, isDiscountApplied && { color: 'rgba(255,255,255,0.7)' }]}>
-                    {isDiscountApplied
-                      ? `Saved ₹${discountAmount} on this order`
-                      : isFirstOrder
-                        ? `Get flat ₹100 OFF on your 1st order above ₹${MIN_CART_VALUE}`
-                        : `Get ₹${STANDARD_DISCOUNT} off over ₹${MIN_CART_VALUE}`}
-                  </Text>
+              ) : (
+                /* Unapplied: Input Bar + Available Public Coupons */
+                <View style={styles.offersContainer}>
+                  {/* Coupon Code Input */}
+                  <View style={styles.couponInputRow}>
+                    <TextInput
+                      style={styles.couponTextInput}
+                      placeholder="ENTER COUPON OR REFERRAL CODE"
+                      placeholderTextColor="#94A3B8"
+                      value={couponInput}
+                      onChangeText={(t) => setCouponInput(t.toUpperCase())}
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                      editable={!isCheckingCoupon}
+                    />
+                    <TouchableOpacity
+                      style={[
+                        styles.couponApplyButton,
+                        (!couponInput.trim() || isCheckingCoupon) && styles.couponApplyButtonDisabled,
+                      ]}
+                      onPress={() => handleApplyCoupon()}
+                      disabled={!couponInput.trim() || isCheckingCoupon}
+                      activeOpacity={0.7}
+                    >
+                      {isCheckingCoupon ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text style={styles.couponApplyButtonText}>APPLY</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Available Public Offers */}
+                  {availableCoupons.length > 0 && (
+                    <View style={styles.availableOffersList}>
+                      {availableCoupons.map((coupon) => {
+                        const meetsMin = subtotal >= coupon.minOrderValue;
+                        const diff = coupon.minOrderValue - subtotal;
+                        const isFirstOrderRestriction = coupon.isFirstOrderOnly && orderCount > 0;
+                        const isMaxOrderRestriction = coupon.maxOrderCount ? orderCount >= coupon.maxOrderCount : false;
+                        const isEligible = meetsMin && !isFirstOrderRestriction && !isMaxOrderRestriction && !onlyIroningInCart;
+
+                        return (
+                          <View key={coupon.code} style={styles.offerItemCard}>
+                            <View style={styles.offerItemHeader}>
+                              <View style={styles.offerCodeBadge}>
+                                <Text style={styles.offerCodeText}>{coupon.code}</Text>
+                              </View>
+                              <TouchableOpacity
+                                style={[
+                                  styles.offerItemApplyButton,
+                                  !isEligible && styles.offerItemApplyButtonDisabled,
+                                ]}
+                                onPress={() => handleApplyCoupon(coupon.code)}
+                                disabled={!isEligible || isCheckingCoupon}
+                                activeOpacity={0.7}
+                              >
+                                <Text
+                                  style={[
+                                    styles.offerItemApplyText,
+                                    !isEligible && styles.offerItemApplyTextDisabled,
+                                  ]}
+                                >
+                                  APPLY
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+
+                            <Text style={styles.offerItemTitle}>{coupon.title}</Text>
+                            <Text style={styles.offerItemDesc}>{coupon.description}</Text>
+
+                            {!meetsMin && (
+                              <Text style={styles.offerItemHelper}>
+                                • Add items worth ₹{diff} more to unlock
+                              </Text>
+                            )}
+                            {isFirstOrderRestriction && (
+                              <Text style={styles.offerItemHelper}>
+                                • Valid on first order only
+                              </Text>
+                            )}
+                            {coupon.maxOrderCount && orderCount < coupon.maxOrderCount && (
+                              <Text style={[styles.offerItemHelper, { color: '#059669', fontWeight: '600' }]}>
+                                • Valid on your first {coupon.maxOrderCount} orders (Order {orderCount + 1} of {coupon.maxOrderCount})
+                              </Text>
+                            )}
+                            {isMaxOrderRestriction && (
+                              <Text style={styles.offerItemHelper}>
+                                • Valid on first {coupon.maxOrderCount} orders only
+                              </Text>
+                            )}
+                            {onlyIroningInCart && coupon.excludeIroningOnly !== false && (
+                              <Text style={styles.offerItemHelper}>
+                                • Not valid for standalone ironing
+                              </Text>
+                            )}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
                 </View>
-                <View style={[styles.applyBadge, isDiscountApplied && { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                  <Text style={[styles.applyText, isDiscountApplied && { color: '#FFFFFF' }]}>
-                    {isDiscountApplied ? 'REMOVE' : 'APPLY'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+              )}
             </MotiView>
           )}
 
@@ -1132,27 +1337,39 @@ const styles = StyleSheet.create({
     fontFamily: 'Outfit_600SemiBold',
     color: '#7C3AED',
   },
-  // ═══ COUPON ═══
-  couponCard: {
+  // ═══ COUPON & OFFERS ═══
+  offersSection: {
+    marginBottom: 4,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+    marginTop: 4,
+  },
+  sectionHeaderTitle: {
+    fontSize: 16,
+    fontFamily: 'Outfit_700Bold',
+    color: '#09090B',
+  },
+  couponCardApplied: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#059669',
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(124,58,237,0.2)',
-    borderStyle: 'dashed',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  couponCardApplied: {
-    backgroundColor: '#7C3AED',
-    borderColor: '#7C3AED',
-    borderStyle: 'solid',
-  },
-  couponIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(124,58,237,0.08)',
+  appliedIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -1160,27 +1377,132 @@ const styles = StyleSheet.create({
   couponInfo: {
     flex: 1,
   },
-  couponTitle: {
+  appliedCouponTitle: {
     fontSize: 14,
-    fontFamily: 'Outfit_600SemiBold',
-    color: '#7C3AED',
+    fontFamily: 'Outfit_700Bold',
+    color: '#FFFFFF',
   },
-  couponSub: {
-    fontSize: 11,
+  appliedCouponSub: {
+    fontSize: 12,
     fontFamily: 'Outfit_400Regular',
-    color: '#71717A',
+    color: '#E6FFFA',
     marginTop: 2,
   },
-  applyBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  removeCouponBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(124,58,237,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
-  applyText: {
-    fontSize: 10,
+  removeCouponText: {
+    fontSize: 11,
+    fontFamily: 'Outfit_700Bold',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  offersContainer: {
+    gap: 12,
+  },
+  couponInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  couponTextInput: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: 'Outfit_700Bold',
+    color: '#0F172A',
+    letterSpacing: 0.5,
+    height: 42,
+  },
+  couponApplyButton: {
+    backgroundColor: '#7C3AED',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 70,
+  },
+  couponApplyButtonDisabled: {
+    backgroundColor: '#E2E8F0',
+  },
+  couponApplyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontFamily: 'Outfit_700Bold',
+    letterSpacing: 0.5,
+  },
+  availableOffersList: {
+    gap: 10,
+  },
+  offerItemCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
+    padding: 12,
+  },
+  offerItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  offerCodeBadge: {
+    backgroundColor: '#F5F3FF',
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  offerCodeText: {
+    fontSize: 12,
     fontFamily: 'Outfit_700Bold',
     color: '#7C3AED',
+    letterSpacing: 0.5,
+  },
+  offerItemApplyButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: '#7C3AED',
+  },
+  offerItemApplyButtonDisabled: {
+    backgroundColor: '#F1F5F9',
+  },
+  offerItemApplyText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontFamily: 'Outfit_700Bold',
+  },
+  offerItemApplyTextDisabled: {
+    color: '#94A3B8',
+  },
+  offerItemTitle: {
+    fontSize: 13,
+    fontFamily: 'Outfit_600SemiBold',
+    color: '#1E293B',
+    marginBottom: 2,
+  },
+  offerItemDesc: {
+    fontSize: 11,
+    fontFamily: 'Outfit_400Regular',
+    color: '#64748B',
+  },
+  offerItemHelper: {
+    fontSize: 11,
+    fontFamily: 'Outfit_500Medium',
+    color: '#D97706',
+    marginTop: 4,
   },
   // ═══ PICKUP ═══
   pickupToggle: {

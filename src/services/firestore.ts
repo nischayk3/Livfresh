@@ -18,6 +18,16 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from './firebase';
 import { generateOTP } from '../utils/otpHelpers';
 import { SLOT_CONSTANTS } from '../utils/slotUtils';
+import { useSlotSettingsStore } from '../store/slotSettingsStore';
+import {
+  getOrCreateUserReferralCode,
+  claimReferralCode,
+  rewardReferrerOnDelivered,
+} from './referralService';
+
+const getMaxOrdersPerSlot = (): number => {
+  return useSlotSettingsStore.getState().maxOrdersPerSlot || SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT;
+};
 
 // Get vendor data
 export const getVendor = async (vendorId: string) => {
@@ -138,7 +148,7 @@ export const createUser = async (
   name: string,
   email?: string,
   gender?: string,
-  referralCode?: string
+  invitedByReferralCode?: string
 ) => {
   try {
     const userRef = doc(db, 'users', userId);
@@ -147,11 +157,24 @@ export const createUser = async (
       name,
       email: email || '',
       gender: gender || '',
-      referralCode: referralCode || '',
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     }, { merge: true });
-    console.log(`✅ User created: ${userId}`);
+
+    // Generate unique shareable referral code for this user
+    const myReferralCode = await getOrCreateUserReferralCode(userId, name);
+
+    // If an invite referral code was provided at signup, claim it
+    if (invitedByReferralCode && invitedByReferralCode.trim()) {
+      try {
+        await claimReferralCode(invitedByReferralCode.trim(), userId, name, phone);
+      } catch (refErr: any) {
+        console.warn('Could not claim referral code during signup:', refErr.message);
+      }
+    }
+
+    console.log(`✅ User created: ${userId} (Referral Code: ${myReferralCode})`);
+    return myReferralCode;
   } catch (error: any) {
     console.error('Error creating user:', error);
     if (error.code === 'permission-denied') {
@@ -300,9 +323,10 @@ export const deleteAddress = async (userId: string, addressId: string) => {
   }
 };
 
-// Check slot availability — returns only FULLY-OCCUPIED slots (count >= MAX_ORDERS_PER_SLOT)
-export const checkSlotAvailability = async (date: string): Promise<string[]> => {
+// Check slot availability — returns only FULLY-OCCUPIED slots (count >= maxCapacity)
+export const checkSlotAvailability = async (date: string, customLimit?: number): Promise<string[]> => {
   try {
+    const limit = customLimit ?? getMaxOrdersPerSlot();
     const scheduleRef = doc(db, 'daily_schedules', date);
     const scheduleSnap = await getDoc(scheduleRef);
     if (scheduleSnap.exists()) {
@@ -310,7 +334,7 @@ export const checkSlotAvailability = async (date: string): Promise<string[]> => 
       // New format: slot_counts map { "10:00 - 11:00": 1, ... }
       if (data.slot_counts) {
         return Object.entries(data.slot_counts)
-          .filter(([_, count]) => (count as number) >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT)
+          .filter(([_, count]) => (count as number) >= limit)
           .map(([slot]) => slot);
       }
       // Legacy fallback: old occupied_slots array → treat each as count=1 (not full under new rules)
@@ -405,6 +429,30 @@ export const createOrder = async (userId: string, orderData: any) => {
         : null;
       const subscriptionSnap = subscriptionRef ? await transaction.get(subscriptionRef) : null;
 
+      // Coupon verification read (reads must precede all writes in Firestore transaction)
+      const rawCouponCode = (orderData.coupon?.code || orderData.couponCode || '').toString().trim().toUpperCase();
+      const isReferralOrder = Boolean(orderData.coupon?.isReferral || orderData.appliedReferralCode);
+      const referralCodeCandidate = (orderData.appliedReferralCode || (isReferralOrder ? rawCouponCode : '')).toString().trim().toUpperCase();
+
+      const couponRef = (rawCouponCode && !isReferralOrder) ? doc(db, 'coupons', rawCouponCode) : null;
+      const couponSnap = couponRef ? await transaction.get(couponRef) : null;
+
+      const redemptionRef = (rawCouponCode && !isReferralOrder && !orderData.isTestOrder)
+        ? doc(db, 'coupon_redemptions', `${rawCouponCode}_${userId}`)
+        : null;
+      const redemptionSnap = redemptionRef ? await transaction.get(redemptionRef) : null;
+
+      const referralCodeRef = (isReferralOrder && referralCodeCandidate)
+        ? doc(db, 'referral_codes', referralCodeCandidate)
+        : null;
+      const referralCodeSnap = referralCodeRef ? await transaction.get(referralCodeRef) : null;
+
+      const referralDocRef = isReferralOrder ? doc(db, 'referrals', userId) : null;
+      const referralDocSnap = referralDocRef ? await transaction.get(referralDocRef) : null;
+
+      const userDocRef = doc(db, 'users', userId);
+      const userDocSnap = (rawCouponCode || isReferralOrder) ? await transaction.get(userDocRef) : null;
+
       // ── Writes ──
 
       if (scheduleRef && scheduleSnap) {
@@ -412,8 +460,9 @@ export const createOrder = async (userId: string, orderData: any) => {
           ? (scheduleSnap.data().slot_counts || {})
           : {};
         const currentCount = slotCounts[scheduleTime] || 0;
+        const maxCapacity = getMaxOrdersPerSlot();
 
-        if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
+        if (currentCount >= maxCapacity) {
           throw new Error(`This time slot is no longer available. Please try a different time.`);
         }
 
@@ -478,9 +527,183 @@ export const createOrder = async (userId: string, orderData: any) => {
         });
       }
 
-      const orderPayload = creditBurnInfo
-        ? { ...cleanOrder, isCreditBurned: true, creditBurnInfo }
-        : cleanOrder;
+      // ── Coupon Atomic Validation & Burn ──
+      let verifiedDiscount = cleanOrder.billDetails?.discount || 0;
+      let appliedCouponPayload: any = null;
+
+      if (couponRef && couponSnap) {
+        if (!couponSnap.exists()) {
+          throw new Error(`Coupon "${rawCouponCode}" does not exist.`);
+        }
+        const cData = couponSnap.data() as any;
+        if (cData.isActive === false) {
+          throw new Error(`Coupon "${rawCouponCode}" is no longer active.`);
+        }
+        const now = new Date();
+        if (cData.validTill && new Date(cData.validTill) < now) {
+          throw new Error(`Coupon "${rawCouponCode}" has expired.`);
+        }
+        const subtotal = cleanOrder.billDetails?.itemTotal || 0;
+        if (cData.minOrderValue && subtotal < cData.minOrderValue) {
+          throw new Error(`Minimum order value of ₹${cData.minOrderValue} required for coupon "${rawCouponCode}".`);
+        }
+
+        const userUsageMap = userDocSnap?.exists() ? (userDocSnap.data()?.couponUsage || {}) : {};
+        const currentUsage = (typeof userUsageMap[rawCouponCode] === 'number')
+          ? userUsageMap[rawCouponCode]
+          : (redemptionSnap && redemptionSnap.exists() ? 1 : 0);
+        const perUserLimit = cData.perUserLimit || 1;
+
+        if (currentUsage >= perUserLimit) {
+          throw new Error(
+            perUserLimit > 1
+              ? `You have already used coupon "${rawCouponCode}" ${currentUsage} times (maximum allowed: ${perUserLimit}).`
+              : `You have already used coupon "${rawCouponCode}".`
+          );
+        }
+
+        // Check first order / max order count restrictions
+        const userOrderCount = userDocSnap?.exists() ? (userDocSnap.data()?.orderCount || 0) : 0;
+        if (cData.isFirstOrderOnly && userOrderCount > 0) {
+          throw new Error(`Coupon "${rawCouponCode}" is only valid on your first order.`);
+        }
+        if (cData.maxOrderCount && userOrderCount >= cData.maxOrderCount) {
+          throw new Error(`Coupon "${rawCouponCode}" is only valid on your first ${cData.maxOrderCount} orders.`);
+        }
+
+        if (cData.totalLimit && (cData.usedCount || 0) >= cData.totalLimit) {
+          throw new Error(`Coupon "${rawCouponCode}" has reached its maximum redemption limit.`);
+        }
+
+        // Calculate verified discount on the server/transaction level
+        let calcDiscount = 0;
+        if (cData.discountType === 'flat') {
+          calcDiscount = cData.discountAmount || 0;
+        } else if (cData.discountType === 'percentage') {
+          const pct = cData.discountPercent || 0;
+          const maxCap = cData.maxDiscount || Infinity;
+          calcDiscount = Math.min(maxCap, Math.round((subtotal * pct) / 100));
+        }
+        verifiedDiscount = Math.min(subtotal, Math.max(0, calcDiscount));
+
+        appliedCouponPayload = {
+          code: rawCouponCode,
+          title: cData.title || rawCouponCode,
+          discount: verifiedDiscount,
+          appliedAt: Timestamp.now(),
+        };
+
+        // Burn redemption record for audit history
+        const userRedemptionIndexRef = doc(db, 'coupon_redemptions', `${rawCouponCode}_${userId}_${currentUsage + 1}`);
+        transaction.set(userRedemptionIndexRef, {
+          code: rawCouponCode,
+          userId,
+          orderId,
+          redemptionIndex: currentUsage + 1,
+          discountAmount: verifiedDiscount,
+          createdAt: Timestamp.now(),
+        });
+
+        // Legacy compatibility doc
+        if (redemptionRef && currentUsage === 0) {
+          transaction.set(redemptionRef, {
+            code: rawCouponCode,
+            userId,
+            orderId,
+            discountAmount: verifiedDiscount,
+            createdAt: Timestamp.now(),
+          });
+        }
+
+        // Update user's personal coupon usage map
+        transaction.set(
+          userDocRef,
+          {
+            couponUsage: {
+              ...userUsageMap,
+              [rawCouponCode]: currentUsage + 1,
+            },
+            updatedAt: Timestamp.now(),
+          },
+          { merge: true }
+        );
+
+        // Increment coupon usedCount
+        transaction.update(couponRef, {
+          usedCount: (cData.usedCount || 0) + 1,
+          updatedAt: Timestamp.now(),
+        });
+      } else if (isReferralOrder && referralCodeSnap) {
+        if (!referralCodeSnap.exists()) {
+          throw new Error(`Referral code "${referralCodeCandidate}" does not exist.`);
+        }
+        const refOwnerUid = (referralCodeSnap.data() as any).uid;
+        if (refOwnerUid === userId) {
+          throw new Error('You cannot use your own referral code.');
+        }
+        const subtotal = cleanOrder.billDetails?.itemTotal || 0;
+        if (subtotal < 700) {
+          throw new Error(`Minimum order value of ₹700 required to apply referral offer.`);
+        }
+
+        verifiedDiscount = Math.min(subtotal, 200);
+
+        appliedCouponPayload = {
+          code: referralCodeCandidate,
+          title: 'Referral Discount — ₹200 OFF',
+          discount: verifiedDiscount,
+          isReferral: true,
+          referrerUid: refOwnerUid,
+          appliedAt: Timestamp.now(),
+        };
+
+        if (referralDocRef) {
+          transaction.set(
+            referralDocRef,
+            {
+              refereeUid: userId,
+              refereeName: cleanOrder.customerName || '',
+              refereePhone: cleanOrder.customerPhone || cleanOrder.userPhone || '',
+              referrerUid: refOwnerUid,
+              referralCode: referralCodeCandidate,
+              status: 'ordered',
+              orderId,
+              discountAmount: verifiedDiscount,
+              orderedAt: Timestamp.now(),
+              updatedAt: Timestamp.now(),
+            },
+            { merge: true }
+          );
+        }
+
+        if (userDocRef) {
+          transaction.update(userDocRef, {
+            referredBy: refOwnerUid,
+            referredByCode: referralCodeCandidate,
+            updatedAt: Timestamp.now(),
+          });
+        }
+      }
+
+      const finalBillDetails = {
+        ...(cleanOrder.billDetails || {}),
+        discount: verifiedDiscount,
+        total: Math.max(
+          0,
+          (cleanOrder.billDetails?.itemTotal || 0) +
+            (cleanOrder.billDetails?.platformFee || 0) +
+            (cleanOrder.billDetails?.deliveryFee || 0) +
+            (cleanOrder.billDetails?.gst || 0) -
+            verifiedDiscount
+        ),
+      };
+
+      const orderPayload = {
+        ...cleanOrder,
+        billDetails: finalBillDetails,
+        ...(appliedCouponPayload ? { coupon: appliedCouponPayload } : {}),
+        ...(creditBurnInfo ? { isCreditBurned: true, creditBurnInfo } : {}),
+      };
 
       // Create User Order
       transaction.set(doc(db, 'users', userId, 'orders', orderId), orderPayload);
@@ -716,6 +939,13 @@ export const updateOrderStatus = async (
     // Update vendor order
     await updateDoc(doc(db, 'vendors', vendorId, 'orders', orderId), updateData);
 
+    // If order was delivered, reward the referrer if referee was referred!
+    if (status === 'delivered') {
+      rewardReferrerOnDelivered(userId, orderId, currentOrder.billDetails?.total || 0).catch((err) => {
+        console.warn('Could not reward referrer on order delivery:', err);
+      });
+    }
+
     return true;
   } catch (error: any) {
     console.error('Error updating order status:', error);
@@ -884,8 +1114,9 @@ export const scheduleOrderDelivery = async (
           ? (scheduleSnap.data().slot_counts || {})
           : {};
         const currentCount = slotCounts[deliveryTime] || 0;
+        const maxCapacity = getMaxOrdersPerSlot();
 
-        if (currentCount >= SLOT_CONSTANTS.MAX_ORDERS_PER_SLOT) {
+        if (currentCount >= maxCapacity) {
           throw new Error(`Slot ${deliveryTime} is no longer available.`);
         }
 

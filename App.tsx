@@ -20,6 +20,7 @@ import { setupAndroidChannel, setupNotificationHandlers } from './src/services/n
 import Constants from 'expo-constants';
 import { db, doc, getDoc } from './src/services/firebase';
 import { ForceUpdateScreen } from './src/screens/ForceUpdateScreen';
+import { useSlotSettingsStore } from './src/store/slotSettingsStore';
 
 Sentry.init({
   dsn: 'https://4823ae2cb52c014cbaa58bda55d5ce78@o4510713966166016.ingest.de.sentry.io/4510714043367504',
@@ -84,6 +85,9 @@ export default Sentry.wrap(function App() {
     setupAndroidChannel();
     const unsubscribe = setupNotificationHandlers();
 
+    // Initialize slot settings listener for real-time capacity sync
+    const unsubSlotSettings = useSlotSettingsStore.getState().initialize();
+
     // Initialize Ads and Tracking (ATT prompt on iOS) immediately
     initAds();
 
@@ -95,6 +99,7 @@ export default Sentry.wrap(function App() {
     return () => {
       clearTimeout(deferredTimer);
       unsubscribe();
+      unsubSlotSettings?.();
     };
   }, []);
 

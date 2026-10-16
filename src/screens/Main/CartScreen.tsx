@@ -520,7 +520,7 @@ export const CartScreen: React.FC = () => {
       clearCart();
       await clearCartInFirestore(latestUser.uid);
 
-      (navigation as any).navigate('OrderSuccess');
+      (navigation as any).navigate('OrderSuccess', { orderId });
     } catch (error: any) {
       console.error('Order placement failed', error);
       const isCreditError = typeof error?.code === 'string' && error.code.startsWith('CREDIT_');

@@ -5,7 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore, useSubscriptionStore, useAdminAuthStore, useUIStore, useNotificationStore } from '../store';
+import { useAuthStore, useSubscriptionStore, useAdminAuthStore, useUIStore, useNotificationStore, useActiveOrderStore } from '../store';
 import { getCart, saveCart, getUserAddresses, getUser, addAddress } from '../services/firestore';
 import { registerForPushNotifications, savePushToken } from '../services/notificationService';
 import { getAdminRole, isAdminPhone } from '../services/adminFirestore';
@@ -501,6 +501,18 @@ export const RootNavigator: React.FC = () => {
         clearTimeout(pushTimeout);
         unsubscribeNotifs();
       };
+    }
+  }, [user?.uid]);
+
+  // 6. Real-time Active Order Tracking for quick-commerce ongoing order banner
+  React.useEffect(() => {
+    if (user?.uid) {
+      const unsubscribeOrders = useActiveOrderStore.getState().subscribeToActiveOrders(user.uid);
+      return () => {
+        unsubscribeOrders();
+      };
+    } else {
+      useActiveOrderStore.getState().reset();
     }
   }, [user?.uid]);
 

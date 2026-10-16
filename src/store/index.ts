@@ -9,10 +9,12 @@ export { useAdminStore } from './adminStore';
 export { useAdminPermissions } from './useAdminPermissions';
 export { useServiceAvailabilityStore, SERVICE_LABELS, ALL_SERVICES, isActiveService } from './serviceAvailabilityStore';
 export { useNotificationStore } from './notificationStore';
+export { useActiveOrderStore } from './activeOrderStore';
 export type { CartItem } from './cartStore';
 export type { Subscription, CreditUsage } from './subscriptionStore';
 export type { OrderStats, AdminOrder, SubscriptionStats, RevenueData } from './adminStore';
 export type { ServiceAvailability } from './serviceAvailabilityStore';
 export type { NotificationData } from './notificationStore';
+export type { ActiveOrder } from './activeOrderStore';
 
 

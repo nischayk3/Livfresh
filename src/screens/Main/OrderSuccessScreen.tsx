@@ -26,7 +26,11 @@ export const OrderSuccessScreen: React.FC = () => {
     }, [orderId, paymentStatus]);
 
     const handleViewOrders = () => {
-        (navigation as any).navigate('MainTabs', { screen: 'MyOrders', params: { focusOrderId: orderId } });
+        if (orderId) {
+            (navigation as any).navigate('OrderDetail', { orderId });
+        } else {
+            (navigation as any).navigate('MainTabs', { screen: 'MyOrders', params: { focusOrderId: orderId } });
+        }
     };
 
     const handleBackHome = () => {

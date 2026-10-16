@@ -23,11 +23,12 @@ import Animated, {
   interpolate,
   Extrapolation,
 } from 'react-native-reanimated';
-import { useAuthStore, useAddressStore, useNotificationStore } from '../../store';
+import { useAuthStore, useAddressStore, useNotificationStore, useActiveOrderStore } from '../../store';
 import { useCartStore } from '../../store';
 import { useSubscriptionStore } from '../../store';
 import tracker from '../../services/tracker';
 import { ServiceDetailScreen } from './ServiceDetailScreen';
+import { ActiveOrderBanner } from '../../components/ActiveOrderBanner';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../utils/constants';
 import { BrandLoader } from '../../components/BrandLoader';
 import { FaqAccordion } from '../../components/FaqAccordion';
@@ -138,6 +139,7 @@ export const HomeScreen: React.FC = () => {
   const { items, getTotalAmount } = useCartStore();
   const { fetchSubscriptions, getTotalCredits } = useSubscriptionStore();
   const { unreadCount } = useNotificationStore();
+  const { activeOrder, activeOrdersCount, subscribeToActiveOrders } = useActiveOrderStore();
   const flatListRef = useRef<FlatList>(null);
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -197,6 +199,14 @@ export const HomeScreen: React.FC = () => {
       }
     }, [user?.uid, fetchSubscriptions])
   );
+
+  // Subscribe to active orders for real-time tracking banner
+  useEffect(() => {
+    if (user?.uid) {
+      const unsub = subscribeToActiveOrders(user.uid);
+      return () => unsub();
+    }
+  }, [user?.uid, subscribeToActiveOrders]);
 
   // Track Home Screen View
   useEffect(() => {
@@ -631,8 +641,39 @@ export const HomeScreen: React.FC = () => {
             <FaqAccordion items={HOME_FAQS} />
           </View>
         </View>
-        <View style={{ height: 100 }} />
+        <View
+          style={{
+            height:
+              activeOrder && cartItemCount > 0
+                ? 170
+                : activeOrder || cartItemCount > 0
+                ? 110
+                : 40,
+          }}
+        />
       </Animated.ScrollView>
+
+      {/* Floating Ongoing Order Banner */}
+      {activeOrder && (
+        <MotiView
+          from={{ translateY: 100, opacity: 0, scale: 0.95 }}
+          animate={{
+            translateY: 0,
+            opacity: 1,
+            scale: 1,
+            bottom: cartItemCount > 0 ? insets.bottom + 84 : insets.bottom + 16,
+          }}
+          exit={{ translateY: 100, opacity: 0, scale: 0.95 }}
+          transition={{ type: 'spring', damping: 16, stiffness: 180 }}
+          style={styles.activeOrderBannerContainer}
+        >
+          <ActiveOrderBanner
+            order={activeOrder}
+            activeOrdersCount={activeOrdersCount}
+            onPress={(orderId) => (navigation as any).navigate('OrderDetail', { orderId })}
+          />
+        </MotiView>
+      )}
 
       {/* Floating Cart Button - Animated Entrance */}
       {cartItemCount > 0 && (
@@ -1049,6 +1090,12 @@ const styles = StyleSheet.create({
   },
   section: {
     marginTop: 32,
+  },
+  activeOrderBannerContainer: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    zIndex: 101,
   },
   cartButtonContainer: {
     position: 'absolute',

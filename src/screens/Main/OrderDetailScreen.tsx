@@ -1,9 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, ActivityIndicator, Alert, Animated, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, ActivityIndicator, Alert, Animated } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { format, isSameDay, parse, addDays, startOfToday } from 'date-fns';
-import * as Clipboard from 'expo-clipboard';
 import { useAuthStore } from '../../store';
 import { scheduleOrderDelivery, subscribeToOrder, checkSlotAvailability } from '../../services/firestore';
 import { generateTimeSlots } from '../../utils/slotUtils';
@@ -11,7 +10,6 @@ import { BrandLoader } from '../../components/BrandLoader';
 import { PaymentStatusCard } from '../../components/PaymentStatusCard';
 import { paymentService } from '../../services/paymentService';
 import tracker from '../../services/tracker';
-import { SUPPORT_PHONE } from '../../utils/constants';
 import {
   ArrowLeft,
   Share2,
@@ -35,9 +33,7 @@ import {
   Lock,
   Wallet,
   Tag,
-  Copy,
   Check,
-  Phone,
 } from 'lucide-react-native';
 
 const ORDER_STEPS = [
@@ -50,12 +46,33 @@ const ORDER_STEPS = [
   { key: 'delivered', label: 'Delivered', icon: Home },
 ];
 
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  placed: 'Order Confirmed',
+  confirmed: 'Order Confirmed',
+  pickup_assigned: 'Pickup Assigned',
+  assigned: 'Pickup Assigned',
+  driver_assigned: 'Pickup Assigned',
+  pickup_completed: 'Pickup Completed',
+  picked_up: 'Pickup Completed',
+  pickup_verified: 'Pickup Completed',
+  processing: 'Processing',
+  in_process: 'Processing',
+  ready: 'Ready for Delivery',
+  ready_for_delivery: 'Ready for Delivery',
+  out_for_delivery: 'Out for Delivery',
+  dispatched: 'Out for Delivery',
+  delivered: 'Delivered',
+  completed: 'Delivered',
+  cancelled: 'Cancelled',
+  refund_processed: 'Refunded',
+};
+
 const STATUS_TO_STEP_INDEX: Record<string, number> = {
-  placed: 1,
-  confirmed: 1,
-  pickup_assigned: 1,
-  assigned: 1,
-  driver_assigned: 1,
+  placed: 2,
+  confirmed: 2,
+  pickup_assigned: 2,
+  assigned: 2,
+  driver_assigned: 2,
   pickup_completed: 2,
   picked_up: 2,
   pickup_verified: 2,
@@ -71,7 +88,7 @@ const STATUS_TO_STEP_INDEX: Record<string, number> = {
 
 const getStepIndex = (status: string): number => {
   if (status === 'cancelled' || status === 'refund_processed') return 0;
-  return STATUS_TO_STEP_INDEX[status] ?? 1;
+  return STATUS_TO_STEP_INDEX[status] ?? 2;
 };
 
 const PulsingGlow = () => {
@@ -121,22 +138,6 @@ export const OrderDetailScreen: React.FC = () => {
   const [isLoadingBusySlots, setIsLoadingBusySlots] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
-  const [copiedToken, setCopiedToken] = useState(false);
-
-  const handleCopyToken = async () => {
-    if (!order?.tokenNumber) return;
-    try {
-      await Clipboard.setStringAsync(String(order.tokenNumber));
-      setCopiedToken(true);
-      setTimeout(() => setCopiedToken(false), 2000);
-    } catch (err) {
-      console.warn('Clipboard copy failed:', err);
-    }
-  };
-
-  const handleCallStore = () => {
-    Linking.openURL(`tel:${SUPPORT_PHONE.replace(/\s/g, '')}`);
-  };
 
   const DATES = Array.from({ length: 5 }, (_, i) => {
     const d = startOfToday();
@@ -281,7 +282,9 @@ export const OrderDetailScreen: React.FC = () => {
   const isCancelled = order.status === 'cancelled' || order.status === 'refund_processed';
   const isDelivered = order.status === 'delivered';
   const activeStepIndex = getStepIndex(order.status);
-  const statusLabel = isCancelled ? 'Cancelled' : ORDER_STEPS[activeStepIndex]?.label || order.status;
+  const statusLabel = isCancelled
+    ? 'Cancelled'
+    : ORDER_STATUS_LABELS[order.status] || ORDER_STEPS[activeStepIndex]?.label || order.status;
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -469,57 +472,6 @@ export const OrderDetailScreen: React.FC = () => {
             }
             return rows.length > 0 ? <>{rows}</> : null;
           })()}
-
-          {/* ═══════ STORE TOKEN CARD (Instant Hub / Store Lookup) ═══════ */}
-          {order.tokenNumber && (
-            <View style={styles.tokenCard}>
-              <View style={styles.tokenCardHeader}>
-                <View style={styles.tokenIconBadge}>
-                  <Tag size={20} color="#7C3AED" strokeWidth={2.4} />
-                </View>
-                <View style={styles.tokenInfoCol}>
-                  <Text style={styles.tokenCardLabel}>STORE TOKEN NUMBER</Text>
-                  <Text style={styles.tokenCardValue}>#{order.tokenNumber}</Text>
-                </View>
-                <View style={styles.tokenActionsRow}>
-                  <TouchableOpacity
-                    style={[styles.tokenCopyBtn, copiedToken && styles.tokenCopyBtnSuccess]}
-                    onPress={handleCopyToken}
-                    activeOpacity={0.7}
-                  >
-                    {copiedToken ? (
-                      <>
-                        <Check size={12} color="#059669" strokeWidth={2.6} />
-                        <Text style={styles.tokenCopySuccessText}>Copied</Text>
-                      </>
-                    ) : (
-                      <>
-                        <Copy size={12} color="#7C3AED" strokeWidth={2.4} />
-                        <Text style={styles.tokenCopyBtnText}>Copy</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.tokenCallBtn}
-                    onPress={handleCallStore}
-                    activeOpacity={0.7}
-                  >
-                    <Phone size={12} color="#FFFFFF" strokeWidth={2.4} />
-                    <Text style={styles.tokenCallBtnText}>Call Store</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.tokenDivider} />
-
-              <View style={styles.tokenHelperRow}>
-                <Text style={styles.tokenHelperText}>
-                  Your clothes are tagged with this token in our care facility. Quote{' '}
-                  <Text style={styles.tokenHelperBold}>Token #{order.tokenNumber}</Text> when calling store support for instant lookup.
-                </Text>
-              </View>
-            </View>
-          )}
 
           {/* ═══════ 1. ORDER STATUS TIMELINE ═══════ */}
           {!isCancelled && (
@@ -1027,118 +979,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 30,
     elevation: 5,
-  },
-  // ═══ STORE TOKEN CARD ═══
-  tokenCard: {
-    backgroundColor: '#FAF5FF',
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1.2,
-    borderColor: '#E9D5FF',
-    shadowColor: '#7C3AED',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  tokenCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  tokenIconBadge: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: '#EDE9FE',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  tokenInfoCol: {
-    flex: 1,
-  },
-  tokenCardLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#7C3AED',
-    letterSpacing: 1.2,
-    marginBottom: 2,
-    fontFamily: 'Outfit_700Bold',
-  },
-  tokenCardValue: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#1E1B4B',
-    fontFamily: 'Outfit_900Black',
-    letterSpacing: 0.2,
-  },
-  tokenActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  tokenCopyBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#DDD6FE',
-  },
-  tokenCopyBtnSuccess: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
-  },
-  tokenCopyBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#7C3AED',
-    fontFamily: 'Outfit_700Bold',
-  },
-  tokenCopySuccessText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#059669',
-    fontFamily: 'Outfit_700Bold',
-  },
-  tokenCallBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#7C3AED',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 14,
-  },
-  tokenCallBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    fontFamily: 'Outfit_700Bold',
-  },
-  tokenDivider: {
-    height: 1,
-    backgroundColor: '#EDE9FE',
-    marginVertical: 12,
-  },
-  tokenHelperRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  tokenHelperText: {
-    fontSize: 12,
-    color: '#6B7280',
-    lineHeight: 18,
-    fontFamily: 'Outfit_500Medium',
-  },
-  tokenHelperBold: {
-    fontWeight: '800',
-    color: '#1E1B4B',
-    fontFamily: 'Outfit_700Bold',
   },
   // ═══ CARD ═══
   card: {
